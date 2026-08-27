@@ -24,10 +24,25 @@ func startTimerNATSControl(conn *nats.Conn, service *timerservice.Service) ([]*n
 
 	routes := []struct {
 		subject string
+		queue   string
 		handler nats.MsgHandler
 	}{
 		{
+			subject: subjects.PlatformTimerStatsQuerySubject,
+			queue:   subjects.PlatformTimerStatsQueueGroup,
+			handler: func(msg *nats.Msg) {
+				stats, err := service.PlatformStats(context.Background())
+				if err != nil {
+					_ = msg.Respond([]byte(`{"error":"query failed"}`))
+					return
+				}
+				data, _ := json.Marshal(stats)
+				_ = msg.Respond(data)
+			},
+		},
+		{
 			subject: subjects.TimerExecutionStartedCommandSubject,
+			queue:   subjects.TimerExecutionControlQueueGroup,
 			handler: func(msg *nats.Msg) {
 				var req scheduledsdk.MarkExecutionStartedRequest
 				handleTimerNATSCommand(msg, &req, func(ctx context.Context) error {
@@ -37,6 +52,7 @@ func startTimerNATSControl(conn *nats.Conn, service *timerservice.Service) ([]*n
 		},
 		{
 			subject: subjects.TimerExecutionHeartbeatCommandSubject,
+			queue:   subjects.TimerExecutionControlQueueGroup,
 			handler: func(msg *nats.Msg) {
 				var req scheduledsdk.MarkExecutionHeartbeatRequest
 				handleTimerNATSCommand(msg, &req, func(ctx context.Context) error {
@@ -46,6 +62,7 @@ func startTimerNATSControl(conn *nats.Conn, service *timerservice.Service) ([]*n
 		},
 		{
 			subject: subjects.TimerExecutionFinishedCommandSubject,
+			queue:   subjects.TimerExecutionControlQueueGroup,
 			handler: func(msg *nats.Msg) {
 				var req scheduledsdk.MarkExecutionFinishedRequest
 				handleTimerNATSCommand(msg, &req, func(ctx context.Context) error {
@@ -57,7 +74,7 @@ func startTimerNATSControl(conn *nats.Conn, service *timerservice.Service) ([]*n
 
 	subs := make([]*nats.Subscription, 0, len(routes))
 	for _, route := range routes {
-		sub, err := conn.QueueSubscribe(route.subject, subjects.TimerExecutionControlQueueGroup, route.handler)
+		sub, err := conn.QueueSubscribe(route.subject, route.queue, route.handler)
 		if err != nil {
 			for _, existing := range subs {
 				_ = existing.Unsubscribe()

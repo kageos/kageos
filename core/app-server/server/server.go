@@ -55,6 +55,7 @@ type Server struct {
 	logArchiveWorker              *scheduledsdk.Worker
 	scheduledTaskReconciler       *service.ScheduledTaskReconciler
 	scheduledTaskReconcileCron    *cron.Cron
+	platformStatsSub              *nats.Subscription
 
 	// 上游服务
 	natsConnPool *service.NATSConnPool
@@ -104,8 +105,17 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 }
 
 // Start 启动服务器
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context) (startErr error) {
 	logger.Infof(ctx, "[Server] Starting app-server...")
+	if err := s.startPlatformStatsResponder(); err != nil {
+		return fmt.Errorf("start platform stats responder: %w", err)
+	}
+	defer func() {
+		if startErr != nil && s.platformStatsSub != nil {
+			_ = s.platformStatsSub.Unsubscribe()
+			s.platformStatsSub = nil
+		}
+	}()
 
 	if s.scheduledFuncWorker != nil {
 		if err := s.scheduledFuncWorker.Start(ctx); err != nil {
@@ -236,6 +246,10 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping server...")
 	var stopErr error
+	if s.platformStatsSub != nil {
+		_ = s.platformStatsSub.Unsubscribe()
+		s.platformStatsSub = nil
+	}
 	if s.scheduledTaskReconcileCron != nil {
 		cronStopped := s.scheduledTaskReconcileCron.Stop()
 		select {

@@ -84,6 +84,37 @@ func (s *AppDatabaseService) IsEnabled() bool {
 	return s != nil && s.cfg.Enabled
 }
 
+func (s *AppDatabaseService) CapacityStats(ctx context.Context) dto.SystemDatabaseCapacityStats {
+	stats := dto.SystemDatabaseCapacityStats{Databases: []dto.SystemDatabaseSize{}}
+	if !s.IsEnabled() {
+		return stats
+	}
+	var names []string
+	if err := s.db.WithContext(ctx).Model(&model.AppDatabase{}).Where("status = ?", appDBStatusActive).Pluck("database_name", &names).Error; err != nil {
+		return stats
+	}
+	if len(names) == 0 {
+		stats.Available = true
+		return stats
+	}
+	adminDB, err := s.openAdminDB()
+	if err != nil {
+		return stats
+	}
+	defer closeGORM(adminDB)
+	if err := adminDB.WithContext(ctx).Raw("SELECT table_schema AS name, COALESCE(SUM(data_length + index_length), 0) AS used_bytes FROM information_schema.tables WHERE table_schema IN ? GROUP BY table_schema ORDER BY used_bytes DESC", names).Scan(&stats.Databases).Error; err != nil {
+		return stats
+	}
+	stats.Available = true
+	for _, database := range stats.Databases {
+		stats.TotalBytes += database.UsedBytes
+	}
+	if len(stats.Databases) > 10 {
+		stats.Databases = stats.Databases[:10]
+	}
+	return stats
+}
+
 func (s *AppDatabaseService) IssueCapability(user, app, version, router string) (*dto.AppDBCapability, error) {
 	if !s.IsEnabled() {
 		return nil, nil

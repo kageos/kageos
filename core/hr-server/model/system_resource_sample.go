@@ -2,9 +2,7 @@ package model
 
 import "time"
 
-// SystemResourceSample stores a compact, long-lived operational history.
-// ComponentsJSON is a snapshot of the storage breakdown so the schema can grow
-// without a migration for each newly monitored storage category.
+// SystemResourceSample stores the compact ten-minute runtime rollup.
 type SystemResourceSample struct {
 	ID                uint64    `gorm:"primaryKey;autoIncrement"`
 	CollectedAt       time.Time `gorm:"column:collected_at;index;not null"`
@@ -15,10 +13,31 @@ type SystemResourceSample struct {
 	MemoryTotalBytes  uint64    `gorm:"column:memory_total_bytes;not null"`
 	MemoryUsedBytes   uint64    `gorm:"column:memory_used_bytes;not null"`
 	MemoryUsedPercent float64   `gorm:"column:memory_used_percent;not null"`
+	CPUUsedPercent    float64   `gorm:"column:cpu_used_percent;not null"`
+	CPUMaxPercent     float64   `gorm:"column:cpu_max_percent;not null"`
+	NetworkRxBytesPS  float64   `gorm:"column:network_rx_bytes_per_second;not null"`
+	NetworkTxBytesPS  float64   `gorm:"column:network_tx_bytes_per_second;not null"`
+	DiskReadBytesPS   float64   `gorm:"column:disk_read_bytes_per_second;not null"`
+	DiskWriteBytesPS  float64   `gorm:"column:disk_write_bytes_per_second;not null"`
 	Load1             float64   `gorm:"column:load_1;not null"`
-	ComponentsJSON    string    `gorm:"column:components_json;type:longtext"`
 }
 
 func (SystemResourceSample) TableName() string {
 	return "system_resource_samples"
 }
+
+type SystemCapacitySnapshot struct {
+	ID          uint64    `gorm:"primaryKey;autoIncrement"`
+	CollectedAt time.Time `gorm:"column:collected_at;index;not null"`
+	PayloadJSON string    `gorm:"column:payload_json;type:longtext;not null"`
+}
+
+func (SystemCapacitySnapshot) TableName() string { return "system_capacity_snapshots" }
+
+type SystemPlatformSnapshot struct {
+	ID          uint64    `gorm:"primaryKey;autoIncrement"`
+	CollectedAt time.Time `gorm:"column:collected_at;index;not null"`
+	PayloadJSON string    `gorm:"column:payload_json;type:longtext;not null"`
+}
+
+func (SystemPlatformSnapshot) TableName() string { return "system_platform_snapshots" }

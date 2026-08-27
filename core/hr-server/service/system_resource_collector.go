@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kageos/kageos/dto"
@@ -21,11 +22,14 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
+	gnet "github.com/shirou/gopsutil/v4/net"
 	"gopkg.in/yaml.v3"
 )
 
 type systemResourceCollector interface {
 	Collect() (dto.SystemResourceSnapshot, error)
+	CollectRuntime() (dto.SystemResourceSnapshot, error)
+	CollectCapacity(context.Context) (dto.SystemResourceSnapshot, error)
 }
 
 type commandOutputRunner func(ctx context.Context, name string, args ...string) ([]byte, error)
@@ -33,6 +37,12 @@ type commandOutputRunner func(ctx context.Context, name string, args ...string) 
 type localSystemResourceCollector struct {
 	now        func() time.Time
 	runCommand commandOutputRunner
+	counterMu  sync.Mutex
+	lastAt     time.Time
+	lastNetRx  uint64
+	lastNetTx  uint64
+	lastRead   uint64
+	lastWrite  uint64
 }
 
 func newLocalSystemResourceCollector() *localSystemResourceCollector {
@@ -40,6 +50,19 @@ func newLocalSystemResourceCollector() *localSystemResourceCollector {
 }
 
 func (c *localSystemResourceCollector) Collect() (dto.SystemResourceSnapshot, error) {
+	runtimeSnapshot, err := c.CollectRuntime()
+	if err != nil {
+		return dto.SystemResourceSnapshot{}, err
+	}
+	capacitySnapshot, err := c.CollectCapacity(context.Background())
+	if err != nil {
+		return dto.SystemResourceSnapshot{}, err
+	}
+	mergeCapacitySnapshot(&runtimeSnapshot, capacitySnapshot)
+	return runtimeSnapshot, nil
+}
+
+func (c *localSystemResourceCollector) CollectRuntime() (dto.SystemResourceSnapshot, error) {
 	environment, storageRoot := detectSystemEnvironment()
 	snapshot := dto.SystemResourceSnapshot{
 		CollectedAt: c.now().UTC(), OperatingSystem: runtime.GOOS, Architecture: runtime.GOARCH,
@@ -66,15 +89,34 @@ func (c *localSystemResourceCollector) Collect() (dto.SystemResourceSnapshot, er
 		snapshot.MemoryTotalBytes, snapshot.MemoryUsedBytes = memory.Total, memory.Used
 		snapshot.MemoryUsedPercent, snapshot.MemoryAvailable = memory.UsedPercent, true
 	}
+	if swap, err := mem.SwapMemory(); err == nil && swap != nil {
+		snapshot.SwapTotalBytes, snapshot.SwapUsedBytes, snapshot.SwapUsedPercent = swap.Total, swap.Used, swap.UsedPercent
+	}
 	primaryPool, err := collectStoragePool("primary", primaryPoolName(environment), storageRoot, true)
 	if err != nil {
 		return dto.SystemResourceSnapshot{}, fmt.Errorf("read storage filesystem %s: %w", storageRoot, err)
 	}
 	snapshot.StoragePools = append(snapshot.StoragePools, primaryPool)
 	copyPrimaryDiskFields(&snapshot, primaryPool)
-	snapshot.Components = collectLocalStorageComponents(storageRoot, "primary")
+	c.collectIOCounters(&snapshot)
+	return snapshot, nil
+}
+
+func (c *localSystemResourceCollector) CollectCapacity(ctx context.Context) (dto.SystemResourceSnapshot, error) {
+	environment, storageRoot := detectSystemEnvironment()
+	snapshot := dto.SystemResourceSnapshot{CollectedAt: c.now().UTC(), DiskMount: storageRoot, Environment: environment}
+	primaryPool, err := collectStoragePool("primary", primaryPoolName(environment), storageRoot, true)
+	if err != nil {
+		return dto.SystemResourceSnapshot{}, fmt.Errorf("read storage filesystem %s: %w", storageRoot, err)
+	}
+	snapshot.StoragePools = append(snapshot.StoragePools, primaryPool)
+	copyPrimaryDiskFields(&snapshot, primaryPool)
+	snapshot.Components = collectLocalStorageComponents(ctx, storageRoot, "primary")
+	if err := ctx.Err(); err != nil {
+		return dto.SystemResourceSnapshot{}, fmt.Errorf("capacity scan cancelled: %w", err)
+	}
 	if environment.Mode == "development" && environment.ContainerEngine != "none" {
-		engine := collectContainerEngineStorage(environment.ContainerEngine, c.runCommand)
+		engine := collectContainerEngineStorage(ctx, environment.ContainerEngine, c.runCommand)
 		if engine.available {
 			snapshot.Environment.ContainerRemote = engine.remote
 			snapshot.StoragePools = append(snapshot.StoragePools, engine.pool)
@@ -83,6 +125,58 @@ func (c *localSystemResourceCollector) Collect() (dto.SystemResourceSnapshot, er
 	}
 	appendUnclassifiedComponents(&snapshot)
 	return snapshot, nil
+}
+
+func (c *localSystemResourceCollector) collectIOCounters(snapshot *dto.SystemResourceSnapshot) {
+	var netRx, netTx, readBytes, writeBytes uint64
+	if counters, err := gnet.IOCounters(false); err == nil && len(counters) > 0 {
+		netRx, netTx = counters[0].BytesRecv, counters[0].BytesSent
+		snapshot.NetworkAvailable = true
+	}
+	if counters, err := disk.IOCounters(); err == nil {
+		snapshot.DiskIOAvailable = true
+		for _, counter := range counters {
+			readBytes += counter.ReadBytes
+			writeBytes += counter.WriteBytes
+		}
+	}
+	snapshot.NetworkRxBytes, snapshot.NetworkTxBytes = netRx, netTx
+	snapshot.DiskReadBytes, snapshot.DiskWriteBytes = readBytes, writeBytes
+	c.counterMu.Lock()
+	defer c.counterMu.Unlock()
+	if !c.lastAt.IsZero() {
+		seconds := snapshot.CollectedAt.Sub(c.lastAt).Seconds()
+		if seconds > 0 {
+			snapshot.NetworkRxBytesPS = counterRate(netRx, c.lastNetRx, seconds)
+			snapshot.NetworkTxBytesPS = counterRate(netTx, c.lastNetTx, seconds)
+			snapshot.DiskReadBytesPS = counterRate(readBytes, c.lastRead, seconds)
+			snapshot.DiskWriteBytesPS = counterRate(writeBytes, c.lastWrite, seconds)
+		}
+	}
+	c.lastAt, c.lastNetRx, c.lastNetTx = snapshot.CollectedAt, netRx, netTx
+	c.lastRead, c.lastWrite = readBytes, writeBytes
+}
+
+func counterRate(current, previous uint64, seconds float64) float64 {
+	if current < previous || seconds <= 0 {
+		return 0
+	}
+	return float64(current-previous) / seconds
+}
+
+func mergeCapacitySnapshot(target *dto.SystemResourceSnapshot, capacity dto.SystemResourceSnapshot) {
+	if target.DiskMount == "" {
+		target.DiskMount = capacity.DiskMount
+	}
+	target.Environment, target.StoragePools, target.Components = capacity.Environment, capacity.StoragePools, capacity.Components
+	target.DatabaseLogicalBytes, target.DatabaseSizeAvailable = capacity.DatabaseLogicalBytes, capacity.DatabaseSizeAvailable
+	target.LargestDatabases = capacity.LargestDatabases
+	for index := range target.StoragePools {
+		if target.StoragePools[index].Primary && target.DiskTotalBytes > 0 {
+			target.StoragePools[index].TotalBytes, target.StoragePools[index].UsedBytes = target.DiskTotalBytes, target.DiskUsedBytes
+			target.StoragePools[index].FreeBytes, target.StoragePools[index].UsedPercent = target.DiskFreeBytes, target.DiskUsedPercent
+		}
+	}
 }
 
 func detectSystemEnvironment() (dto.SystemEnvironmentInfo, string) {
@@ -182,7 +276,8 @@ func isRunningInContainer() bool {
 }
 
 func filesystemRoot() string {
-	volume := filepath.VolumeName(filepath.Clean(string(os.PathSeparator)))
+	cwd, _ := os.Getwd()
+	volume := filepath.VolumeName(cwd)
 	if volume == "" {
 		return string(os.PathSeparator)
 	}
@@ -203,7 +298,7 @@ func copyPrimaryDiskFields(snapshot *dto.SystemResourceSnapshot, pool dto.System
 	snapshot.DiskFreeBytes, snapshot.DiskUsedPercent = pool.FreeBytes, pool.UsedPercent
 }
 
-func collectLocalStorageComponents(root, poolKey string) []dto.SystemResourceComponent {
+func collectLocalStorageComponents(ctx context.Context, root, poolKey string) []dto.SystemResourceComponent {
 	definitions := []struct {
 		key, name string
 		dirs      []string
@@ -223,7 +318,7 @@ func collectLocalStorageComponents(root, poolKey string) []dto.SystemResourceCom
 			if !isDirectory(path) {
 				continue
 			}
-			if size, err := directorySize(path); err == nil {
+			if size, err := directorySize(ctx, path); err == nil {
 				component.UsedBytes += size
 				component.Available = true
 			}
@@ -241,8 +336,8 @@ type containerEngineStorage struct {
 	imageBytes  uint64
 }
 
-func collectContainerEngineStorage(engine string, run commandOutputRunner) containerEngineStorage {
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+func collectContainerEngineStorage(parent context.Context, engine string, run commandOutputRunner) containerEngineStorage {
+	ctx, cancel := context.WithTimeout(parent, 12*time.Second)
 	defer cancel()
 	result := containerEngineStorage{volumeSizes: map[string]uint64{}}
 	if engine == "podman" {
@@ -410,9 +505,12 @@ func isDirectory(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-func directorySize(root string) (uint64, error) {
+func directorySize(ctx context.Context, root string) (uint64, error) {
 	var size uint64
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			if path == root {
 				return walkErr

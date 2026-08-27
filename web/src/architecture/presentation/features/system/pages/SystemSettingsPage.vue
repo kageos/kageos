@@ -77,19 +77,36 @@
                 </article>
                 <article class="resource-summary-card">
                   <span class="resource-summary-label">{{ t('systemSettings.resources.cpuAndLoad') }}</span>
-                  <strong v-if="resourceOverview.current.load_available">
-                    {{ resourceOverview.current.load_1.toFixed(2) }} / {{ resourceOverview.current.load_5.toFixed(2) }} / {{ resourceOverview.current.load_15.toFixed(2) }}
-                  </strong>
-                  <strong v-else-if="resourceOverview.current.cpu_available">
+                  <strong v-if="resourceOverview.current.cpu_available">
                     {{ t('systemSettings.resources.cpuUsageValue', { value: roundedPercent(resourceOverview.current.cpu_used_percent) }) }}
                   </strong>
                   <strong v-else>{{ t('systemSettings.resources.unavailable') }}</strong>
-                  <small>{{ resourceOverview.current.load_available ? t('systemSettings.resources.loadHint') : t('systemSettings.resources.cpuUsageHint') }}</small>
+                  <small v-if="resourceOverview.current.load_available">{{ t('systemSettings.resources.loadCurrent', { one: resourceOverview.current.load_1.toFixed(2), five: resourceOverview.current.load_5.toFixed(2), fifteen: resourceOverview.current.load_15.toFixed(2) }) }}</small>
+                  <small v-else>{{ t('systemSettings.resources.cpuUsageHint') }}</small>
                 </article>
                 <article class="resource-summary-card">
                   <span class="resource-summary-label">{{ t('systemSettings.resources.host') }}</span>
                   <strong>{{ resourceOverview.current.hostname || '-' }}</strong>
                   <small>{{ resourceOverview.current.operating_system }} / {{ resourceOverview.current.architecture }} · {{ formatUptime(resourceOverview.current.uptime_seconds) }}</small>
+                </article>
+                <article class="resource-summary-card">
+                  <span class="resource-summary-label">{{ t('systemSettings.resources.network') }}</span>
+                  <strong v-if="resourceOverview.current.network_available">↓ {{ formatRate(resourceOverview.current.network_rx_bytes_per_second) }} · ↑ {{ formatRate(resourceOverview.current.network_tx_bytes_per_second) }}</strong>
+                  <strong v-else>{{ t('systemSettings.resources.unavailable') }}</strong>
+                  <small v-if="resourceOverview.current.network_available">{{ t('systemSettings.resources.networkTotal', { rx: formatBytes(resourceOverview.current.network_rx_bytes), tx: formatBytes(resourceOverview.current.network_tx_bytes) }) }}</small>
+                </article>
+                <article class="resource-summary-card">
+                  <span class="resource-summary-label">{{ t('systemSettings.resources.diskIO') }}</span>
+                  <strong v-if="resourceOverview.current.disk_io_available">↓ {{ formatRate(resourceOverview.current.disk_read_bytes_per_second) }} · ↑ {{ formatRate(resourceOverview.current.disk_write_bytes_per_second) }}</strong>
+                  <strong v-else>{{ t('systemSettings.resources.unavailable') }}</strong>
+                  <small v-if="resourceOverview.current.disk_io_available">{{ t('systemSettings.resources.diskIOTotal', { read: formatBytes(resourceOverview.current.disk_read_bytes), write: formatBytes(resourceOverview.current.disk_write_bytes) }) }}</small>
+                </article>
+                <article class="resource-summary-card">
+                  <span class="resource-summary-label">{{ t('systemSettings.resources.swap') }}</span>
+                  <strong v-if="resourceOverview.current.swap_total_bytes > 0">{{ formatBytes(resourceOverview.current.swap_used_bytes) }} / {{ formatBytes(resourceOverview.current.swap_total_bytes) }}</strong>
+                  <strong v-else>{{ t('systemSettings.resources.notConfigured') }}</strong>
+                  <el-progress v-if="resourceOverview.current.swap_total_bytes > 0" :percentage="roundedPercent(resourceOverview.current.swap_used_percent)" />
+                  <small>{{ t('systemSettings.resources.runtimeFrequency', { seconds: resourceOverview.runtime_interval_seconds, minutes: resourceOverview.sample_interval_minutes }) }}</small>
                 </article>
               </div>
 
@@ -118,6 +135,26 @@
               <div class="resource-panel">
                 <div class="resource-panel-heading">
                   <div>
+                    <h4>{{ t('systemSettings.resources.platformTitle') }}</h4>
+                    <p>{{ t('systemSettings.resources.platformDesc', { time: formatResourceTime(resourceOverview.platform.collected_at) }) }}</p>
+                  </div>
+                </div>
+                <div class="platform-metric-grid">
+                  <article class="platform-metric-card"><span>{{ t('systemSettings.resources.users') }}</span><strong>{{ resourceOverview.platform.users_total }}</strong><small>{{ t('systemSettings.resources.activeAndPending', { active: resourceOverview.platform.users_active, pending: resourceOverview.platform.users_pending }) }}</small></article>
+                  <article class="platform-metric-card"><span>{{ t('systemSettings.resources.workspaces') }}</span><strong>{{ resourceOverview.platform.app_stats_available ? resourceOverview.platform.workspaces_total : '-' }}</strong><small>{{ resourceOverview.platform.app_stats_available ? t('systemSettings.resources.enabledCount', { count: resourceOverview.platform.workspaces_enabled }) : t('systemSettings.resources.sourceUnavailable') }}</small></article>
+                  <article class="platform-metric-card"><span>{{ t('systemSettings.resources.serviceDirectories') }}</span><strong>{{ resourceOverview.platform.app_stats_available ? resourceOverview.platform.service_directories : '-' }}</strong><small>{{ resourceOverview.platform.app_stats_available ? t('systemSettings.resources.functionsCount', { count: resourceOverview.platform.functions_total }) : t('systemSettings.resources.sourceUnavailable') }}</small></article>
+                  <article class="platform-metric-card"><span>{{ t('systemSettings.resources.appDatabases') }}</span><strong>{{ resourceOverview.platform.runtime_stats_available ? resourceOverview.platform.app_databases_total : '-' }}</strong><small>{{ resourceOverview.current.database_size_available ? t('systemSettings.resources.logicalDatabaseSize', { value: formatBytes(resourceOverview.current.database_logical_bytes) }) : t('systemSettings.resources.databaseSizeUnavailable') }}</small></article>
+                  <article class="platform-metric-card"><span>{{ t('systemSettings.resources.scheduledTasks') }}</span><strong>{{ resourceOverview.platform.timer_stats_available ? resourceOverview.platform.scheduled_tasks_total : '-' }}</strong><small>{{ resourceOverview.platform.timer_stats_available ? t('systemSettings.resources.activeTasks', { count: resourceOverview.platform.scheduled_tasks_active }) : t('systemSettings.resources.sourceUnavailable') }}</small></article>
+                </div>
+                <el-table v-if="resourceOverview.current.largest_databases.length" :data="resourceOverview.current.largest_databases" size="small" class="database-size-table">
+                  <el-table-column prop="name" :label="t('systemSettings.resources.databaseName')" min-width="200" />
+                  <el-table-column :label="t('systemSettings.resources.logicalSize')" min-width="140"><template #default="{ row }">{{ formatBytes(row.used_bytes) }}</template></el-table-column>
+                </el-table>
+              </div>
+
+              <div class="resource-panel">
+                <div class="resource-panel-heading">
+                  <div>
                     <h4>{{ t('systemSettings.resources.historyTitle') }}</h4>
                     <p>{{ t('systemSettings.resources.historyDesc', { minutes: resourceOverview.sample_interval_minutes }) }}</p>
                   </div>
@@ -132,14 +169,36 @@
                     <line v-for="level in [25, 50, 75]" :key="level" x1="0" :y1="180 - level * 1.8" x2="800" :y2="180 - level * 1.8" class="chart-grid-line" />
                     <polyline :points="historyPolyline('disk_used_percent')" class="chart-line disk-line" />
                     <polyline :points="historyPolyline('memory_used_percent')" class="chart-line memory-line" />
+                    <polyline :points="historyPolyline('cpu_used_percent')" class="chart-line cpu-line" />
                   </svg>
                   <div class="chart-legend">
                     <span><i class="legend-dot disk-dot" />{{ t('systemSettings.resources.diskUsage') }}</span>
                     <span><i class="legend-dot memory-dot" />{{ t('systemSettings.resources.memoryUsage') }}</span>
+                    <span><i class="legend-dot cpu-dot" />{{ t('systemSettings.resources.cpuUsage') }}</span>
                     <span>{{ historyTimeRange }}</span>
+                  </div>
+                  <svg class="resource-chart rate-chart" viewBox="0 0 800 120" preserveAspectRatio="none" role="img" :aria-label="t('systemSettings.resources.networkTrend')">
+                    <polyline :points="historyRatePolyline('network_rx_bytes_per_second')" class="chart-line network-rx-line" />
+                    <polyline :points="historyRatePolyline('network_tx_bytes_per_second')" class="chart-line network-tx-line" />
+                  </svg>
+                  <div class="chart-legend">
+                    <span><i class="legend-dot network-rx-dot" />{{ t('systemSettings.resources.networkDownload') }}</span>
+                    <span><i class="legend-dot network-tx-dot" />{{ t('systemSettings.resources.networkUpload') }}</span>
+                    <span>{{ t('systemSettings.resources.networkTrendScale') }}</span>
                   </div>
                 </div>
                 <el-empty v-else :description="t('systemSettings.resources.historyCollecting')" />
+              </div>
+              <div class="resource-panel">
+                <div class="resource-panel-heading"><div><h4>{{ t('systemSettings.resources.collectionTitle') }}</h4><p>{{ t('systemSettings.resources.collectionDesc') }}</p></div></div>
+                <el-table :data="resourceOverview.collection_tasks" size="small">
+                  <el-table-column :label="t('systemSettings.resources.collectionTask')" min-width="150"><template #default="{ row }">{{ collectionTaskName(row.key) }}</template></el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.collectionStatus')" width="110"><template #default="{ row }"><el-tag :type="collectionStatusType(row.status)" size="small">{{ collectionStatusLabel(row.status) }}</el-tag></template></el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.lastSuccess')" min-width="180"><template #default="{ row }">{{ row.last_succeeded_at ? formatResourceTime(row.last_succeeded_at) : '-' }}</template></el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.nextCollection')" min-width="180"><template #default="{ row }">{{ row.next_run_at ? formatResourceTime(row.next_run_at) : '-' }}</template></el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.collectionDuration')" width="120"><template #default="{ row }">{{ formatDurationMillis(row.duration_millis) }}</template></el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.collectionResult')" min-width="180"><template #default="{ row }"><span :class="{ 'collection-error': row.error }">{{ collectionResult(row.error) }}</span></template></el-table-column>
+                </el-table>
               </div>
 
               <div class="resource-panel">
@@ -488,7 +547,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -548,6 +607,8 @@ const archiveTimezone = ref('Asia/Shanghai')
 const resourcesLoading = ref(false)
 const resourceOverview = ref<SystemResourceOverview | null>(null)
 const resourceHistoryHours = ref(168)
+let resourceRefreshTimer: ReturnType<typeof setInterval> | undefined
+let lastFullResourceRefreshAt = 0
 const providersLoading = ref(false)
 const announcementSaving = ref(false)
 const authProviders = ref<AuthLoginProviderInfo[]>([])
@@ -810,10 +871,33 @@ async function loadResources() {
   resourcesLoading.value = true
   try {
     resourceOverview.value = await getSystemResourceOverview(resourceHistoryHours.value)
+    lastFullResourceRefreshAt = Date.now()
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.resources.loadFailed'))
   } finally {
     resourcesLoading.value = false
+  }
+}
+
+async function refreshResourcesSilently() {
+  if (activeTab.value !== 'operations' || resourcesLoading.value) return
+  try {
+    const previous = resourceOverview.value
+    const includeHistory = !previous || Date.now() - lastFullResourceRefreshAt >= 10 * 60_000
+    const latest = await getSystemResourceOverview(resourceHistoryHours.value, includeHistory)
+    if (includeHistory || !previous) {
+      resourceOverview.value = latest
+      lastFullResourceRefreshAt = Date.now()
+    } else {
+      resourceOverview.value = {
+        ...latest,
+        history: previous.history,
+        history_hours: previous.history_hours,
+        forecast: previous.forecast
+      }
+    }
+  } catch {
+    // Keep the last successful snapshot; the explicit refresh path reports errors.
   }
 }
 
@@ -827,6 +911,10 @@ function formatBytes(value: number) {
     unit += 1
   }
   return `${amount.toFixed(unit === 0 ? 0 : amount >= 100 ? 0 : 1)} ${units[unit]}`
+}
+
+function formatRate(value: number) {
+  return `${formatBytes(value)}/s`
 }
 
 function roundedPercent(value: number) {
@@ -866,7 +954,7 @@ function formatResourceTime(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
-function historyPolyline(key: keyof Pick<SystemResourceHistoryPoint, 'disk_used_percent' | 'memory_used_percent'>) {
+function historyPolyline(key: keyof Pick<SystemResourceHistoryPoint, 'disk_used_percent' | 'memory_used_percent' | 'cpu_used_percent'>) {
   const history = resourceOverview.value?.history || []
   if (history.length < 2) return ''
   return history.map((point, index) => {
@@ -874,6 +962,48 @@ function historyPolyline(key: keyof Pick<SystemResourceHistoryPoint, 'disk_used_
     const y = 180 - Math.min(100, Math.max(0, point[key])) * 1.8
     return `${x.toFixed(1)},${y.toFixed(1)}`
   }).join(' ')
+}
+
+function historyRatePolyline(key: keyof Pick<SystemResourceHistoryPoint, 'network_rx_bytes_per_second' | 'network_tx_bytes_per_second'>) {
+  const history = resourceOverview.value?.history || []
+  if (history.length < 2) return ''
+  const max = Math.max(1, ...history.flatMap(point => [point.network_rx_bytes_per_second, point.network_tx_bytes_per_second]))
+  return history.map((point, index) => {
+    const x = index * 800 / (history.length - 1)
+    const y = 120 - Math.min(1, Math.max(0, point[key] / max)) * 112
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+}
+
+function collectionTaskName(key: string) {
+  return t(`systemSettings.resources.collectionTasks.${key}`)
+}
+
+function collectionStatusLabel(status: string) {
+  return t(`systemSettings.resources.collectionStatuses.${status}`)
+}
+
+function collectionStatusType(status: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (status === 'success') return 'success'
+  if (status === 'running' || status === 'partial') return 'warning'
+  if (status === 'failed') return 'danger'
+  return 'info'
+}
+
+function collectionResult(error?: string) {
+  if (!error) return t('systemSettings.resources.collectionNormal')
+  const knownErrors: Record<string, string> = {
+    'one or more platform metric sources are unavailable': 'platformSourceUnavailable',
+    'application database metric source is unavailable': 'databaseSourceUnavailable',
+    'runtime metrics collected but history persistence failed': 'runtimePersistenceFailed'
+  }
+  const key = knownErrors[error]
+  return key ? t(`systemSettings.resources.collectionErrors.${key}`) : error
+}
+
+function formatDurationMillis(value: number) {
+  if (value < 1000) return `${value} ms`
+  return `${(value / 1000).toFixed(1)} s`
 }
 
 async function loadArchives() {
@@ -1162,6 +1292,11 @@ onMounted(() => {
   } else {
     handleTabChange(activeTab.value)
   }
+  resourceRefreshTimer = setInterval(refreshResourcesSilently, 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (resourceRefreshTimer) clearInterval(resourceRefreshTimer)
 })
 </script>
 
@@ -1601,6 +1736,28 @@ onMounted(() => {
 .storage-pool-amount { color: var(--text-primary); font-size: 16px; }
 .storage-pool-card small { color: var(--text-secondary); }
 
+.platform-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.platform-metric-card {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-secondary);
+}
+
+.platform-metric-card span,
+.platform-metric-card small { color: var(--text-secondary); font-size: 12px; }
+.platform-metric-card strong { color: var(--text-primary); font-size: 24px; }
+.database-size-table { margin-top: 8px; }
+.collection-error { color: var(--el-color-danger); }
+
 .resource-panel-heading {
   display: flex;
   align-items: flex-start;
@@ -1626,6 +1783,10 @@ onMounted(() => {
 
 .disk-line { stroke: var(--el-color-primary); }
 .memory-line { stroke: var(--el-color-warning); }
+.cpu-line { stroke: var(--el-color-success); }
+.network-rx-line { stroke: var(--el-color-primary); }
+.network-tx-line { stroke: var(--el-color-danger); }
+.rate-chart { height: 120px; margin-top: 22px; border-top: 1px solid var(--border-light); }
 
 .chart-legend {
   display: flex;
@@ -1640,6 +1801,9 @@ onMounted(() => {
 .legend-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
 .disk-dot { background: var(--el-color-primary); }
 .memory-dot { background: var(--el-color-warning); }
+.cpu-dot { background: var(--el-color-success); }
+.network-rx-dot { background: var(--el-color-primary); }
+.network-tx-dot { background: var(--el-color-danger); }
 .resource-collected-at { margin: -6px 0 0; text-align: right; font-size: 12px; }
 
 @media (max-width: 768px) {

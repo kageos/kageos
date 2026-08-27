@@ -29,7 +29,8 @@ func (s *SystemSettings) GetResources(c *gin.Context) {
 			hours = parsed
 		}
 	}
-	overview, err := s.resourceService.Overview(hours)
+	includeHistory := c.DefaultQuery("include_history", "true") != "false"
+	overview, err := s.resourceService.Overview(hours, includeHistory)
 	if err != nil {
 		response.FailWithMessage(c, "获取系统资源状态失败: "+err.Error())
 		return

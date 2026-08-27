@@ -236,7 +236,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.authOAuthService = service.NewAuthOAuthService(s.authService, s.authProviderService, authOAuthStateRepo, authOAuthRegistrationIntentRepo, authExternalIdentityRepo, userRepo)
 	s.authWechatService = service.NewAuthWechatOfficialService(s.authProviderService, authWechatAttemptRepo, s.authOAuthService)
 	s.settingsService = service.NewSystemSettingsService(settingRepo)
-	s.resourceService = service.NewSystemResourceService(resourceRepo)
+	s.resourceService = service.NewSystemResourceService(resourceRepo, s.natsConn)
 
 	// 初始化邮件服务
 	s.emailService = service.NewEmailService(emailCodeRepo, s.settingsService)

@@ -56,6 +56,28 @@ func TestServiceDefaultQueuedPickupWindowIsOneHour(t *testing.T) {
 	}
 }
 
+func TestPlatformStatsCountsTotalAndActiveTasks(t *testing.T) {
+	now := time.Date(2026, 8, 27, 10, 0, 0, 0, time.UTC)
+	svc, db := newTestService(t, &now)
+	for _, status := range []scheduledsdk.TaskStatus{
+		scheduledsdk.TaskStatusPending,
+		scheduledsdk.TaskStatusPaused,
+		scheduledsdk.TaskStatusDone,
+	} {
+		task := model.TimerTask{Title: string(status), ExecutorKey: "test", ScheduleType: "manual", Status: string(status)}
+		if err := db.Create(&task).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	stats, err := svc.PlatformStats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.ScheduledTasksTotal != 3 || stats.ScheduledTasksActive != 1 {
+		t.Fatalf("timer platform stats = %+v", stats)
+	}
+}
+
 func TestServiceCreateTaskSupportsPausedInitialStatus(t *testing.T) {
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
 	svc, _ := newTestService(t, &now)

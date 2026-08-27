@@ -71,14 +71,6 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <div class="resource-access-indicator" :class="{ 'is-admin': hasAdminAccess }">
-          <el-icon><Lock v-if="!hasAdminAccess" /><UserFilled v-else /></el-icon>
-          <span>当前权限：{{ currentRoleLabel }}</span>
-          <span class="resource-manager-summary" :title="resourceManagerTitle">
-            管理者：{{ resourceManagerSummary }}
-          </span>
-          <el-button link type="primary" @click="openPermissionManagement">权限管理</el-button>
-        </div>
         <!-- 新增按钮：不支持时展示禁用态，避免误以为缺按钮 -->
         <el-button 
           :type="hasAddCallback ? 'primary' : 'default'"
@@ -480,7 +472,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElTable, ElForm, ElFormItem, ElButton, ElSkeleton, ElMessage } from 'element-plus'
-import { Search, Refresh, RefreshLeft, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, FolderOpened, DocumentAdd, Upload, Download, Lock, UserFilled } from '@element-plus/icons-vue'
+import { Search, Refresh, RefreshLeft, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, FolderOpened, DocumentAdd, Upload, Download } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
@@ -614,40 +606,6 @@ const spreadsheetExportBlocks = computed<TableExportChunk[] | undefined>(() => (
 const recycleBinTab = 'recycle-bin'
 
 const hasAdminAccess = computed(() => canAdmin(props.currentFunction))
-const currentRoleLabel = computed(() => {
-  const roles = props.currentFunction?.role_codes || []
-  if (roles.includes('owner') || props.currentFunction?.permissions?.owner) return 'Owner'
-  if (roles.includes('admin') || props.currentFunction?.permissions?.admin) return 'Admin'
-  if (roles.includes('member')) return 'Member'
-  if (roles.includes('viewer')) return 'Viewer'
-  return '未识别'
-})
-const resourceManagerSummary = computed(() => {
-  const owner = String(props.currentFunction?.owner || '').trim()
-  const admins = String(props.currentFunction?.admins || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-  if (owner && admins.length > 0) return `${owner} + ${admins.length} Admin`
-  if (owner) return owner
-  if (admins.length > 0) return `${admins[0]}${admins.length > 1 ? ` + ${admins.length - 1}` : ''}`
-  return '在权限管理中查看'
-})
-const resourceManagerTitle = computed(() => {
-  const owner = String(props.currentFunction?.owner || '').trim() || '未单独标注'
-  const admins = String(props.currentFunction?.admins || '').trim() || '请在权限管理中查看完整授权成员'
-  return `Owner：${owner}\nAdmin：${admins}`
-})
-
-const openPermissionManagement = () => {
-  void router.push({
-    path: '/permissions',
-    query: {
-      resource: props.currentFunction?.full_code_path || props.functionDetail.router || '',
-      ...(!hasAdminAccess.value ? { mode: 'request' } : {})
-    }
-  })
-}
 
 const openRecycleBin = () => {
   if (!hasAdminAccess.value) {
@@ -1021,39 +979,6 @@ useTableViewLifecycle({
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.resource-access-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 6px 0 10px;
-  border: 1px solid var(--el-color-warning-light-5);
-  border-radius: 8px;
-  background: var(--el-color-warning-light-9);
-  color: var(--el-text-color-regular);
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.resource-access-indicator.is-admin {
-  border-color: var(--el-color-success-light-5);
-  background: var(--el-color-success-light-9);
-}
-
-.resource-access-indicator :deep(.el-button) {
-  height: 28px;
-  padding: 0 6px;
-}
-
-.resource-manager-summary {
-  max-width: 210px;
-  padding-left: 8px;
-  border-left: 1px solid var(--app-shell-panel-border);
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .permission-gated-control {

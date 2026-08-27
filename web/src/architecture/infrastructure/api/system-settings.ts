@@ -177,6 +177,19 @@ export interface SystemResourceSnapshot {
   memory_used_bytes: number
   memory_used_percent: number
   memory_available: boolean
+  swap_total_bytes: number
+  swap_used_bytes: number
+  swap_used_percent: number
+  network_rx_bytes: number
+  network_tx_bytes: number
+  network_available: boolean
+  network_rx_bytes_per_second: number
+  network_tx_bytes_per_second: number
+  disk_read_bytes: number
+  disk_write_bytes: number
+  disk_io_available: boolean
+  disk_read_bytes_per_second: number
+  disk_write_bytes_per_second: number
   disk_mount: string
   disk_total_bytes: number
   disk_used_bytes: number
@@ -185,6 +198,9 @@ export interface SystemResourceSnapshot {
   environment: SystemEnvironmentInfo
   storage_pools: SystemStoragePool[]
   components: SystemResourceComponent[]
+  database_logical_bytes: number
+  database_size_available: boolean
+  largest_databases: SystemDatabaseSize[]
 }
 
 export interface SystemResourceHistoryPoint {
@@ -192,7 +208,45 @@ export interface SystemResourceHistoryPoint {
   disk_used_bytes: number
   disk_used_percent: number
   memory_used_percent: number
+  cpu_used_percent: number
+  cpu_max_percent: number
+  network_rx_bytes_per_second: number
+  network_tx_bytes_per_second: number
+  disk_read_bytes_per_second: number
+  disk_write_bytes_per_second: number
   load_1: number
+}
+
+export interface SystemDatabaseSize {
+  name: string
+  used_bytes: number
+}
+
+export interface SystemPlatformMetrics {
+  collected_at: string
+  users_total: number
+  users_active: number
+  users_pending: number
+  workspaces_total: number
+  workspaces_enabled: number
+  service_directories: number
+  functions_total: number
+  app_databases_total: number
+  scheduled_tasks_total: number
+  scheduled_tasks_active: number
+  app_stats_available: boolean
+  runtime_stats_available: boolean
+  timer_stats_available: boolean
+}
+
+export interface SystemCollectionTaskStatus {
+  key: 'runtime' | 'platform' | 'capacity' | string
+  status: 'pending' | 'running' | 'success' | 'partial' | 'failed' | string
+  last_started_at?: string
+  last_succeeded_at?: string
+  next_run_at?: string
+  duration_millis: number
+  error?: string
 }
 
 export interface StorageExpansionForecast {
@@ -211,6 +265,9 @@ export interface SystemResourceOverview {
   history_hours: number
   sample_interval_minutes: number
   forecast: StorageExpansionForecast
+  platform: SystemPlatformMetrics
+  collection_tasks: SystemCollectionTaskStatus[]
+  runtime_interval_seconds: number
 }
 
 export function getSystemSettings() {
@@ -269,6 +326,9 @@ export function listLogArchiveBatches(page = 1, pageSize = 20) {
   return get<ListLogArchiveBatchesResp>('/workspace/api/v1/system/log_archives', { page, page_size: pageSize })
 }
 
-export function getSystemResourceOverview(hours = 24 * 7) {
-  return get<SystemResourceOverview>('/hr/api/v1/system/settings/resources', { hours })
+export function getSystemResourceOverview(hours = 24 * 7, includeHistory = true) {
+  return get<SystemResourceOverview>('/hr/api/v1/system/settings/resources', {
+    hours,
+    include_history: includeHistory
+  })
 }

@@ -20,6 +20,8 @@ func InitModels(db *gorm.DB) error {
 		// 第一层：基础表（不被其他表引用）
 		&SystemSetting{},
 		&SystemResourceSample{},
+		&SystemCapacitySnapshot{},
+		&SystemPlatformSnapshot{},
 		&AuthLoginProvider{},
 		&AuthOAuthState{},
 		&AuthOAuthRegistrationIntent{},

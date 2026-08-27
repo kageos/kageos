@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
 	"github.com/kageos/kageos/pkg/natsx"
+	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
 )
@@ -319,6 +321,30 @@ func (s *Server) subscribeNATS(ctx context.Context) error {
 	if err := RegisterNATS(ctx, s.natsConn, &s.subscriptions, appH, workspaceChangeH, workspaceH, requestH, appDatabaseH); err != nil {
 		return err
 	}
+	statsSub, err := s.natsConn.QueueSubscribe(subjects.PlatformRuntimeStatsQuerySubject, subjects.PlatformRuntimeStatsQueueGroup, func(msg *nats.Msg) {
+		stats, err := collectRuntimePlatformStats(s.db)
+		if err != nil {
+			_ = msg.Respond([]byte(`{"error":"query failed"}`))
+			return
+		}
+		data, _ := json.Marshal(stats)
+		_ = msg.Respond(data)
+	})
+	if err != nil {
+		return err
+	}
+	s.subscriptions = append(s.subscriptions, statsSub)
+	databaseStatsSub, err := s.natsConn.QueueSubscribe(subjects.PlatformDatabaseStatsQuerySubject, subjects.PlatformDatabaseStatsQueueGroup, func(msg *nats.Msg) {
+		stats := s.appDatabaseService.CapacityStats(context.Background())
+		data, _ := json.Marshal(stats)
+		_ = msg.Respond(data)
+	})
+	if err != nil {
+		_ = statsSub.Unsubscribe()
+		s.subscriptions = s.subscriptions[:len(s.subscriptions)-1]
+		return err
+	}
+	s.subscriptions = append(s.subscriptions, databaseStatsSub)
 	// Runtime 生命周期事件主题由 AppDiscoveryService 统一处理，不需要在此订阅
 	return nil
 }

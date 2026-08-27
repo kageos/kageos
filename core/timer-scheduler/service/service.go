@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kageos/kageos/core/timer-scheduler/model"
 	"github.com/kageos/kageos/core/timer-scheduler/repository"
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/auth"
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
@@ -60,6 +61,17 @@ type Service struct {
 	outboxRepo    *repository.TimerOutboxRepository
 	now           func() time.Time
 	opts          Options
+}
+
+func (s *Service) PlatformStats(ctx context.Context) (dto.SystemPlatformServiceStats, error) {
+	stats := dto.SystemPlatformServiceStats{}
+	if err := s.db.WithContext(ctx).Model(&model.TimerTask{}).Count(&stats.ScheduledTasksTotal).Error; err != nil {
+		return stats, err
+	}
+	if err := s.db.WithContext(ctx).Model(&model.TimerTask{}).Where("status = ?", scheduledsdk.TaskStatusPending).Count(&stats.ScheduledTasksActive).Error; err != nil {
+		return stats, err
+	}
+	return stats, nil
 }
 
 func NewService(db *gorm.DB, opts Options) *Service {

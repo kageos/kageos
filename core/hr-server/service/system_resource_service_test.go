@@ -15,7 +15,7 @@ func TestCollectStorageComponentsReportsKnownDirectories(t *testing.T) {
 	writeSizedFile(t, filepath.Join(root, "mysql", "database.bin"), 1024)
 	writeSizedFile(t, filepath.Join(root, "namespace", "alice", "app", "release.bin"), 2048)
 
-	components := collectLocalStorageComponents(root, "primary")
+	components := collectLocalStorageComponents(context.Background(), root, "primary")
 	byKey := make(map[string]dto.SystemResourceComponent, len(components))
 	for _, component := range components {
 		byKey[component.Key] = component
@@ -80,14 +80,14 @@ func TestCollectContainerEngineStorageKeepsKnownUsageWhenCapacityIsUnavailable(t
 		return nil, os.ErrNotExist
 	}
 
-	engine := collectContainerEngineStorage("docker", runner)
+	engine := collectContainerEngineStorage(context.Background(), "docker", runner)
 	if !engine.available || engine.pool.Key != "container_engine" || engine.pool.Available {
 		t.Fatalf("docker storage detection = %+v", engine)
 	}
 	if engine.pool.UsedBytes != 1280 {
 		t.Fatalf("known docker usage = %d, want 1280", engine.pool.UsedBytes)
 	}
-	components := collectLocalStorageComponents(t.TempDir(), "primary")
+	components := collectLocalStorageComponents(context.Background(), t.TempDir(), "primary")
 	overlayEngineComponents(&components, engine)
 	for _, component := range components {
 		if component.Key == "mysql" && (!component.Available || component.PoolKey != "container_engine" || component.UsedBytes != 0) {
@@ -134,6 +134,68 @@ func TestBuildStorageForecastUsesMostConstrainedStoragePool(t *testing.T) {
 	}, nil)
 	if forecast.Status != "critical" || forecast.PoolKey != "container_engine" || forecast.CurrentUsedPercent != 92 {
 		t.Fatalf("forecast = %+v, want critical container engine storage", forecast)
+	}
+}
+
+func TestRuntimeAccumulatorBuildsTenMinuteRollup(t *testing.T) {
+	var accumulator runtimeAccumulator
+	accumulator.Add(dto.SystemResourceSnapshot{CollectedAt: time.Unix(1, 0), CPUUsedPercent: 20, NetworkRxBytesPS: 100, DiskReadBytesPS: 40})
+	accumulator.Add(dto.SystemResourceSnapshot{CollectedAt: time.Unix(2, 0), CPUUsedPercent: 60, NetworkRxBytesPS: 300, DiskReadBytesPS: 80})
+	sample := accumulator.Sample()
+	if sample.CPUUsedPercent != 40 || sample.CPUMaxPercent != 60 {
+		t.Fatalf("cpu rollup = avg %.1f max %.1f", sample.CPUUsedPercent, sample.CPUMaxPercent)
+	}
+	if sample.NetworkRxBytesPS != 200 || sample.DiskReadBytesPS != 60 {
+		t.Fatalf("io rollup = network %.1f disk %.1f", sample.NetworkRxBytesPS, sample.DiskReadBytesPS)
+	}
+}
+
+func TestNextDailyRunUsesNextLocal0230(t *testing.T) {
+	location := time.FixedZone("test", 8*60*60)
+	before := time.Date(2026, 8, 27, 1, 0, 0, 0, location)
+	if got := nextDailyRun(before, 2, 30); !got.Equal(time.Date(2026, 8, 27, 2, 30, 0, 0, location)) {
+		t.Fatalf("next run before schedule = %v", got)
+	}
+	after := time.Date(2026, 8, 27, 3, 0, 0, 0, location)
+	if got := nextDailyRun(after, 2, 30); !got.Equal(time.Date(2026, 8, 28, 2, 30, 0, 0, location)) {
+		t.Fatalf("next run after schedule = %v", got)
+	}
+}
+
+func TestDecodePlatformStatsRejectsErrorEnvelope(t *testing.T) {
+	if _, ok := decodePlatformStats([]byte(`{"error":"query failed"}`)); ok {
+		t.Fatal("error response must not be accepted as platform stats")
+	}
+	stats, ok := decodePlatformStats([]byte(`{"workspaces_total":3,"functions_total":8}`))
+	if !ok || stats.WorkspacesTotal != 3 || stats.FunctionsTotal != 8 {
+		t.Fatalf("decoded platform stats = %+v, available=%v", stats, ok)
+	}
+}
+
+func TestDecodeDatabaseStatsDistinguishesDisabledFromUnavailable(t *testing.T) {
+	stats, ok := decodeDatabaseStats([]byte(`{"available":false,"total_bytes":0,"databases":[]}`))
+	if !ok || stats.Available {
+		t.Fatalf("disabled database stats = %+v, source available=%v", stats, ok)
+	}
+	if _, ok := decodeDatabaseStats([]byte(`{"error":"query failed"}`)); ok {
+		t.Fatal("error response must not be accepted as database stats")
+	}
+}
+
+func TestOverviewCanSkipHistoricalQueryForLiveRefresh(t *testing.T) {
+	now := time.Now().UTC()
+	service := &SystemResourceService{
+		lastRuntime:  &dto.SystemResourceSnapshot{CollectedAt: now, DiskTotalBytes: 100, DiskUsedBytes: 40, DiskFreeBytes: 60, DiskUsedPercent: 40},
+		lastCapacity: &dto.SystemResourceSnapshot{CollectedAt: now},
+		lastPlatform: &dto.SystemPlatformMetrics{CollectedAt: now},
+		tasks:        map[string]dto.SystemCollectionTaskStatus{},
+	}
+	overview, err := service.Overview(24*30, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(overview.History) != 0 || overview.HistoryHours != 24*30 {
+		t.Fatalf("lightweight overview history = %d points, %d hours", len(overview.History), overview.HistoryHours)
 	}
 }
 
