@@ -74,7 +74,7 @@
         <div v-if="total > pageSize" class="scheduled-pagination">
           <el-pagination
             v-model:current-page="page"
-            small
+            size="small"
             :page-size="pageSize"
             :total="total"
             layout="prev, pager, next"
@@ -184,7 +184,7 @@
                   class="execution-pagination"
                 >
                   <el-pagination
-                    small
+                    size="small"
                     :current-page="selectedExecutionState.page"
                     :page-size="selectedExecutionState.pageSize"
                     :total="selectedExecutionState.total"

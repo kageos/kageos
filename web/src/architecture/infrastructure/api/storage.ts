@@ -24,6 +24,10 @@ export interface ResolvedFile {
   thumbnail_url?: string
   server_thumbnail_url?: string
   preview_kind?: string
+  status?: string
+  can_delete?: boolean
+  deleted_at?: number
+  deleted_by?: string
   error?: string
 }
 
@@ -66,4 +70,27 @@ export async function updateFileDescription(
     ref,
     description,
   })
+}
+
+export interface DeleteFileRefResult {
+  ref: string
+  status: 'deleted' | 'already_deleted' | 'failed'
+  released_bytes?: number
+  deleted_at?: number
+  deleted_by?: string
+  error?: string
+}
+
+export interface DeleteFileRefsResult {
+  results: DeleteFileRefResult[]
+  deleted_count: number
+  released_bytes: number
+}
+
+export async function deleteFileRefs(refs: string[]): Promise<DeleteFileRefsResult> {
+  const cleanRefs = Array.from(new Set(refs.map(ref => ref.trim()).filter(Boolean)))
+  if (cleanRefs.length === 0) {
+    return { results: [], deleted_count: 0, released_bytes: 0 }
+  }
+  return post<DeleteFileRefsResult>('/storage/api/v1/files/delete', { refs: cleanRefs })
 }

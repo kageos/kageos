@@ -148,12 +148,15 @@ packageContext.POST("meeting_room_notify_soon.form", NotifySoon, &app.FormTempla
         {
             Code:             "meeting_reminder_soon",
             Title:            "会议即将开始提醒",
+            Enabled:          true,
             CronExpr:         "*/2 * * * *",
             Body:             map[string]any{"lead_minutes": 5},
         },
     },
 })
 ```
+
+普通 `FormSchedule` 是安装后即可运行的确定性业务自动化，必须显式写 `Enabled: true`；不要省略该字段，也不要把普通定时函数出厂设为暂停。只有成本更高、需要用户确认后再运行的数字员工 `AgentTask` 可以显式写 `Enabled: false`，由用户在平台中自行开启。用户后续手工暂停或开启形成的运行态状态不应被代码更新覆盖。
 
 单 Form 完整示例：`read_doc("/system/prompt/case_catalog/form/excelorcsv")`。
 

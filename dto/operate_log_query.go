@@ -4,31 +4,32 @@ import "encoding/json"
 
 // GetOperateLogsReq 查询通用操作日志请求。
 type GetOperateLogsReq struct {
-	ID                 int64  `json:"id" form:"id"`
-	TenantUser         string `json:"tenant_user" form:"tenant_user"`
-	ActorUser          string `json:"actor_user" form:"actor_user"`
-	TargetUser         string `json:"target_user" form:"target_user"`
-	App                string `json:"app" form:"app"`
-	ResourceType       string `json:"resource_type" form:"resource_type"`
-	ResourcePath       string `json:"resource_path" form:"resource_path"`
-	ResourcePathPrefix string `json:"resource_path_prefix" form:"resource_path_prefix"`
-	Action             string `json:"action" form:"action"`
-	Status             string `json:"status" form:"status"`
-	Source             string `json:"source" form:"source"`
-	SourceType         string `json:"source_type" form:"source_type"`
-	SourceRef          string `json:"source_ref" form:"source_ref"`
-	ExecutorType       string `json:"executor_type" form:"executor_type"`
-	WorkspaceSessionID string `json:"workspace_session_id" form:"workspace_session_id"`
-	InitiatorUser      string `json:"initiator_user" form:"initiator_user"`
-	WorkspaceMessageID int64  `json:"workspace_message_id" form:"workspace_message_id"`
-	ToolCallID         string `json:"tool_call_id" form:"tool_call_id"`
-	ToolName           string `json:"tool_name" form:"tool_name"`
-	TraceID            string `json:"trace_id" form:"trace_id"`
-	RowID              int64  `json:"row_id" form:"row_id"`
-	Keyword            string `json:"keyword" form:"keyword"`
-	Page               int    `json:"page" form:"page"`
-	PageSize           int    `json:"page_size" form:"page_size"`
-	OrderBy            string `json:"order_by" form:"order_by"`
+	ID                    int64  `json:"id" form:"id"`
+	TenantUser            string `json:"tenant_user" form:"tenant_user"`
+	ActorUser             string `json:"actor_user" form:"actor_user"`
+	TargetUser            string `json:"target_user" form:"target_user"`
+	App                   string `json:"app" form:"app"`
+	ResourceType          string `json:"resource_type" form:"resource_type"`
+	ResourcePath          string `json:"resource_path" form:"resource_path"`
+	ResourcePathPrefix    string `json:"resource_path_prefix" form:"resource_path_prefix"`
+	Action                string `json:"action" form:"action"`
+	Status                string `json:"status" form:"status"`
+	Source                string `json:"source" form:"source"`
+	SourceType            string `json:"source_type" form:"source_type"`
+	SourceRef             string `json:"source_ref" form:"source_ref"`
+	ExecutorType          string `json:"executor_type" form:"executor_type"`
+	WorkspaceSessionID    string `json:"workspace_session_id" form:"workspace_session_id"`
+	InitiatorUser         string `json:"initiator_user" form:"initiator_user"`
+	WorkspaceMessageID    int64  `json:"workspace_message_id" form:"workspace_message_id"`
+	ToolCallID            string `json:"tool_call_id" form:"tool_call_id"`
+	ToolName              string `json:"tool_name" form:"tool_name"`
+	TraceID               string `json:"trace_id" form:"trace_id"`
+	RowID                 int64  `json:"row_id" form:"row_id"`
+	Keyword               string `json:"keyword" form:"keyword"`
+	ExcludeScheduledTasks bool   `json:"exclude_scheduled_tasks" form:"exclude_scheduled_tasks"`
+	Page                  int    `json:"page" form:"page"`
+	PageSize              int    `json:"page_size" form:"page_size"`
+	OrderBy               string `json:"order_by" form:"order_by"`
 }
 
 // GetOperateLogsResp 查询通用操作日志响应。

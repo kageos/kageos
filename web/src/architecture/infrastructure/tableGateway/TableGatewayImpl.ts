@@ -1,6 +1,7 @@
 import type { IApiClient } from '@/architecture/domain/interfaces/IApiClient'
 import type {
   ITableGateway,
+  TableAddOptions,
   TableLoadRequest,
   TableUpdateRequest
 } from '@/architecture/domain/interfaces/ITableGateway'
@@ -50,10 +51,11 @@ export class TableGatewayImpl implements ITableGateway {
     )
   }
 
-  addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow> {
+  addRow(functionDetail: FunctionDetail, data: Record<string, unknown>, options?: TableAddOptions): Promise<TableRow> {
     const fullCodePath = toFullCodePath(requireFunctionRouter(functionDetail))
+    const action = options?.operation === 'import' ? 'import' : 'create'
     return this.apiClient.post<TableRow>(
-      `/workspace/api/v1/table/create${fullCodePath}`,
+      `/workspace/api/v1/table/${action}${fullCodePath}`,
       data
     )
   }

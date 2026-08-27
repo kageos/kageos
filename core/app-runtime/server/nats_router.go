@@ -111,6 +111,24 @@ func RegisterNATS(ctx context.Context, conn *nats.Conn, subs *[]*nats.Subscripti
 	}
 	*subs = append(*subs, sub)
 
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppDBPurgeRowsCommandSubject, subjects.RuntimeAppDBPurgeRowsQueueGroup, appDatabaseH.HandlePurgeRows)
+	if err != nil {
+		return fmt.Errorf("subscribe app database purge rows: %w", err)
+	}
+	*subs = append(*subs, sub)
+
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppDBCleanupPolicyQuerySubject, subjects.RuntimeAppDBCleanupPolicyQueryQueueGroup, appDatabaseH.HandleGetCleanupPolicy)
+	if err != nil {
+		return fmt.Errorf("subscribe app database cleanup policy query: %w", err)
+	}
+	*subs = append(*subs, sub)
+
+	sub, err = conn.QueueSubscribe(subjects.RuntimeAppDBCleanupPolicyUpdateSubject, subjects.RuntimeAppDBCleanupPolicyUpdateQueueGroup, appDatabaseH.HandleUpdateCleanupPolicy)
+	if err != nil {
+		return fmt.Errorf("subscribe app database cleanup policy update: %w", err)
+	}
+	*subs = append(*subs, sub)
+
 	logger.Infof(ctx, "[NATS Router] Registered %d subscriptions", len(*subs))
 	return nil
 }

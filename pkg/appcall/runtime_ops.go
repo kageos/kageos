@@ -34,6 +34,30 @@ func (c *Client) DeleteApp(ctx context.Context, hostID int64, req *dto.DeleteApp
 	return &resp, nil
 }
 
+func (c *Client) PurgeAppDatabaseRows(ctx context.Context, hostID int64, req *dto.AppDBPurgeRowsReq) (*dto.AppDBPurgeRowsResp, error) {
+	var resp dto.AppDBPurgeRowsResp
+	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeAppDBPurgeRowsCommandSubject, req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetAppDatabaseCleanupPolicy(ctx context.Context, hostID int64, req *dto.AppDBCleanupPolicyReq) (*dto.AppDBCleanupPolicyResp, error) {
+	var resp dto.AppDBCleanupPolicyResp
+	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeAppDBCleanupPolicyQuerySubject, req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) UpdateAppDatabaseCleanupPolicy(ctx context.Context, hostID int64, req *dto.AppDBCleanupPolicyUpdateReq) (*dto.AppDBCleanupPolicyResp, error) {
+	var resp dto.AppDBCleanupPolicyResp
+	if err := c.runtime.requestByHost(ctx, hostID, subjects.RuntimeAppDBCleanupPolicyUpdateSubject, req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // DeleteServiceTree 删除服务目录（subject: runtime.v1.cmd.service-tree.delete，删磁盘并从 main.go 移除 import）
 func (c *Client) DeleteServiceTree(ctx context.Context, hostID int64, req *dto.DeleteServiceTreeRuntimeReq) (*dto.DeleteServiceTreeRuntimeResp, error) {
 	var resp dto.DeleteServiceTreeRuntimeResp

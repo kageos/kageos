@@ -17,7 +17,7 @@ import type { IEventBus } from '../../domain/interfaces/IEventBus'
 import { TableEvent } from '../../domain/interfaces/IEventBus'
 import type { FunctionDetail } from '../../domain/types'
 import { getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
-import type { TableSearchParams, SortParams, TableRow } from '../../domain/types'
+import type { TableSearchParams, SortItem, SortParams, TableRow } from '../../domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import { getErrorMessage } from '@/architecture/shared/apiError'
 
@@ -250,7 +250,7 @@ export class TableApplicationService {
 
     for (const row of rows) {
       try {
-        await this.domainService.addRow(functionDetail, row.data)
+        await this.domainService.addRow(functionDetail, row.data, { operation: 'import' })
         createdCount += 1
       } catch (error) {
         errors.push({
@@ -273,7 +273,7 @@ export class TableApplicationService {
 
   async loadDataSnapshot(
     functionDetail: FunctionDetail,
-    options?: { maxRows?: number, pageSize?: number }
+    options?: { startRow?: number, maxRows?: number, pageSize?: number, sorts?: SortItem[] }
   ) {
     return this.domainService.loadDataSnapshot(functionDetail, options)
   }

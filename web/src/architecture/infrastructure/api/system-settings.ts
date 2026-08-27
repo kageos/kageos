@@ -131,6 +131,88 @@ export interface ListLogArchiveBatchesResp {
   timezone: string
 }
 
+export interface SystemResourceComponent {
+  key: string
+  name: string
+  pool_key: string
+  used_bytes: number
+  available: boolean
+}
+
+export interface SystemEnvironmentInfo {
+  mode: 'development' | 'production' | string
+  deployment: 'source' | 'aio' | 'container' | 'host' | string
+  containerized: boolean
+  container_engine: string
+  container_remote: boolean
+  storage_root_source: string
+}
+
+export interface SystemStoragePool {
+  key: string
+  name: string
+  path?: string
+  total_bytes: number
+  used_bytes: number
+  free_bytes: number
+  used_percent: number
+  primary: boolean
+  available: boolean
+}
+
+export interface SystemResourceSnapshot {
+  collected_at: string
+  hostname: string
+  operating_system: string
+  architecture: string
+  cpu_cores: number
+  cpu_used_percent: number
+  cpu_available: boolean
+  load_1: number
+  load_5: number
+  load_15: number
+  load_available: boolean
+  uptime_seconds: number
+  memory_total_bytes: number
+  memory_used_bytes: number
+  memory_used_percent: number
+  memory_available: boolean
+  disk_mount: string
+  disk_total_bytes: number
+  disk_used_bytes: number
+  disk_free_bytes: number
+  disk_used_percent: number
+  environment: SystemEnvironmentInfo
+  storage_pools: SystemStoragePool[]
+  components: SystemResourceComponent[]
+}
+
+export interface SystemResourceHistoryPoint {
+  collected_at: string
+  disk_used_bytes: number
+  disk_used_percent: number
+  memory_used_percent: number
+  load_1: number
+}
+
+export interface StorageExpansionForecast {
+  status: 'healthy' | 'warning' | 'critical' | string
+  pool_key: string
+  current_used_percent: number
+  daily_growth_bytes: number
+  target_percent: number
+  days_to_target?: number
+  message: string
+}
+
+export interface SystemResourceOverview {
+  current: SystemResourceSnapshot
+  history: SystemResourceHistoryPoint[]
+  history_hours: number
+  sample_interval_minutes: number
+  forecast: StorageExpansionForecast
+}
+
 export function getSystemSettings() {
   return get<SystemSettings>('/hr/api/v1/system/settings')
 }
@@ -185,4 +267,8 @@ export function listLoginMethods() {
 
 export function listLogArchiveBatches(page = 1, pageSize = 20) {
   return get<ListLogArchiveBatchesResp>('/workspace/api/v1/system/log_archives', { page, page_size: pageSize })
+}
+
+export function getSystemResourceOverview(hours = 24 * 7) {
+  return get<SystemResourceOverview>('/hr/api/v1/system/settings/resources', { hours })
 }

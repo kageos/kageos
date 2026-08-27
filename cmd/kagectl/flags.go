@@ -40,6 +40,19 @@ type cleanOptions struct {
 	Execute       bool
 }
 
+type backupOptions struct {
+	Action     string
+	OutputPath string
+	Archive    string
+}
+
+type restoreOptions struct {
+	Archive      string
+	DryRun       bool
+	Force        bool
+	KeepRollback bool
+}
+
 type initOptions struct {
 	Force            bool
 	BaseURL          string
@@ -223,6 +236,65 @@ func parseCleanFlags(args []string) (cleanOptions, error) {
 	}
 	if opts.Target == "logs" && keepSet {
 		return opts, fmt.Errorf("clean logs does not support --keep")
+	}
+	return opts, nil
+}
+
+func parseBackupFlags(args []string) (backupOptions, error) {
+	opts := backupOptions{Action: "create"}
+	if len(args) > 0 && (args[0] == "create" || args[0] == "list" || args[0] == "verify") {
+		opts.Action = args[0]
+		args = args[1:]
+	}
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--output":
+			i++
+			if i >= len(args) || strings.TrimSpace(args[i]) == "" {
+				return opts, fmt.Errorf("--output requires a path")
+			}
+			opts.OutputPath = args[i]
+		default:
+			if opts.Action == "verify" && opts.Archive == "" {
+				opts.Archive = args[i]
+				continue
+			}
+			return opts, fmt.Errorf("backup %s does not support argument %q", opts.Action, args[i])
+		}
+	}
+	if opts.Action == "verify" && strings.TrimSpace(opts.Archive) == "" {
+		return opts, fmt.Errorf("backup verify requires an archive path")
+	}
+	if opts.Action != "create" && opts.OutputPath != "" {
+		return opts, fmt.Errorf("backup %s does not support --output", opts.Action)
+	}
+	return opts, nil
+}
+
+func parseRestoreFlags(args []string) (restoreOptions, error) {
+	opts := restoreOptions{}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--dry-run":
+			opts.DryRun = true
+		case "--force":
+			opts.Force = true
+		case "--keep-rollback":
+			opts.KeepRollback = true
+		default:
+			if opts.Archive == "" {
+				opts.Archive = args[i]
+				continue
+			}
+			return opts, fmt.Errorf("restore does not support argument %q", args[i])
+		}
+	}
+	if strings.TrimSpace(opts.Archive) == "" {
+		return opts, fmt.Errorf("restore requires an archive path")
+	}
+	if !opts.DryRun && !opts.Force {
+		return opts, fmt.Errorf("restore overwrites instance data and requires --force; preview with --dry-run first")
 	}
 	return opts, nil
 }
@@ -528,6 +600,11 @@ Usage:
   kagectl status [--json]
   kagectl logs [main|infra|service|layer] [--layer L0-L5]
   kagectl down
+  kagectl backup [create] [--output PATH]
+  kagectl backup list
+  kagectl backup verify ARCHIVE
+  kagectl restore ARCHIVE --dry-run
+  kagectl restore ARCHIVE --force [--keep-rollback]
   kagectl clean runtime [--namespace PATH] [--keep N] [--dry-run|--execute]
   kagectl clean logs [--namespace PATH] [--dry-run|--execute]
   kagectl uninstall [--config .kageos/prod/kage.yaml] [--purge-data] [--purge-podman-storage] [--purge-images] [--keep-generated] [--purge-private-config] [--force] [--dry-run]

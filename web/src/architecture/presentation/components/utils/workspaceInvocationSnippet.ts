@@ -135,7 +135,11 @@ export function parseWorkspacePromptSegments(text: string, basePath = ''): Works
   return segments
 }
 
-export function renderWorkspaceResourceTokensAsHtml(text: string, basePath = ''): string {
+export function renderWorkspaceResourceTokensAsHtml(
+  text: string,
+  basePath = '',
+  resourceLabels: Record<string, string> = {}
+): string {
   const source = String(text || '')
   const segments = parseWorkspacePromptSegments(source, basePath)
   if (!segments.some((segment) => segment.type === 'resource')) {
@@ -146,7 +150,7 @@ export function renderWorkspaceResourceTokensAsHtml(text: string, basePath = '')
     if (segment.type !== 'resource') {
       return segment.text
     }
-    return renderWorkspaceResourceToken(segment)
+    return renderWorkspaceResourceToken(segment, resourceLabels)
   }).join('')
 }
 
@@ -161,14 +165,14 @@ export function workspaceResourceKind(pathOrToken: string): string {
   return 'directory'
 }
 
-function renderWorkspaceResourceToken(segment: WorkspacePromptSegment): string {
+function renderWorkspaceResourceToken(segment: WorkspacePromptSegment, resourceLabels: Record<string, string>): string {
   const path = normalizeWorkspaceResourcePath(segment.path || segment.text)
   if (!path) {
     return escapeHtml(segment.text)
   }
   const kind = workspaceResourceKind(path)
   const href = kind === 'tool' ? `#${path}` : resolveWorkspaceUrl(path)
-  const label = workspaceResourceLabel(path)
+  const label = getMappedWorkspaceResourceLabel(path, resourceLabels) || workspaceResourceLabel(path)
   const typeLabel = workspaceResourceTypeLabel(kind)
   const iconSrc = workspaceResourceIconSrc(kind)
   const iconHtml = workspaceResourceIconHtml(kind, typeLabel)
@@ -185,9 +189,17 @@ function renderWorkspaceResourceToken(segment: WorkspacePromptSegment): string {
     iconHtml,
     `</span>`,
     `<span class="workspace-resource-token__label">${escapeHtml(label)}</span>`,
-    `<span class="workspace-resource-token__type">${escapeHtml(typeLabel)}</span>`,
     `</a>`,
   ].join('')
+}
+
+function getMappedWorkspaceResourceLabel(path: string, resourceLabels: Record<string, string>): string {
+  const normalized = normalizeWorkspaceResourcePath(path)
+  return String(
+    resourceLabels[normalized]
+      || resourceLabels[normalized.replace(/^\/+/, '')]
+      || ''
+  ).trim()
 }
 
 function workspaceResourceLabel(pathOrToken: string): string {

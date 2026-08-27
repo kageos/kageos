@@ -18,6 +18,7 @@
           v-else-if="functionDetail?.template_type === TEMPLATE_TYPE.TABLE"
           :key="`table-${keyBase}`"
           :function-detail="functionDetail"
+          :current-function="currentFunction"
         />
         <ChartView
           v-else-if="functionDetail?.template_type === TEMPLATE_TYPE.CHART"

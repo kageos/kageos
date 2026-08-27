@@ -15,7 +15,7 @@
         <el-radio
           v-for="option in options"
           :key="option.value"
-          :label="option.value"
+          :value="option.value"
           class="radio-option"
           :class="{ 'is-selected': selectedValue === option.value }"
         >
@@ -48,7 +48,7 @@
         <el-radio
           v-for="option in options"
           :key="option.value"
-          :label="option.value"
+          :value="option.value"
           class="radio-option"
           :class="{ 'is-selected': selectedValue === option.value }"
         >

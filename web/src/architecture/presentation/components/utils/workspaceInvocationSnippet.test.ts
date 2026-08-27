@@ -65,6 +65,22 @@ describe('workspaceInvocationSnippet', () => {
     expect(html).toContain('href="/workspace/system/app/notify.form"')
   })
 
+  it('uses workspace display names and keeps sent tokens consistent with the composer', () => {
+    const html = renderWorkspaceResourceTokensAsHtml(
+      '分析 </system/demo/customer_follow> 和 </system/demo/meeting>',
+      '/system/demo',
+      {
+        '/system/demo/customer_follow': '客户跟进',
+        '/system/demo/meeting': '会议管理',
+      }
+    )
+
+    expect(html).toContain('>客户跟进</span>')
+    expect(html).toContain('>会议管理</span>')
+    expect(html).not.toContain('workspace-resource-token__type')
+    expect(html).not.toContain('>服务目录</span>')
+  })
+
   it('renders docs resource tokens with Chinese labels and preview metadata', () => {
     const html = renderWorkspaceResourceTokensAsHtml('阅读 <./runbook.docs>', '/system/app/index.docs')
 

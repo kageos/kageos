@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/kageos/kageos/core/hr-server/service"
 	"github.com/kageos/kageos/dto"
@@ -10,10 +12,29 @@ import (
 
 type SystemSettings struct {
 	settingsService *service.SystemSettingsService
+	resourceService *service.SystemResourceService
 }
 
-func NewSystemSettings(settingsService *service.SystemSettingsService) *SystemSettings {
-	return &SystemSettings{settingsService: settingsService}
+func NewSystemSettings(settingsService *service.SystemSettingsService, resourceService *service.SystemResourceService) *SystemSettings {
+	return &SystemSettings{settingsService: settingsService, resourceService: resourceService}
+}
+
+func (s *SystemSettings) GetResources(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	hours := 24 * 7
+	if raw := c.Query("hours"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			hours = parsed
+		}
+	}
+	overview, err := s.resourceService.Overview(hours)
+	if err != nil {
+		response.FailWithMessage(c, "获取系统资源状态失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, overview)
 }
 
 func (s *SystemSettings) Get(c *gin.Context) {

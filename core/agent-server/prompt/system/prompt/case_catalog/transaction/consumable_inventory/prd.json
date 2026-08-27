@@ -1,0 +1,76 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "耗材库存流水",
+    "code": "consumable_inventory",
+    "summary": "通过统一入库、领用和盘点表单，在事务中更新库存余额并留下不可变流水。"
+  },
+  "tables": [
+    {
+      "name": "耗材",
+      "title": "耗材库存",
+      "desc": "维护耗材资料并展示当前可用库存。",
+      "fields": [
+        {"name": "耗材名称", "widget": "input", "required": true, "desc": "耗材业务名称。"},
+        {"name": "规格型号", "widget": "input", "required": false, "desc": "区分同名耗材的规格。"},
+        {"name": "库存数量", "widget": "integer", "required": true, "desc": "当前库存余额，只能由库存变动流程更新，不能直接编辑为负数。"},
+        {"name": "安全库存", "widget": "integer", "required": true, "desc": "低于该值时提示补货。"},
+        {"name": "保管人", "widget": "user", "required": true, "desc": "负责该耗材的人员。"}
+      ],
+      "search_fields": [
+        {"name": "耗材名称", "widget": "input", "required": false, "desc": "按名称搜索。"},
+        {"name": "保管人", "widget": "user", "required": false, "desc": "按保管人筛选。"}
+      ],
+      "handlers": ["OnTableAddRow", "OnTableUpdateRow", "OnTableDeleteRow"],
+      "examples": [{"耗材名称": "A4 打印纸", "规格型号": "80g 500张", "库存数量": 20, "安全库存": 5, "保管人": "行政人员"}]
+    },
+    {
+      "name": "库存流水",
+      "title": "库存流水",
+      "desc": "只读记录每次库存变动前后数量、业务类型和经办信息。",
+      "fields": [
+        {"name": "耗材名称", "widget": "input", "required": true, "desc": "发生变动的耗材。"},
+        {"name": "变动类型", "widget": "select", "required": true, "desc": "有入库、领用、盘盈、盘亏四个选项。"},
+        {"name": "变动数量", "widget": "integer", "required": true, "desc": "本次绝对变动数量，必须大于 0。"},
+        {"name": "变动前库存", "widget": "integer", "required": true, "desc": "事务内读取并锁定后的库存。"},
+        {"name": "变动后库存", "widget": "integer", "required": true, "desc": "校验后得到的新库存。"},
+        {"name": "经办人", "widget": "user", "required": true, "desc": "当前操作人员。"},
+        {"name": "业务备注", "widget": "text_area", "required": false, "desc": "领用部门、采购单号或盘点原因。"}
+      ],
+      "search_fields": [
+        {"name": "耗材名称", "widget": "input", "required": false, "desc": "按耗材筛选。"},
+        {"name": "变动类型", "widget": "select", "required": false, "desc": "按变动类型筛选。"},
+        {"name": "经办人", "widget": "user", "required": false, "desc": "按经办人筛选。"},
+        {"name": "创建开始时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的开始时间。"},
+        {"name": "创建结束时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的结束时间。"}
+      ],
+      "handlers": [],
+      "examples": [{"耗材名称": "A4 打印纸", "变动类型": "领用", "变动数量": 2, "变动前库存": 20, "变动后库存": 18, "经办人": "行政人员", "业务备注": "市场部领用"}]
+    }
+  ],
+  "forms": [
+    {
+      "name": "库存变动",
+      "desc": "统一处理入库、领用和盘点，成功后同时更新耗材余额并新增流水。",
+      "target_table": "库存流水",
+      "request_fields": [
+        {"name": "耗材", "widget": "select", "required": true, "desc": "选择现有耗材并提交其 ID。"},
+        {"name": "变动类型", "widget": "select", "required": true, "desc": "有入库、领用、盘盈、盘亏四个选项。"},
+        {"name": "变动数量", "widget": "integer", "required": true, "desc": "必须大于 0。"},
+        {"name": "业务备注", "widget": "text_area", "required": false, "desc": "填写来源、去向或盘点原因。"}
+      ],
+      "response_fields": [
+        {"name": "当前库存", "widget": "integer", "required": false, "desc": "事务提交后的库存余额。"},
+        {"name": "处理结果", "widget": "input", "required": false, "desc": "成功或失败原因。"}
+      ],
+      "example": {"request": {"耗材": "A4 打印纸", "变动类型": "领用", "变动数量": 2, "业务备注": "市场部领用"}, "response": {"当前库存": 18, "处理结果": "领用成功"}}
+    }
+  ],
+  "rules": [
+    "库存余额更新和库存流水新增必须处于同一数据库事务中。",
+    "事务内锁定耗材行后重新读取库存，校验变动后库存不能小于 0，避免并发超领。",
+    "库存流水只允许查询，不允许人工修改或删除；纠错通过新增反向流水完成。",
+    "耗材资料可以维护，但库存数量不能绕过库存变动表单直接修改。"
+  ]
+}

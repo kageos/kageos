@@ -23,7 +23,10 @@ type FileUpload struct {
 	Tenant   string `gorm:"type:varchar(100);not null;index;comment:租户" json:"tenant"`
 
 	// 状态
-	Status string `gorm:"type:varchar(20);default:'pending';comment:状态：pending/completed/failed" json:"status"`
+	Status      string     `gorm:"type:varchar(20);default:'pending';index;comment:状态：pending/completed/failed/deleting/delete_failed/deleted" json:"status"`
+	DeletedAt   *time.Time `gorm:"index;comment:物理文件删除时间" json:"deleted_at,omitempty"`
+	DeletedBy   string     `gorm:"type:varchar(100);comment:执行删除的用户名" json:"deleted_by,omitempty"`
+	DeleteError string     `gorm:"type:text;comment:最近一次物理删除失败原因" json:"delete_error,omitempty"`
 
 	// 时间
 	UploadedAt time.Time `gorm:"autoCreateTime;index" json:"uploaded_at"`

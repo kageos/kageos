@@ -95,7 +95,7 @@
 
     <div v-if="state.loaded && state.total > state.pageSize" class="execution-pagination">
       <el-pagination
-        small
+        size="small"
         :current-page="state.page"
         :page-size="state.pageSize"
         :total="state.total"

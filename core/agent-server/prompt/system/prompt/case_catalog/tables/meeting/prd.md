@@ -786,6 +786,7 @@ func init() {
 				Code:        "meeting_reminder_soon",
 				Title:       "会议即将开始提醒",
 				Description: "每 2 分钟扫描未来 5 分钟内即将开始且未提醒的会议，并通知预约人和参会人。",
+				Enabled:     true,
 				CronExpr:    "*/2 * * * *",
 				Body:        MeetingRoomNotifySoonReq{LeadMinutes: 5},
 			},

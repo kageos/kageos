@@ -87,6 +87,96 @@ export function tableDeleteRows(method: string, router: string, ids: number[]) {
   return del(url, data)  // DELETE 请求带 body
 }
 
+export interface TableDeletedRowsResult {
+  rows: Array<Record<string, unknown>>
+  total: number
+  page: number
+  page_size: number
+}
+
+// Table 回收站 - 查询软删除记录
+export function tableGetDeletedRows(router: string, page = 1, pageSize = 20): Promise<TableDeletedRowsResult> {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  return get<TableDeletedRowsResult>(`/workspace/api/v1/table/deleted${fullCodePath}`, {
+    page,
+    page_size: pageSize
+  })
+}
+
+// Table 回收站 - 恢复软删除记录
+export function tableRestoreRows(router: string, ids: number[]): Promise<{ rows: Array<Record<string, unknown>>, restored: number }> {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  return post(`/workspace/api/v1/table/restore${fullCodePath}`, { ids })
+}
+
+// Table 回收站 - 彻底删除（仅管理权限，不可恢复）
+export function tablePurgeRows(router: string, ids: number[]): Promise<{ rows: Array<Record<string, unknown>>, purged: number }> {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  return del(`/workspace/api/v1/table/purge${fullCodePath}`, { ids })
+}
+
+export interface TableRecyclePolicy {
+  enabled: boolean
+  mode: 'dry_run' | 'purge'
+  retention_days: number
+  interval_minutes: number
+  batch_size: number
+  source: 'deployment' | 'table'
+  updated_by?: string
+}
+
+export function tableGetRecyclePolicy(router: string): Promise<TableRecyclePolicy> {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  return get<TableRecyclePolicy>(`/workspace/api/v1/table/recycle-policy${fullCodePath}`)
+}
+
+export function tableUpdateRecyclePolicy(
+  router: string,
+  policy: Pick<TableRecyclePolicy, 'enabled' | 'mode' | 'retention_days'>
+): Promise<TableRecyclePolicy> {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  return put<TableRecyclePolicy>(`/workspace/api/v1/table/recycle-policy${fullCodePath}`, policy)
+}
+
+export interface TableExportBlockResult {
+  index: number
+  start_row: number
+  end_row: number
+  row_count: number
+  cursor: string
+}
+
+export interface TableExportPlanResult {
+  snapshot: string
+  total: number
+  blocks: TableExportBlockResult[]
+}
+
+export function tableExportPlan(
+  router: string,
+  filters: Record<string, unknown>,
+  chunkSize: number
+): Promise<TableExportPlanResult> {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  return post<TableExportPlanResult>(`/workspace/api/v1/table/export/plan${fullCodePath}`, {
+    filters,
+    chunk_size: chunkSize
+  })
+}
+
+export function tableExportChunk(
+  router: string,
+  request: {
+    snapshot: string
+    cursor: string
+    limit: number
+    filters: Record<string, unknown>
+  }
+): Promise<{ rows: Array<Record<string, unknown>> }> {
+  const fullCodePath = router.startsWith('/') ? router : `/${router}`
+  return post(`/workspace/api/v1/table/export/chunk${fullCodePath}`, request)
+}
+
 /**
  * Select 回调操作 - 模糊查询选项
  *

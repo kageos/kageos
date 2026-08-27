@@ -39,3 +39,50 @@ func (h *AppDatabaseHandler) HandleResolve(msg *nats.Msg) {
 	}
 	logger.Infof(ctx, "[HandleAppDBResolve] Resolved: user=%s app=%s package=%s access=%s db=%s", req.User, req.App, req.PackagePath, resp.Access, resp.DatabaseName)
 }
+
+func (h *AppDatabaseHandler) HandlePurgeRows(msg *nats.Msg) {
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.AppDBPurgeRowsReq](ctx, msg, "HandleAppDBPurgeRows")
+	if !ok {
+		return
+	}
+	if h == nil || h.appDatabaseService == nil || !h.appDatabaseService.IsEnabled() {
+		respondFailure(ctx, msg, "HandleAppDBPurgeRows", service.ErrAppDatabaseDisabled)
+		return
+	}
+	resp, err := h.appDatabaseService.PurgeSoftDeletedRows(ctx, req)
+	if err != nil {
+		logger.Errorf(ctx, "[HandleAppDBPurgeRows] Failed: user=%s app=%s package=%s table=%s err=%v", req.User, req.App, req.PackagePath, req.Table, err)
+		respondFailure(ctx, msg, "HandleAppDBPurgeRows", err)
+		return
+	}
+	respondSuccess(ctx, msg, "HandleAppDBPurgeRows", resp)
+}
+
+func (h *AppDatabaseHandler) HandleGetCleanupPolicy(msg *nats.Msg) {
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.AppDBCleanupPolicyReq](ctx, msg, "HandleGetAppDBCleanupPolicy")
+	if !ok {
+		return
+	}
+	resp, err := h.appDatabaseService.GetSoftDeleteCleanupPolicy(ctx, req)
+	if err != nil {
+		respondFailure(ctx, msg, "HandleGetAppDBCleanupPolicy", err)
+		return
+	}
+	respondSuccess(ctx, msg, "HandleGetAppDBCleanupPolicy", resp)
+}
+
+func (h *AppDatabaseHandler) HandleUpdateCleanupPolicy(msg *nats.Msg) {
+	ctx := handlerContext(msg)
+	req, ok := decodeRequest[dto.AppDBCleanupPolicyUpdateReq](ctx, msg, "HandleUpdateAppDBCleanupPolicy")
+	if !ok {
+		return
+	}
+	resp, err := h.appDatabaseService.UpdateSoftDeleteCleanupPolicy(ctx, req)
+	if err != nil {
+		respondFailure(ctx, msg, "HandleUpdateAppDBCleanupPolicy", err)
+		return
+	}
+	respondSuccess(ctx, msg, "HandleUpdateAppDBCleanupPolicy", resp)
+}

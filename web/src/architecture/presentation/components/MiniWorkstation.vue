@@ -7,10 +7,11 @@
     <div
       v-if="visible && !collapsed"
       ref="rootRef"
-      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--compact': !maximized, 'mini-ws--sending': sending, 'mini-ws--interaction-open': interactionOpen }]"
+      :class="['mini-ws', { 'mini-ws--maximized': maximized, 'mini-ws--compact': !maximized, 'mini-ws--small': smallWindow, 'mini-ws--sending': sending, 'mini-ws--interaction-open': interactionOpen }]"
       data-testid="mini-workstation"
       :data-full-code-path="fullCodePath"
       :style="windowStyle"
+      @pointerdown="emit('focus')"
       @dragover.prevent="onDragOver"
       @dragleave.prevent="onDragLeave"
       @drop.prevent="onDrop"
@@ -18,7 +19,12 @@
     >
       <div class="mini-workspace-backdrop" aria-hidden="true"></div>
       <section class="mini-shell">
-        <header class="mini-drawer-head" data-testid="mini-workstation-header">
+        <header
+          class="mini-drawer-head"
+          data-testid="mini-workstation-header"
+          @pointerdown="startWindowDrag"
+          @dblclick="toggleMaximize"
+        >
           <div class="mini-drawer-title">
             <MiniWorkstationResourceIdentity
               class="mini-drawer-resource"
@@ -34,6 +40,18 @@
             </span>
           </div>
           <div class="mini-drawer-actions">
+            <button
+              type="button"
+              class="mini-drawer-icon-action"
+              :class="{ 'is-active': !sessionPanelCollapsed }"
+              :title="sessionPanelCollapsed ? t('miniWorkstation.expandSessionList') : t('miniWorkstation.collapseSessionList')"
+              :aria-label="sessionPanelCollapsed ? t('miniWorkstation.expandSessionList') : t('miniWorkstation.collapseSessionList')"
+              :aria-expanded="!sessionPanelCollapsed"
+              data-testid="mini-workstation-session-toggle"
+              @click.stop="sessionPanelCollapsed = !sessionPanelCollapsed"
+            >
+              <span class="mini-session-toggle-glyph" aria-hidden="true">{{ sessionPanelCollapsed ? '☰' : '◧' }}</span>
+            </button>
             <button
               v-if="panelHasContent"
               type="button"
@@ -56,40 +74,45 @@
             </button>
             <button
               type="button"
-              class="mini-drawer-secondary-action"
-              :disabled="!lastDrawerSession"
-              :title="lastDrawerSession ? t('miniWorkstation.openSessionTitle', { title: getSessionTitle(lastDrawerSession) }) : t('miniWorkstation.noPreviousSession')"
-              @click="openLastDrawerSession"
+              class="mini-window-control"
+              data-testid="mini-workstation-minimize"
+              :title="t('miniWorkstation.minimizeWindow')"
+              @click.stop="hideWorkstation"
             >
-              <el-icon><Clock /></el-icon>
-              <span>{{ t('miniWorkstation.openPrevious') }}</span>
+              <span aria-hidden="true">—</span>
             </button>
             <button
               type="button"
-              class="mini-drawer-icon-action"
-              :title="maximized ? t('miniWorkstation.collapsePanel') : t('miniWorkstation.maximizePanel')"
-              @click="toggleDrawerWidth"
+              class="mini-window-control"
+              data-testid="mini-workstation-maximize"
+              :title="maximized ? t('miniWorkstation.restoreWindow') : t('miniWorkstation.maximizeWindow')"
+              @click.stop="toggleMaximize"
             >
-              <el-icon>
-                <ArrowRight v-if="maximized" />
-                <ArrowLeft v-else />
-              </el-icon>
+              <span aria-hidden="true">{{ maximized ? '❐' : '□' }}</span>
             </button>
             <button
               type="button"
-              class="mini-drawer-icon-action"
+              class="mini-window-control mini-window-control--close"
               data-testid="mini-workstation-close"
-              :title="t('miniWorkstation.closePanelTitle', { shortcut: toggleShortcutLabel || t('miniWorkstation.shortcut') })"
-              @click="hideWorkstation"
+              :title="t('miniWorkstation.closeWindow')"
+              @click.stop="emit('close')"
             >
-              <el-icon><Close /></el-icon>
+              <span aria-hidden="true">×</span>
             </button>
           </div>
         </header>
 
         <section class="mini-current-output">
-          <div :class="['mini-current-layout', { 'is-artifact-open': artifactPanelExpanded }]">
+          <div :class="['mini-current-layout', { 'is-artifact-open': artifactPanelExpanded, 'is-session-collapsed': sessionPanelCollapsed }]">
+            <button
+              v-if="!maximized && !sessionPanelCollapsed"
+              type="button"
+              class="mini-session-overlay-backdrop"
+              :aria-label="t('miniWorkstation.collapseSessionList')"
+              @click="sessionPanelCollapsed = true"
+            ></button>
             <MiniWorkstationSessionPanel
+              v-if="!sessionPanelCollapsed"
               :full-code-path="fullCodePath"
               :dir-label="resourceDisplayName"
               :sessions="drawerSessionList"
@@ -102,12 +125,15 @@
               :filter="sessionFilter"
               :filters="sessionFilters"
               :queued-count="queuedCount"
+              :loading="drawerSessionsLoading"
+              :load-failed="drawerSessionsLoadFailed"
               :has-different-context="hasDifferentCurrentContext"
               :current-context-name="currentContextName"
               :current-context-path="normalizedCurrentContextPath"
               :get-session-status-class="getSessionStatusClass"
               :get-session-title="getSessionTitle"
               :get-session-status-label="getSessionStatusLabel"
+              :get-session-directory-path="getSessionDirectoryPath"
               :format-relative-time="formatRelativeTime"
               @update:search-keyword="sessionSearchKeyword = $event"
               @update:filter="sessionFilter = $event"
@@ -116,6 +142,9 @@
               @scope-change="setDrawerSessionScope"
               @update:session-source-filter="sessionSourceFilter = $event"
               @context-new-session="openCurrentContextNewSession"
+              @retry="loadDrawerSessions"
+              @reset-filters="resetSessionFilters"
+              @show-active="showActiveSessionInList"
             />
             <div class="mini-current-stream">
               <div class="mini-ws-output" ref="outputRef" @scroll.passive="captureOutputScroll">
@@ -127,6 +156,7 @@
                   :full-code-path="fullCodePath"
                   :resource-type="resourceType"
                   :resource-template-type="resourceTemplateType"
+                  :resource-labels="pathNameMap"
                   :streaming-display-length="streamingDisplayLength"
                   :render-markdown="renderMarkdown"
                   :format-message-time="formatMessageTime"
@@ -185,6 +215,7 @@
           :remove-file="removeFile"
           :on-input-enter="onInputEnter"
           :toggle-shortcut-label="toggleShortcutLabel"
+          :compact-window="compactComposer"
           @update:input-text="inputText = $event"
           @update:selected-l-l-m-config-id="selectedLLMConfigId = $event"
           @stop="handleStopSession"
@@ -238,6 +269,16 @@
         </MiniWorkstationComposer>
       </section>
 
+      <template v-if="!maximized">
+        <span
+          v-for="direction in resizeDirections"
+          :key="direction"
+          :class="['mini-resize-handle', `mini-resize-${direction}`]"
+          aria-hidden="true"
+          @pointerdown.stop.prevent="startWindowResize($event, direction)"
+        ></span>
+      </template>
+
       <!-- 拖拽上传遮罩 -->
       <transition name="el-fade-in-linear">
         <div v-if="dragOver" class="mini-ws-drop-overlay">
@@ -272,14 +313,10 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, computed, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  ArrowLeft,
-  ArrowRight,
   Calendar,
-  Clock,
-  Close,
   DataBoard,
   MagicStick,
   Plus,
@@ -338,6 +375,7 @@ const props = defineProps<{
   initialPosition?: 'center'
   initialExpanded?: boolean
   initialMaximized?: boolean
+  zIndex?: number
   pathNameMap?: Record<string, string>
   currentFullCodePath?: string
   currentDirName?: string
@@ -351,17 +389,19 @@ const emit = defineEmits<{
   (e: 'minimize'): void
   (e: 'close'): void
   (e: 'task-started', sessionId: string): void
+  (e: 'session-change', sessionId: string): void
   (e: 'tool-call-ok', payload: { name: string }): void
   (e: 'open-current-new-session', payload: { fullCodePath: string; dirName: string }): void
   (e: 'expanded-change', payload: { expanded: boolean; sessionId?: string }): void
   (e: 'maximize-change', payload: { maximized: boolean; sessionId?: string }): void
+  (e: 'focus'): void
 }>()
 
 const { messages, sending, sessionId, streamingDisplayLength, send: sendMessage, setMessages } = useWorkspaceChatStream()
 const rootRef = ref<HTMLElement>()
 const outputRef = ref<HTMLElement>()
 const inputText = ref('')
-const inputRef = ref<{ focus: () => void }>()
+const inputRef = ref<{ focus: () => void; focusAtEnd?: () => void }>()
 const llmSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const showScheduledAgentTaskDialog = ref(false)
@@ -370,6 +410,7 @@ const scheduledDraftFiles = ref('')
 const scheduledDraftLLMConfigId = ref(0)
 const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpen.value)
 const artifactPanelExpanded = ref(false)
+const sessionPanelCollapsed = ref(!props.initialMaximized)
 const collapsed = ref(props.initialExpanded === false)
 const suppressAutoSelectLatestSession = ref(false)
 const sessionSearchKeyword = ref('')
@@ -380,9 +421,28 @@ type DrawerSessionScope = 'current' | 'all'
 const DRAWER_SESSION_SCOPE_STORAGE_KEY = 'workspace-mini-session-scope'
 const drawerSessionScope = ref<DrawerSessionScope>(readStoredDrawerSessionScope())
 
-const windowStyle = computed(() => ({
-  '--mini-stack-offset': `${props.initialOffset || 0}px`
-}))
+const windowLeft = ref(0)
+const windowTop = ref(0)
+const windowWidth = ref(680)
+const windowHeight = ref(720)
+const smallWindow = ref(false)
+const compactComposer = computed(() => !maximized.value)
+const resizeDirections = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const
+type ResizeDirection = typeof resizeDirections[number]
+let windowResizeObserver: ResizeObserver | null = null
+
+const windowStyle = computed(() => maximized.value
+  ? { zIndex: props.zIndex || 2400 }
+  : {
+      left: `${windowLeft.value}px`,
+      top: `${windowTop.value}px`,
+      width: `${windowWidth.value}px`,
+      height: `${windowHeight.value}px`,
+      right: 'auto',
+      bottom: 'auto',
+      zIndex: props.zIndex || 2400,
+      '--mini-stack-offset': `${props.initialOffset || 0}px`
+    })
 
 const OUTPUT_SCROLL_BOTTOM_THRESHOLD = 96
 const savedOutputScrollTop = ref(0)
@@ -421,7 +481,7 @@ function resetOutputScrollState() {
   savedOutputWasNearBottom.value = true
 }
 
-function registerInputRef(element: { focus: () => void } | null) {
+function registerInputRef(element: { focus: () => void; focusAtEnd?: () => void } | null) {
   inputRef.value = element || undefined
 }
 
@@ -441,6 +501,10 @@ watch(() => props.initialMaximized, (value) => {
   maximized.value = !!value
 })
 
+watch(maximized, (value) => {
+  sessionPanelCollapsed.value = !value
+})
+
 watch(() => props.initialExpanded, (value) => {
   collapsed.value = value === false
 })
@@ -449,6 +513,10 @@ const {
   miniSessionList,
   globalSessionList,
   automationAgents,
+  loadingSessions,
+  loadingGlobalSessions,
+  sessionLoadFailed,
+  globalSessionLoadFailed,
   stopping,
   loadMiniSessions,
   loadGlobalSessions,
@@ -593,10 +661,12 @@ const drawerSessionList = computed(() => {
     : recentSessionCenterList.value
 })
 
-const lastDrawerSession = computed<WorkspaceSessionItem | null>(() => {
-  return [...drawerSessionList.value]
-    .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))[0] || null
-})
+const drawerSessionsLoading = computed(() => drawerSessionScope.value === 'current'
+  ? loadingSessions.value
+  : loadingGlobalSessions.value)
+const drawerSessionsLoadFailed = computed(() => drawerSessionScope.value === 'current'
+  ? sessionLoadFailed.value
+  : globalSessionLoadFailed.value)
 
 const currentSessionItem = computed<WorkspaceSessionItem | null>(() => {
   if (!sessionId.value) return null
@@ -664,16 +734,34 @@ function setDrawerSessionScope(scope: DrawerSessionScope) {
   drawerSessionScope.value = scope
 }
 
-function handleDrawerSessionSelect(session: WorkspaceSessionItem) {
-  if (session.session_id && session.session_id === sessionId.value) {
+async function handleDrawerSessionSelect(session: WorkspaceSessionItem) {
+  const targetSessionId = (session.session_id || '').trim()
+  if (!targetSessionId || targetSessionId === sessionId.value) {
+    return
+  }
+  const targetFullCodePath = normalizeFullCodePath(session.full_code_path || props.fullCodePath || '')
+  if (targetFullCodePath === normalizedWorkbenchPath.value) {
+    await handleSelectSession(targetSessionId)
+    if (sessionId.value === targetSessionId) {
+      emit('session-change', targetSessionId)
+    }
     return
   }
   requestSessionSwitch(session)
 }
 
-function openLastDrawerSession() {
-  if (!lastDrawerSession.value) return
-  requestSessionSwitch(lastDrawerSession.value)
+function resetSessionFilters() {
+  sessionSearchKeyword.value = ''
+  sessionFilter.value = 'all'
+}
+
+function showActiveSessionInList() {
+  resetSessionFilters()
+  drawerSessionScope.value = 'current'
+  const active = currentSessionItem.value
+  sessionSourceFilter.value = active?.source === 'automation_agent' && active.automation_task_id
+    ? `agent:${active.automation_task_id}`
+    : 'human'
 }
 
 function toggleArtifactPanel() {
@@ -705,7 +793,7 @@ function hideWorkstation() {
   emit('minimize')
 }
 
-function toggleDrawerWidth() {
+function toggleMaximize() {
   maximized.value = !maximized.value
   if (maximized.value) {
     stopMiniPoll()
@@ -714,6 +802,75 @@ function toggleDrawerWidth() {
   }
   restoreOutputScroll()
   emit('maximize-change', { maximized: maximized.value, sessionId: sessionId.value })
+}
+
+function initializeWindowBounds() {
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const offset = props.initialOffset || 0
+  windowWidth.value = Math.min(760, Math.max(520, viewportWidth * 0.52))
+  windowHeight.value = Math.min(760, Math.max(420, viewportHeight * 0.72))
+  windowLeft.value = Math.max(12, Math.min(viewportWidth - windowWidth.value - 12, viewportWidth - windowWidth.value - 42 - offset))
+  windowTop.value = Math.max(12, Math.min(viewportHeight - windowHeight.value - 12, 72 + offset))
+}
+
+function startWindowDrag(event: PointerEvent) {
+  if (maximized.value || event.button !== 0) return
+  const target = event.target as HTMLElement
+  if (target.closest('button, a, input, select, textarea, .el-select')) return
+  emit('focus')
+  const startX = event.clientX
+  const startY = event.clientY
+  const startLeft = windowLeft.value
+  const startTop = windowTop.value
+  const move = (moveEvent: PointerEvent) => {
+    windowLeft.value = Math.max(0, Math.min(window.innerWidth - 120, startLeft + moveEvent.clientX - startX))
+    windowTop.value = Math.max(0, Math.min(window.innerHeight - 48, startTop + moveEvent.clientY - startY))
+  }
+  trackPointer(move)
+}
+
+function startWindowResize(event: PointerEvent, direction: ResizeDirection) {
+  if (maximized.value || event.button !== 0) return
+  emit('focus')
+  const startX = event.clientX
+  const startY = event.clientY
+  const startLeft = windowLeft.value
+  const startTop = windowTop.value
+  const startWidth = windowWidth.value
+  const startHeight = windowHeight.value
+  const minWidth = 420
+  const minHeight = 300
+  const move = (moveEvent: PointerEvent) => {
+    const dx = moveEvent.clientX - startX
+    const dy = moveEvent.clientY - startY
+    if (direction.includes('e')) windowWidth.value = Math.max(minWidth, Math.min(window.innerWidth - startLeft, startWidth + dx))
+    if (direction.includes('s')) windowHeight.value = Math.max(minHeight, Math.min(window.innerHeight - startTop, startHeight + dy))
+    if (direction.includes('w')) {
+      const nextWidth = Math.max(minWidth, startWidth - dx)
+      windowLeft.value = Math.max(0, startLeft + startWidth - nextWidth)
+      windowWidth.value = nextWidth
+    }
+    if (direction.includes('n')) {
+      const nextHeight = Math.max(minHeight, startHeight - dy)
+      windowTop.value = Math.max(0, startTop + startHeight - nextHeight)
+      windowHeight.value = nextHeight
+    }
+  }
+  trackPointer(move)
+}
+
+function trackPointer(move: (event: PointerEvent) => void) {
+  document.body.style.userSelect = 'none'
+  const stop = () => {
+    document.body.style.userSelect = ''
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+    window.removeEventListener('pointercancel', stop)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop, { once: true })
+  window.addEventListener('pointercancel', stop, { once: true })
 }
 
 function startNewSession() {
@@ -823,10 +980,7 @@ const composer = useMiniWorkstationComposer({
     void loadMiniSessions()
     void loadGlobalSessions()
     setCollapsed(false, startedSessionId)
-    maximized.value = true
-    stopMiniPoll()
     emit('task-started', startedSessionId)
-    emit('maximize-change', { maximized: true, sessionId: startedSessionId })
   },
   onToolCallOk: (payload) => {
     emit('tool-call-ok', payload)
@@ -894,9 +1048,22 @@ watch(
 )
 
 onMounted(() => {
+  initializeWindowBounds()
+  if (rootRef.value && typeof ResizeObserver !== 'undefined') {
+    windowResizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry) return
+      smallWindow.value = !maximized.value && (entry.contentRect.width < 640 || entry.contentRect.height < 520)
+    })
+    windowResizeObserver.observe(rootRef.value)
+  }
   if (props.visible) {
     loadDrawerSessions()
   }
+})
+
+onBeforeUnmount(() => {
+  windowResizeObserver?.disconnect()
+  windowResizeObserver = null
 })
 
 watch(
@@ -1693,6 +1860,119 @@ useMiniWorkstationEffects({
 
 }
 
+/* Desktop-style floating window behavior. Keep these rules last so they replace
+   the legacy right-panel sizing without disturbing the workbench internals. */
+.mini-ws.mini-ws--compact {
+  min-width: 420px;
+  min-height: 300px;
+  pointer-events: auto;
+}
+
+.mini-ws.mini-ws--maximized {
+  inset: 12px;
+  width: auto;
+  height: auto;
+  pointer-events: auto;
+}
+
+.mini-ws--compact .mini-drawer-head {
+  cursor: move;
+  user-select: none;
+}
+
+.mini-window-control {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.mini-window-control:hover {
+  background: var(--el-fill-color);
+  color: var(--text-primary);
+}
+
+.mini-window-control--close:hover {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.mini-session-toggle-glyph {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.mini-drawer-icon-action.is-active {
+  border-color: rgba(var(--color-primary-rgb), 0.2);
+  background: rgba(var(--color-primary-rgb), 0.1);
+  color: var(--color-primary);
+}
+
+.mini-current-layout.is-session-collapsed,
+.mini-ws.mini-ws--maximized .mini-current-layout.is-session-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mini-ws.mini-ws--maximized .mini-current-layout.is-session-collapsed.is-artifact-open {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.mini-ws.mini-ws--maximized .mini-current-layout.is-session-collapsed.is-artifact-open .mini-artifact-drawer {
+  grid-column: 2;
+}
+
+.mini-resize-handle {
+  position: absolute;
+  z-index: 8;
+  pointer-events: auto;
+}
+
+.mini-resize-n { top: -4px; right: 10px; left: 10px; height: 8px; cursor: n-resize; }
+.mini-resize-s { right: 10px; bottom: -4px; left: 10px; height: 8px; cursor: s-resize; }
+.mini-resize-e { top: 10px; right: -4px; bottom: 10px; width: 8px; cursor: e-resize; }
+.mini-resize-w { top: 10px; bottom: 10px; left: -4px; width: 8px; cursor: w-resize; }
+.mini-resize-ne { top: -5px; right: -5px; width: 14px; height: 14px; cursor: ne-resize; }
+.mini-resize-nw { top: -5px; left: -5px; width: 14px; height: 14px; cursor: nw-resize; }
+.mini-resize-se { right: -5px; bottom: -5px; width: 14px; height: 14px; cursor: se-resize; }
+.mini-resize-sw { bottom: -5px; left: -5px; width: 14px; height: 14px; cursor: sw-resize; }
+
+.mini-ws--small .mini-drawer-head {
+  min-height: 48px;
+  padding: 7px 8px 7px 12px;
+}
+
+.mini-ws--small .mini-drawer-title > span,
+.mini-ws--small .mini-drawer-primary-action span,
+.mini-ws--small .mini-drawer-secondary-action span {
+  display: none;
+}
+
+.mini-ws--small .mini-drawer-title {
+  display: block;
+}
+
+.mini-ws--small .mini-drawer-primary-action,
+.mini-ws--small .mini-drawer-secondary-action {
+  width: 32px;
+  padding: 0;
+}
+
+.mini-ws--small .mini-current-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mini-ws--small .mini-current-meta {
+  display: none;
+}
+
 /* Fullscreen workbench shell */
 .mini-ws,
 .mini-ws--maximized {
@@ -2271,13 +2551,14 @@ useMiniWorkstationEffects({
     min-width: 0;
   }
 
-  .mini-shell :deep(.mini-path-pill) {
-    display: none;
-  }
-
   .mini-shell :deep(.mini-input-wrap) {
     min-width: 0;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mini-shell :deep(.mini-ws-input.mini-ws-input--compact-window) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto;
   }
 
   .mini-shell :deep(.mini-action-stack) {
@@ -2308,6 +2589,39 @@ useMiniWorkstationEffects({
     width: 38px;
     min-width: 38px;
   }
+}
+
+/* 非全屏会话列表以覆盖层出现，避免压缩消息与输入区。 */
+.mini-ws.mini-ws--compact .mini-current-layout {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mini-ws.mini-ws--compact .mini-current-meta {
+  position: absolute;
+  z-index: 12;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(300px, calc(100% - 24px));
+  max-height: none;
+  display: grid;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  box-shadow: 16px 0 40px rgba(3, 10, 24, 0.28);
+}
+
+.mini-session-overlay-backdrop {
+  position: absolute;
+  z-index: 11;
+  inset: 0;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(3, 9, 20, 0.42);
+  cursor: default;
 }
 </style>
 

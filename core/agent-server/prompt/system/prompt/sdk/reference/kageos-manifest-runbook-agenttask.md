@@ -387,5 +387,6 @@ AgentTask 的方案要区分“执行前缺口快照”和“执行后剩余缺�
 - 子目录文档使用原 `packageContext.AddDocs(app.DocManifest{Code: "./docs/readme.docs", ...})`；不要额外声明 `PackageContext`。
 - 如果 docs 只是场景方案载体，是否避免再创建保存同一内容的 knowledge Table。
 - 默认 Agent 任务使用 `packageContext.AddAgentTask(app.AgentTask{...})`。
+- 数字员工默认显式写 `Enabled: false`，安装后由用户在平台中自行开启；不要让高成本 Agent 会话随安装自动运行。
 - 不要给 AgentTask 填 `Policy`，默认就是缺失才创建。
 - build/update 后才会把 seed 同步到 Service Tree。

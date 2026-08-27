@@ -129,6 +129,50 @@ func TestRecordTableActionLogPersistsFailedResultAndDuration(t *testing.T) {
 	}
 }
 
+func TestRecordTableDeleteLogPersistsSnapshotForEachRow(t *testing.T) {
+	service, db := newAppServiceOperateLogTest(t)
+	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{})
+
+	err := service.RecordTableActionLog(ctx, &dto.RecordTableActionLogReq{
+		TenantUser:  "alice",
+		RequestUser: "bob",
+		App:         "ops",
+		Router:      "tickets.table",
+		Action:      "OnTableDeleteRows",
+		RowIDs:      []int64{41, 42},
+		OldValuesByRow: map[int64]json.RawMessage{
+			41: json.RawMessage(`{"id":41,"title":"first"}`),
+			42: json.RawMessage(`{"id":42,"title":"second"}`),
+		},
+		Status: "success",
+	})
+	if err != nil {
+		t.Fatalf("record delete logs: %v", err)
+	}
+
+	var logs []model.OperateLog
+	deadline := time.Now().Add(time.Second)
+	for {
+		if queryErr := db.Where("action = ?", "OnTableDeleteRows").Order("target_id ASC").Find(&logs).Error; queryErr == nil && len(logs) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("delete logs were not persisted: %+v", logs)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	for i, wantTitle := range []string{"first", "second"} {
+		var snapshot map[string]interface{}
+		if err := json.Unmarshal(logs[i].OldValuesJSON, &snapshot); err != nil {
+			t.Fatalf("unmarshal row %d snapshot: %v", i, err)
+		}
+		if snapshot["title"] != wantTitle {
+			t.Fatalf("row %d snapshot = %+v, want title %q", i, snapshot, wantTitle)
+		}
+	}
+}
+
 func TestRecordTableActionLogUsesContextAuditSource(t *testing.T) {
 	service, db := newAppServiceOperateLogTest(t)
 	ctx := contextx.WithRequestInfo(context.Background(), contextx.RequestInfo{

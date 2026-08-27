@@ -1,0 +1,91 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "公开服务预约",
+    "code": "service_booking",
+    "summary": "让外部客户提交预约，系统在并发校验容量后生成内部处理记录，并支持取消释放名额。"
+  },
+  "tables": [
+    {
+      "name": "服务场次",
+      "title": "服务场次",
+      "desc": "维护可预约服务、时间、容量和开放状态。",
+      "fields": [
+        {"name": "服务名称", "widget": "input", "required": true, "desc": "对外展示的服务名称。"},
+        {"name": "开始时间", "widget": "datetime", "required": true, "desc": "服务开始时间。"},
+        {"name": "预约容量", "widget": "integer", "required": true, "desc": "可接受的总预约人数，必须大于 0。"},
+        {"name": "已预约人数", "widget": "integer", "required": false, "hide": "create,update", "desc": "由预约和取消流程维护。"},
+        {"name": "开放状态", "widget": "select", "required": true, "desc": "有开放、暂停、结束三个状态。"},
+        {"name": "负责人", "widget": "user", "required": true, "desc": "内部处理负责人。"}
+      ],
+      "search_fields": [
+        {"name": "服务名称", "widget": "input", "required": false, "desc": "按服务名称搜索。"},
+        {"name": "开放状态", "widget": "select", "required": false, "desc": "按开放状态筛选。"},
+        {"name": "负责人", "widget": "user", "required": false, "desc": "按负责人筛选。"}
+      ],
+      "handlers": ["OnTableAddRow", "OnTableUpdateRow", "OnTableDeleteRow"],
+      "examples": [{"服务名称": "设备上门安装", "开始时间": "2026-09-01 09:00", "预约容量": 10, "已预约人数": 3, "开放状态": "开放", "负责人": "服务主管"}]
+    },
+    {
+      "name": "预约记录",
+      "title": "预约处理",
+      "desc": "供内部人员查询、确认、完成或取消外部提交的预约。",
+      "fields": [
+        {"name": "预约编号", "widget": "input", "required": true, "desc": "系统生成的唯一业务编号。"},
+        {"name": "服务名称", "widget": "input", "required": true, "desc": "预约时的服务名称快照。"},
+        {"name": "客户姓名", "widget": "input", "required": true, "desc": "预约联系人。"},
+        {"name": "联系电话", "widget": "input", "required": true, "desc": "用于预约确认的联系方式。"},
+        {"name": "预约人数", "widget": "integer", "required": true, "desc": "占用场次容量的人数。"},
+        {"name": "预约状态", "widget": "select", "required": true, "desc": "有待确认、已确认、已完成、已取消四个状态。"},
+        {"name": "处理备注", "widget": "text_area", "required": false, "desc": "内部确认和处理说明。"}
+      ],
+      "search_fields": [
+        {"name": "预约编号", "widget": "input", "required": false, "desc": "按业务编号精准查询。"},
+        {"name": "联系电话", "widget": "input", "required": false, "desc": "按联系方式查询。"},
+        {"name": "预约状态", "widget": "select", "required": false, "desc": "按处理状态筛选。"},
+        {"name": "创建开始时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的开始时间。"},
+        {"name": "创建结束时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的结束时间。"}
+      ],
+      "handlers": ["OnTableUpdateRow"],
+      "examples": [{"预约编号": "BK202608270001", "服务名称": "设备上门安装", "客户姓名": "王女士", "联系电话": "13800000000", "预约人数": 1, "预约状态": "待确认", "处理备注": ""}]
+    }
+  ],
+  "forms": [
+    {
+      "name": "客户预约",
+      "desc": "无需进入内部管理台即可提交；只展示开放且未满的服务场次。",
+      "target_table": "预约记录",
+      "request_fields": [
+        {"name": "服务场次", "widget": "select", "required": true, "desc": "从开放且剩余容量足够的场次中选择。"},
+        {"name": "客户姓名", "widget": "input", "required": true, "desc": "2-50 字。"},
+        {"name": "联系电话", "widget": "input", "required": true, "desc": "用于查询和接收确认信息。"},
+        {"name": "预约人数", "widget": "integer", "required": true, "desc": "必须大于 0 且不能超过实时剩余容量。"},
+        {"name": "客户备注", "widget": "text_area", "required": false, "desc": "可填写地址或特殊需求。"}
+      ],
+      "response_fields": [
+        {"name": "预约编号", "widget": "input", "required": false, "desc": "提交成功后返回。"},
+        {"name": "预约结果", "widget": "input", "required": false, "desc": "成功或容量不足等失败原因。"}
+      ],
+      "example": {"request": {"服务场次": "设备上门安装 2026-09-01 09:00", "客户姓名": "王女士", "联系电话": "13800000000", "预约人数": 1, "客户备注": "上午可上门"}, "response": {"预约编号": "BK202608270001", "预约结果": "提交成功，等待确认"}}
+    },
+    {
+      "name": "取消预约",
+      "desc": "客户凭预约编号和联系电话取消未完成预约，成功后释放场次容量。",
+      "target_table": "预约记录",
+      "request_fields": [
+        {"name": "预约编号", "widget": "input", "required": true, "desc": "提交预约时返回的编号。"},
+        {"name": "联系电话", "widget": "input", "required": true, "desc": "必须与预约记录一致。"}
+      ],
+      "response_fields": [{"name": "取消结果", "widget": "input", "required": false, "desc": "返回取消成功或不能取消的原因。"}],
+      "example": {"request": {"预约编号": "BK202608270001", "联系电话": "13800000000"}, "response": {"取消结果": "取消成功"}}
+    }
+  ],
+  "rules": [
+    "公开表单只暴露业务所需字段，不暴露内部处理备注、负责人或任意表格写能力。",
+    "创建预约时在事务内锁定服务场次并重新校验开放状态和剩余容量，避免并发超售。",
+    "同一提交标识重复请求时返回原预约结果，不重复占用容量。",
+    "取消只有首次从有效状态变为已取消时释放容量；重复取消不能重复扣减已预约人数。",
+    "内部状态流转只允许待确认到已确认、已确认到已完成，以及未完成预约到已取消。"
+  ]
+}

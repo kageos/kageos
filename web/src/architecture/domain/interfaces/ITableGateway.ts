@@ -17,9 +17,13 @@ export interface TableUpdateRequest {
   oldData?: Record<string, unknown>
 }
 
+export interface TableAddOptions {
+  operation?: 'create' | 'import'
+}
+
 export interface ITableGateway {
   loadRows(request: TableLoadRequest): Promise<TableListResponse>
-  addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow>
+  addRow(functionDetail: FunctionDetail, data: Record<string, unknown>, options?: TableAddOptions): Promise<TableRow>
   updateRow(request: TableUpdateRequest): Promise<TableRow>
   deleteRow(functionDetail: FunctionDetail, id: number | string): Promise<void>
 }

@@ -94,6 +94,9 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	if req.RowID > 0 {
 		query = query.Where("target_id = ?", fmt.Sprintf("%d", req.RowID))
 	}
+	if req.ExcludeScheduledTasks {
+		query = query.Where("COALESCE(source, '') <> ? AND COALESCE(source_type, '') <> ? AND COALESCE(executor_type, '') <> ?", "scheduled_task", "scheduled_task", "scheduled_function")
+	}
 	if req.Keyword != "" {
 		keyword := strings.TrimSpace(req.Keyword)
 		likeKeyword := "%" + keyword + "%"

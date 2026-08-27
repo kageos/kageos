@@ -19,6 +19,7 @@ func InitModels(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		// 第一层：基础表（不被其他表引用）
 		&SystemSetting{},
+		&SystemResourceSample{},
 		&AuthLoginProvider{},
 		&AuthOAuthState{},
 		&AuthOAuthRegistrationIntent{},

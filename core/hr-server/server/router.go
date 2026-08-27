@@ -69,13 +69,14 @@ func (s *Server) setupRoutes() {
 
 	systemSettings := apiV1.Group("/system/settings")
 	systemSettings.Use(jwtAuth)
-	systemSettingsHandler := v1.NewSystemSettings(s.settingsService)
+	systemSettingsHandler := v1.NewSystemSettings(s.settingsService, s.resourceService)
 	systemSettings.GET("", systemSettingsHandler.Get)
 	systemSettings.PUT("", systemSettingsHandler.Update)
 	systemSettings.POST("/email/test", systemSettingsHandler.TestEmail)
 	systemSettings.GET("/tls", systemSettingsHandler.GetTLS)
 	systemSettings.PUT("/tls", systemSettingsHandler.UpdateTLS)
 	systemSettings.POST("/tls/reload", systemSettingsHandler.ReloadTLS)
+	systemSettings.GET("/resources", systemSettingsHandler.GetResources)
 
 	systemAuthProviders := apiV1.Group("/system/auth/providers")
 	systemAuthProviders.Use(jwtAuth)

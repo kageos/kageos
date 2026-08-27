@@ -242,6 +242,7 @@ The same checks are wired into GitHub Actions in `.github/workflows/ci.yml`.
 - [Scheduled task architecture](docs/scheduled-tasks-architecture-design.md)
 - [Local development](deploy/dev/README.md)
 - [Production deployment](deploy/prod/README.md)
+- [Backup and restore](docs/backup-restore.md)
 - [Release SOP](docs/release-sop.md)
 - [Source and licensing messaging](docs/source-available-messaging.md)
 - [License FAQ](LICENSE_FAQ.md)

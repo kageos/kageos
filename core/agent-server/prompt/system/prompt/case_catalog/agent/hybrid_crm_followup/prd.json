@@ -1,0 +1,87 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "销售跟进准备",
+    "code": "hybrid_crm_followup",
+    "summary": "用确定性程序维护客户事实和提醒，用 AgentTask 依据已启用销售文档生成内部跟进建议。"
+  },
+  "tables": [
+    {
+      "name": "客户",
+      "title": "客户管理",
+      "desc": "维护客户阶段、负责人、下次跟进时间和最近跟进摘要。",
+      "fields": [
+        {"name": "客户名称", "widget": "input", "required": true, "desc": "企业或个人客户名称。"},
+        {"name": "销售阶段", "widget": "select", "required": true, "desc": "有新线索、已接洽、方案中、待成交、已成交、已流失六个阶段。"},
+        {"name": "负责人", "widget": "user", "required": true, "desc": "当前跟进销售。"},
+        {"name": "下次跟进时间", "widget": "datetime", "required": false, "desc": "销售承诺的下一次跟进时间。"},
+        {"name": "最近跟进摘要", "widget": "text_area", "required": false, "hide": "create,update", "desc": "由最新跟进记录同步。"},
+        {"name": "跟进建议", "widget": "richtext", "required": false, "hide": "create,update", "desc": "AgentTask 生成的内部准备材料，不是已联系客户的事实。"}
+      ],
+      "search_fields": [
+        {"name": "客户名称", "widget": "input", "required": false, "desc": "按客户名称搜索。"},
+        {"name": "销售阶段", "widget": "select", "required": false, "desc": "按销售阶段筛选。"},
+        {"name": "负责人", "widget": "user", "required": false, "desc": "按负责人筛选。"}
+      ],
+      "handlers": ["OnTableAddRow", "OnTableUpdateRow", "OnTableDeleteRow"],
+      "examples": [{"客户名称": "远山商贸", "销售阶段": "方案中", "负责人": "销售小李", "下次跟进时间": "2026-08-28 10:00", "最近跟进摘要": "客户关注实施周期和培训安排。", "跟进建议": "待生成"}]
+    },
+    {
+      "name": "跟进记录",
+      "title": "跟进记录",
+      "desc": "保存销售实际发生的联系事实、客户反馈和下一步安排。",
+      "fields": [
+        {"name": "客户名称", "widget": "input", "required": true, "desc": "关联客户名称。"},
+        {"name": "跟进方式", "widget": "select", "required": true, "desc": "有电话、微信、邮件、拜访、会议五个选项。"},
+        {"name": "跟进时间", "widget": "datetime", "required": true, "desc": "实际联系发生时间。"},
+        {"name": "沟通纪要", "widget": "richtext", "required": true, "desc": "只记录真实沟通内容。"},
+        {"name": "下次跟进时间", "widget": "datetime", "required": false, "desc": "本次沟通约定的下一步时间。"},
+        {"name": "记录人", "widget": "user", "required": true, "desc": "提交跟进事实的销售人员。"}
+      ],
+      "search_fields": [
+        {"name": "客户名称", "widget": "input", "required": false, "desc": "按客户筛选。"},
+        {"name": "记录人", "widget": "user", "required": false, "desc": "按销售人员筛选。"},
+        {"name": "创建开始时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的开始时间。"},
+        {"name": "创建结束时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的结束时间。"}
+      ],
+      "handlers": ["OnTableAddRow", "OnTableUpdateRow", "OnTableDeleteRow"],
+      "examples": [{"客户名称": "远山商贸", "跟进方式": "会议", "跟进时间": "2026-08-26 15:00", "沟通纪要": "确认需分两批上线并安排管理员培训。", "下次跟进时间": "2026-08-28 10:00", "记录人": "销售小李"}]
+    }
+  ],
+  "forms": [
+    {
+      "name": "记录客户跟进",
+      "desc": "销售提交真实沟通事实，并同步客户的最近摘要和下次跟进时间。",
+      "target_table": "跟进记录",
+      "request_fields": [
+        {"name": "客户", "widget": "select", "required": true, "desc": "选择现有客户并提交其 ID。"},
+        {"name": "跟进方式", "widget": "select", "required": true, "desc": "有电话、微信、邮件、拜访、会议五个选项。"},
+        {"name": "跟进时间", "widget": "datetime", "required": true, "desc": "实际沟通时间。"},
+        {"name": "沟通纪要", "widget": "richtext", "required": true, "desc": "记录客户真实反馈。"},
+        {"name": "下次跟进时间", "widget": "datetime", "required": false, "desc": "可留空。"}
+      ],
+      "response_fields": [{"name": "处理结果", "widget": "input", "required": false, "desc": "返回记录成功或失败原因。"}],
+      "example": {"request": {"客户": "远山商贸", "跟进方式": "会议", "跟进时间": "2026-08-26 15:00", "沟通纪要": "确认需分两批上线。", "下次跟进时间": "2026-08-28 10:00"}, "response": {"处理结果": "跟进已记录"}}
+    }
+  ],
+  "charts": [
+    {
+      "name": "客户阶段分布",
+      "desc": "查看当前客户在各销售阶段的数量。",
+      "source_table": "客户",
+      "chart_type": "pie",
+      "dimension": "销售阶段",
+      "metrics": ["客户数量"],
+      "filters": [{"name": "负责人", "widget": "user", "required": false, "desc": "按销售负责人筛选。"}],
+      "examples": [{"dimension": "方案中", "metrics": {"客户数量": 8}}, {"dimension": "待成交", "metrics": {"客户数量": 3}}]
+    }
+  ],
+  "rules": [
+    "程序负责校验状态、写入真实跟进记录、同步下次跟进时间和发送到期提醒。",
+    "AgentTask 只为即将跟进的客户生成内部建议，先读运行说明和已启用销售方案文档。",
+    "AgentTask 不得冒充已联系客户、不得修改沟通纪要或销售阶段、不得直接发送对外消息。",
+    "建议必须标注事实来源和缺失信息；没有适用方案时留下知识缺口，不得编造承诺。",
+    "确定性提醒和 AgentTask 使用不同执行入口，避免把简单到期扫描交给模型。"
+  ]
+}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/kageos/kageos/core/app-storage/model"
 	"gorm.io/gorm"
@@ -72,6 +73,27 @@ func (r *FileRepository) GetUploadRecordByBucketKey(ctx context.Context, bucket 
 		return nil, err
 	}
 	return &record, nil
+}
+
+// UpdateDeletionState 保留上传元数据，只更新物理文件删除生命周期。
+func (r *FileRepository) UpdateDeletionState(ctx context.Context, bucket string, fileKey string, status string, deletedBy string, deletedAt *time.Time, deleteError string) error {
+	updates := map[string]interface{}{
+		"status":       status,
+		"deleted_by":   deletedBy,
+		"deleted_at":   deletedAt,
+		"delete_error": deleteError,
+	}
+	result := r.db.WithContext(ctx).
+		Model(&model.FileUpload{}).
+		Where("bucket = ? AND file_key = ?", bucket, fileKey).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ListUploadsByUser 列举用户的上传记录

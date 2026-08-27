@@ -56,21 +56,21 @@ function openMiniWsQuery(input: {
 }
 
 describe('useWorkspaceMiniWorkstations', () => {
-  it('keeps previous session workstations mounted but hidden when switching sessions', () => {
+  it('keeps multiple session workstations visible at the same time', () => {
     const { api } = createHarness()
 
     api.openNewMiniWs('session-a', '/user/app/a', 'A')
     api.openNewMiniWs('session-b', '/user/app/b', 'B')
 
     expect(api.miniWsList.value).toHaveLength(2)
-    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(false)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(true)
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(true)
 
     api.openNewMiniWs('session-a', '/user/app/a', 'A')
 
     expect(api.miniWsList.value).toHaveLength(2)
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(true)
-    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(false)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(true)
   })
 
   it('does not replace an active session with an ambient draft for the same path', () => {
@@ -129,7 +129,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(api.hideVisibleMiniWs()).toBe(true)
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-b')?.visible).toBe(false)
-    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(false)
+    expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')?.visible).toBe(true)
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/current',
       query: {}
@@ -143,6 +143,38 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(api.hideVisibleMiniWs()).toBe(false)
     expect(router.replace).not.toHaveBeenCalled()
+  })
+
+  it('restores a minimized window and brings it to the front', () => {
+    const { api } = createHarness()
+
+    api.openNewMiniWs('session-a', '/user/app/a', 'A', false, true)
+    api.openNewMiniWs('session-b', '/user/app/b', 'B', false, true)
+    const first = api.miniWsList.value.find(item => item.initialSessionId === 'session-a')!
+    const second = api.miniWsList.value.find(item => item.initialSessionId === 'session-b')!
+
+    api.handleMiniMinimize(first.id)
+    expect(first.visible).toBe(false)
+
+    api.restoreMiniWs(first.id)
+
+    expect(first.visible).toBe(true)
+    expect(first.zIndex).toBeGreaterThan(second.zIndex)
+  })
+
+  it('persists a session selected inside the current workstation', () => {
+    const { api, router } = createHarness()
+
+    api.openNewMiniWs('session-a', '/user/app/a', 'A', false, true)
+    const mini = api.miniWsList.value[0]!
+
+    api.handleMiniSessionChange(mini.id, 'session-b')
+
+    expect(mini.initialSessionId).toBe('session-b')
+    expect(router.replace).toHaveBeenLastCalledWith({
+      path: '/workspace/current',
+      query: openMiniWsQuery({ sessionId: 'session-b', fullCodePath: '/user/app/a', name: 'A', maximized: '0' })
+    })
   })
 
   it('reopens a hidden workstation with its previous maximized state when no override is provided', async () => {
@@ -218,7 +250,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(api.miniWsList.value).toHaveLength(2)
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')).toMatchObject({
-      visible: false
+      visible: true
     })
     expect(api.miniWsList.value.find(item => item.initialSessionId === '')).toMatchObject({
       fullCodePath: '/user/app/a',

@@ -56,6 +56,7 @@ export interface GetOperateLogsParams {
   trace_id?: string
   row_id?: number
   keyword?: string
+  exclude_scheduled_tasks?: boolean
   page?: number
   page_size?: number
   order_by?: string

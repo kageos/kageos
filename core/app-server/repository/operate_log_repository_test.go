@@ -164,6 +164,36 @@ func TestGetOperateLogsFiltersBySource(t *testing.T) {
 	}
 }
 
+func TestGetOperateLogsExcludesScheduledTasksByDefaultFlag(t *testing.T) {
+	db := newOperateLogRepositoryTestDB(t)
+	repo := NewOperateLogRepository(db)
+	ctx := context.Background()
+
+	logs := []*model.OperateLog{
+		{TenantUser: "alice", App: "ops", ActorUser: "alice", Action: "OnTableUpdateRow", ResourceType: "table", ResourcePath: "/alice/ops/tickets.table", Status: "success", Source: "browser"},
+		{TenantUser: "alice", App: "ops", ActorUser: "scheduler", Action: "OnTableUpdateRow", ResourceType: "table", ResourcePath: "/alice/ops/tickets.table", Status: "success", Source: "scheduled_task"},
+		{TenantUser: "alice", App: "ops", ActorUser: "scheduler", Action: "scheduled_function_execute", ResourceType: "table", ResourcePath: "/alice/ops/tickets.table", Status: "success", ExecutorType: "scheduled_function"},
+	}
+	for _, log := range logs {
+		if err := repo.CreateOperateLog(ctx, log); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	got, total, err := repo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{
+		ResourcePath:          "/alice/ops/tickets.table",
+		ExcludeScheduledTasks: true,
+		Page:                  1,
+		PageSize:              20,
+	})
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	if total != 1 || len(got) != 1 || got[0].Source != "browser" {
+		t.Fatalf("logs = %+v, total = %d; want only browser log", got, total)
+	}
+}
+
 func TestGetOperateLogsFiltersByWorkspaceSessionID(t *testing.T) {
 	db := newOperateLogRepositoryTestDB(t)
 	repo := NewOperateLogRepository(db)

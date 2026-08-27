@@ -24,6 +24,7 @@ export interface MiniWsInstance {
   initialPosition?: 'center'
   initialExpanded?: boolean
   initialMaximized?: boolean
+  zIndex: number
 }
 
 export interface WorkstationContext {
@@ -51,6 +52,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
 
   const miniWsList = ref<MiniWsInstance[]>([])
   let miniIdCounter = 0
+  let zIndexCounter = 2400
   let pendingExplicitOpenPath = ''
 
   function normalizeFullCodePath(fullCodePath: string) {
@@ -88,11 +90,12 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     initialSessionId = '',
     initialMaximized?: boolean,
     initialExpanded?: boolean,
-    preferMatch?: (mini: MiniWsInstance) => boolean
+    preferMatch?: (mini: MiniWsInstance) => boolean,
+    forceCreate = false
   ): MiniWsInstance | undefined {
     const normalizedSessionId = initialSessionId.trim()
-    let existingIndex = preferMatch ? miniWsList.value.findIndex(preferMatch) : -1
-    if (existingIndex === -1) {
+    let existingIndex = !forceCreate && preferMatch ? miniWsList.value.findIndex(preferMatch) : -1
+    if (!forceCreate && existingIndex === -1) {
       existingIndex = miniWsList.value.findIndex((mini: MiniWsInstance) =>
         mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
       )
@@ -117,9 +120,10 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         initialPosition: nextInitialMaximized ? undefined : 'center',
         initialExpanded: nextInitialExpanded,
         initialMaximized: nextInitialMaximized,
+        zIndex: ++zIndexCounter,
       }
       miniWsList.value = miniWsList.value.map((mini: MiniWsInstance, index: number) =>
-        index === existingIndex ? nextMini : { ...mini, visible: false }
+        index === existingIndex ? nextMini : mini
       )
       return nextMini
     }
@@ -132,13 +136,14 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       dirName,
       initialSessionId: normalizedSessionId,
       visible: nextInitialExpanded !== false,
-      offset: 0,
+      offset: Math.min(miniWsList.value.length, 6) * 28,
       initialPosition: nextInitialMaximized ? undefined : 'center',
       initialExpanded: nextInitialExpanded,
       initialMaximized: nextInitialMaximized,
+      zIndex: ++zIndexCounter,
     }
     miniWsList.value = [
-      ...miniWsList.value.map((mini: MiniWsInstance) => ({ ...mini, visible: false })),
+      ...miniWsList.value,
       nextMini
     ]
     return nextMini
@@ -179,6 +184,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       initialPosition: 'center',
       initialExpanded: false,
       initialMaximized: false,
+      zIndex: ++zIndexCounter,
     }
     if (existingIndex >= 0) {
       miniWsList.value = miniWsList.value.map((mini: MiniWsInstance, index: number) =>
@@ -229,7 +235,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       }
       return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded)
     }
-    return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded)
+    return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded, undefined, true)
   }
 
   function normalizeRouteBool(value: unknown, defaultValue: boolean) {
@@ -290,7 +296,9 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   }
 
   function hideVisibleMiniWs() {
-    const visibleMini = miniWsList.value.find((mini: MiniWsInstance) => mini.visible)
+    const visibleMini = [...miniWsList.value]
+      .filter((mini: MiniWsInstance) => mini.visible)
+      .sort((left, right) => right.zIndex - left.zIndex)[0]
     if (!visibleMini) return false
     handleMiniMinimize(visibleMini.id)
     return true
@@ -299,6 +307,26 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
   function handleMiniRemove(id: string) {
     miniWsList.value = miniWsList.value.filter((item: MiniWsInstance) => item.id !== id)
     syncMiniWsQueryParam(false)
+  }
+
+  function handleMiniFocus(id: string) {
+    const mini = miniWsList.value.find((item: MiniWsInstance) => item.id === id)
+    if (!mini) return
+    mini.zIndex = ++zIndexCounter
+  }
+
+  function restoreMiniWs(id: string) {
+    const mini = miniWsList.value.find((item: MiniWsInstance) => item.id === id)
+    if (!mini) return
+    mini.visible = true
+    mini.initialExpanded = true
+    mini.zIndex = ++zIndexCounter
+    syncMiniWsQueryParam(true, {
+      sessionId: mini.initialSessionId || undefined,
+      ctx: { fullCodePath: mini.fullCodePath, dirName: mini.dirName },
+      expanded: true,
+      maximized: !!mini.initialMaximized,
+    })
   }
 
   function handleMiniMaximizeChange(id: string, payload: { maximized: boolean; sessionId?: string }) {
@@ -343,7 +371,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         ...mini,
         initialSessionId: normalizedSessionId,
         initialExpanded: true,
-        initialMaximized: true,
+        initialMaximized: mini.initialMaximized,
       }
     })
     const updatedMini = miniWsList.value.find((mini: MiniWsInstance) => mini.id === id)
@@ -353,6 +381,24 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         ctx: { fullCodePath: updatedMini.fullCodePath, dirName: updatedMini.dirName },
         expanded: updatedMini.initialExpanded !== false,
         maximized: !!updatedMini.initialMaximized,
+      })
+    }
+  }
+
+  function handleMiniSessionChange(id: string, sessionId: string) {
+    const normalizedSessionId = sessionId.trim()
+    if (!normalizedSessionId) return
+
+    const mini = miniWsList.value.find((item: MiniWsInstance) => item.id === id)
+    if (!mini) return
+    mini.initialSessionId = normalizedSessionId
+    mini.zIndex = ++zIndexCounter
+    if (mini.visible) {
+      syncMiniWsQueryParam(true, {
+        sessionId: normalizedSessionId,
+        ctx: { fullCodePath: mini.fullCodePath, dirName: mini.dirName },
+        expanded: mini.initialExpanded !== false,
+        maximized: !!mini.initialMaximized,
       })
     }
   }
@@ -469,9 +515,12 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     handleMiniMinimize,
     hideVisibleMiniWs,
     handleMiniRemove,
+    handleMiniFocus,
+    restoreMiniWs,
     handleMiniMaximizeChange,
     handleMiniExpandedChange,
     handleMiniTaskStarted,
+    handleMiniSessionChange,
     handleWorkspaceOpenWorkstation,
     initializeFromRoute,
   }

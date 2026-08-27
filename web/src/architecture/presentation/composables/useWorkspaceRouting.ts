@@ -222,10 +222,10 @@ export function useWorkspaceRouting(
           }
         }
         
-        // 检查是否有 _tab 参数（create/edit/detail/OnTableAddRow 模式）
+        // 检查是否有 _tab 参数（页面内嵌子视图不单独打开 Workspace Tab）
         const tabParam = route.query._tab as string
-        if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail' || tabParam === 'OnTableAddRow') {
-          // create/edit/detail/OnTableAddRow 模式不需要打开 Tab，直接加载节点详情
+        if (tabParam === 'create' || tabParam === 'edit' || tabParam === 'detail' || tabParam === 'OnTableAddRow' || tabParam === 'recycle-bin') {
+          // 页面内嵌子视图不需要打开 Tab，直接加载节点详情
           const tryLoadFunction = tryLoadNode
           
           // 🔥 使用 once 监听器，确保只执行一次，避免无限循环
@@ -243,7 +243,7 @@ export function useWorkspaceRouting(
             tryLoadFunction()
           }
           
-          return // create/edit/detail/OnTableAddRow 模式不打开 Tab
+          return // 页面内嵌子视图不打开 Workspace Tab
         }
         
         // 🔥 根路径（app 节点）：只选中节点，不打开 Tab

@@ -40,3 +40,47 @@ type AppDBResolveResp struct {
 	MaxIdleTime  int    `json:"max_idle_time,omitempty"` // seconds
 	MaxLifetime  int    `json:"max_lifetime,omitempty"`  // seconds
 }
+
+// AppDBPurgeRowsReq is an internal control-plane request. It is handled only
+// by app-runtime with its admin connection; app credentials never receive
+// DELETE permission.
+type AppDBPurgeRowsReq struct {
+	User        string  `json:"user"`
+	App         string  `json:"app"`
+	PackagePath string  `json:"package_path"`
+	Table       string  `json:"table"`
+	IDs         []int64 `json:"ids"`
+}
+
+type AppDBPurgeRowsResp struct {
+	Rows   []map[string]interface{} `json:"rows"`
+	Purged int64                    `json:"purged"`
+}
+
+// AppDBCleanupPolicyReq identifies one runtime-managed application table.
+type AppDBCleanupPolicyReq struct {
+	User        string `json:"user"`
+	App         string `json:"app"`
+	PackagePath string `json:"package_path"`
+	Table       string `json:"table"`
+	RequestUser string `json:"request_user,omitempty"`
+}
+
+// AppDBCleanupPolicyUpdateReq updates one table-level recycle-bin policy.
+type AppDBCleanupPolicyUpdateReq struct {
+	AppDBCleanupPolicyReq
+	Enabled       bool   `json:"enabled"`
+	Mode          string `json:"mode"`
+	RetentionDays int    `json:"retention_days"`
+}
+
+// AppDBCleanupPolicyResp is the effective policy shown in the recycle bin.
+type AppDBCleanupPolicyResp struct {
+	Enabled         bool   `json:"enabled"`
+	Mode            string `json:"mode"`
+	RetentionDays   int    `json:"retention_days"`
+	IntervalMinutes int    `json:"interval_minutes"`
+	BatchSize       int    `json:"batch_size"`
+	Source          string `json:"source"` // deployment | table
+	UpdatedBy       string `json:"updated_by,omitempty"`
+}

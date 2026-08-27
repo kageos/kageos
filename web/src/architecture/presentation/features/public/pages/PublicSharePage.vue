@@ -137,7 +137,7 @@
             v-if="submissionsTotal > submissionsPageSize"
             v-model:current-page="submissionsPage"
             class="submission-pagination"
-            small
+            size="small"
             background
             layout="prev, pager, next"
             :pager-count="isMobile ? 5 : 7"

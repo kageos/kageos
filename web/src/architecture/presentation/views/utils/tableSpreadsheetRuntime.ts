@@ -6,6 +6,34 @@ export const TABLE_IMPORT_MAX_COLUMNS = 120
 export const TABLE_IMPORT_MAX_FILE_BYTES = 8 * 1024 * 1024
 export const TABLE_EXPORT_MAX_ROWS = 10000
 
+export interface TableExportChunk {
+  index: number
+  startRow: number
+  endRow: number
+  rowCount: number
+  cursor?: string
+}
+
+export const buildTableExportChunks = (
+  totalRows: number,
+  chunkSize = TABLE_EXPORT_MAX_ROWS
+): TableExportChunk[] => {
+  const normalizedTotal = Math.max(0, Math.floor(totalRows))
+  const normalizedChunkSize = Math.max(1, Math.floor(chunkSize))
+  const chunks: TableExportChunk[] = []
+
+  for (let startRow = 1; startRow <= normalizedTotal; startRow += normalizedChunkSize) {
+    const endRow = Math.min(normalizedTotal, startRow + normalizedChunkSize - 1)
+    chunks.push({
+      index: chunks.length + 1,
+      startRow,
+      endRow,
+      rowCount: endRow - startRow + 1
+    })
+  }
+  return chunks
+}
+
 export interface TableImportRow {
   rowNumber: number
   data: Record<string, unknown>

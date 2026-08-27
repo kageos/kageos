@@ -256,23 +256,27 @@ export class TableDomainService {
    */
   async loadDataSnapshot(
     functionDetail: FunctionDetail,
-    options: { maxRows?: number, pageSize?: number } = {}
+    options: { startRow?: number, maxRows?: number, pageSize?: number, sorts?: SortItem[] } = {}
   ): Promise<TableDataSnapshot> {
     const state = this.stateManager.getState()
+    const startRow = Math.max(0, Math.floor(options.startRow ?? 0))
     const maxRows = Math.max(1, options.maxRows ?? 10000)
     const pageSize = Math.min(500, Math.max(1, options.pageSize ?? 500))
     const rows: TableRow[] = []
-    let page = 1
+    let page = Math.floor(startRow / pageSize) + 1
+    let pageOffset = startRow % pageSize
     let total = 0
 
     while (rows.length < maxRows) {
       const params: TableRequestParams = {
         ...state.searchParams,
         page,
-        page_size: Math.min(pageSize, maxRows - rows.length)
+        page_size: pageSize
       }
 
-      if (state.sorts && state.sorts.length > 0) {
+      if (options.sorts && options.sorts.length > 0) {
+        params.sorts = serializeSortsForRequest(options.sorts)
+      } else if (state.sorts && state.sorts.length > 0) {
         params.sorts = serializeSortsForRequest(state.sorts)
       } else if (state.sortParams) {
         params.sorts = serializeSortsForRequest([state.sortParams])
@@ -281,12 +285,18 @@ export class TableDomainService {
       const response = await this.tableGateway.loadRows({ functionDetail, params })
       const pageRows = response.items || []
       total = response.paginated?.total_count ?? pageRows.length
-      rows.push(...pageRows.slice(0, maxRows - rows.length))
+      const availableRows = pageRows.slice(pageOffset)
+      rows.push(...availableRows.slice(0, maxRows - rows.length))
 
-      if (pageRows.length === 0 || rows.length >= total || pageRows.length < params.page_size) {
+      if (
+        pageRows.length === 0
+        || startRow + rows.length >= total
+        || pageRows.length < params.page_size
+      ) {
         break
       }
       page += 1
+      pageOffset = 0
     }
 
     return {
@@ -348,8 +358,12 @@ export class TableDomainService {
   /**
    * 新增行
    */
-  async addRow(functionDetail: FunctionDetail, data: Record<string, unknown>): Promise<TableRow> {
-    const response = await this.tableGateway.addRow(functionDetail, data)
+  async addRow(
+    functionDetail: FunctionDetail,
+    data: Record<string, unknown>,
+    options?: { operation?: 'create' | 'import' }
+  ): Promise<TableRow> {
+    const response = await this.tableGateway.addRow(functionDetail, data, options)
 
     // 触发事件
     this.eventBus.emit(TableEvent.rowAdded, { row: response })

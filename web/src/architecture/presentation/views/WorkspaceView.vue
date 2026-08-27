@@ -304,22 +304,35 @@
     />
 
     <!-- 多个 Mini 浮动工作台 -->
-    <button
-      v-if="showMiniWorkstationLauncher"
-      type="button"
-      class="mini-workstation-launcher"
-      :title="t('workspace.openWorkbenchTitle', { shortcut: MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL, name: miniWorkstationLauncherName })"
-      data-testid="mini-workstation-launcher"
-      @click="openCurrentWorkstation"
+    <nav
+      v-if="showMiniWorkstationTaskbar"
+      class="mini-workstation-taskbar"
+      :aria-label="t('miniWorkstation.windowTaskbar')"
+      data-testid="mini-workstation-taskbar"
     >
-      <span class="mini-workstation-launcher-pulse"></span>
-      <strong>{{ t('workspace.workbench') }}</strong>
-      <span>{{ miniWorkstationLauncherSummary }}</span>
-      <kbd class="mini-workstation-launcher-shortcut">{{ MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL }}</kbd>
-      <span v-if="miniWorkstationLauncherCount > 1" class="mini-workstation-launcher-badge">
-        {{ miniWorkstationLauncherCount }}
-      </span>
-    </button>
+      <button
+        v-if="workstationContext?.fullCodePath"
+        type="button"
+        class="mini-workstation-taskbar-new"
+        :title="t('workspace.openWorkbenchTitle', { shortcut: MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL, name: miniWorkstationLauncherName })"
+        data-testid="mini-workstation-launcher"
+        @click="openCurrentWorkstation"
+      >
+        <span>＋</span>
+        <strong>{{ t('workspace.workbench') }}</strong>
+      </button>
+      <button
+        v-for="mini in miniWsList"
+        :key="`taskbar-${mini.id}`"
+        type="button"
+        :class="['mini-workstation-taskbar-item', { 'is-visible': mini.visible }]"
+        :title="mini.visible ? t('miniWorkstation.focusWindow', { name: mini.dirName }) : t('miniWorkstation.restoreNamedWindow', { name: mini.dirName })"
+        @click="mini.visible ? handleMiniFocus(mini.id) : restoreMiniWs(mini.id)"
+      >
+        <span class="mini-workstation-taskbar-status"></span>
+        <span>{{ mini.dirName }}</span>
+      </button>
+    </nav>
 
     <MiniWorkstation
       v-for="mini in miniWsList"
@@ -334,16 +347,19 @@
       :initial-position="mini.initialPosition"
       :initial-expanded="mini.initialExpanded"
       :initial-maximized="mini.initialMaximized"
+      :z-index="mini.zIndex"
       :path-name-map="workspacePathNameMap"
       :current-full-code-path="workstationContext?.fullCodePath"
       :current-dir-name="workstationContext?.dirName"
       :toggle-shortcut-label="MINI_WORKSTATION_TOGGLE_SHORTCUT_LABEL"
       @minimize="handleMiniMinimize(mini.id)"
       @close="handleMiniRemove(mini.id)"
+      @focus="handleMiniFocus(mini.id)"
       @open-current-new-session="openCurrentWorkstationNewSession"
       @expanded-change="(payload) => handleMiniExpandedChange(mini.id, payload)"
       @maximize-change="(payload) => handleMiniMaximizeChange(mini.id, payload)"
       @task-started="(sessionId) => handleMiniTaskStarted(mini.id, sessionId)"
+      @session-change="(sessionId) => handleMiniSessionChange(mini.id, sessionId)"
       @tool-call-ok="handleWorkstationToolCallOk"
     />
   </div>
@@ -749,9 +765,12 @@ const {
   handleMiniMinimize,
   hideVisibleMiniWs,
   handleMiniRemove,
+  handleMiniFocus,
+  restoreMiniWs,
   handleMiniMaximizeChange,
   handleMiniExpandedChange,
   handleMiniTaskStarted,
+  handleMiniSessionChange,
   handleWorkspaceOpenWorkstation,
   initializeFromRoute: initializeMiniWorkstationsFromRoute,
 } = useWorkspaceMiniWorkstations({
@@ -762,15 +781,11 @@ const {
   resolvePathName: resolveWorkspacePathName,
 })
 
-const showMiniWorkstationLauncher = computed(() => {
-  return !!workstationContext.value?.fullCodePath && !miniWsList.value.some(mini => mini.visible)
+const showMiniWorkstationTaskbar = computed(() => {
+  return !!workstationContext.value?.fullCodePath || miniWsList.value.length > 0
 })
 
 const miniWorkstationLauncherName = computed(() => workstationContext.value?.dirName || t('miniWorkstation.currentDirectory'))
-
-const miniWorkstationLauncherCount = computed(() => Math.max(miniWsList.value.length, 1))
-
-const miniWorkstationLauncherSummary = computed(() => t('miniWorkstation.sessionCount', { count: miniWorkstationLauncherCount.value }))
 
 function openCurrentWorkstation() {
   const ctx = workstationContext.value
@@ -1316,104 +1331,67 @@ useWorkspaceUiEffects({
   }
 }
 
-.mini-workstation-launcher {
+.mini-workstation-taskbar {
   position: fixed;
   left: 50%;
-  bottom: 28px;
-  z-index: 2400;
-  height: 46px;
-  max-width: min(360px, calc(100vw - 160px));
-  display: inline-flex;
+  bottom: 18px;
+  z-index: 2350;
+  max-width: min(920px, calc(100vw - 32px));
+  min-height: 48px;
+  display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 0 15px;
+  gap: 7px;
+  padding: 6px;
+  overflow-x: auto;
   transform: translateX(-50%);
   border: 1px solid rgba(130, 153, 190, 0.3);
-  border-radius: 999px;
-  background: rgba(10, 16, 29, 0.8);
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.38),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
-  color: #dce9fb;
-  backdrop-filter: blur(24px) saturate(1.12);
-  cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
+  border-radius: 12px;
+  background: rgba(10, 16, 29, 0.86);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(22px) saturate(1.12);
 }
 
-.mini-workstation-launcher:hover {
-  transform: translateX(-50%) translateY(-2px);
-  border-color: rgba(83, 174, 255, 0.5);
-  background: rgba(10, 16, 29, 0.88);
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.42),
-    0 0 0 1px rgba(83, 174, 255, 0.16),
-    0 0 26px rgba(83, 174, 255, 0.2);
-  color: #ffffff;
-}
-
-.mini-workstation-launcher-pulse {
-  width: 10px;
-  height: 10px;
+.mini-workstation-taskbar button {
+  height: 36px;
   flex: 0 0 auto;
-  border-radius: 50%;
-  background: #2bd59f;
-  box-shadow: 0 0 18px rgba(43, 213, 159, 0.8);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid rgba(130, 153, 190, 0.22);
+  border-radius: 8px;
+  background: rgba(30, 42, 68, 0.72);
+  color: #dce9fb;
+  cursor: pointer;
 }
 
-.mini-workstation-launcher strong,
-.mini-workstation-launcher span {
-  min-width: 0;
+.mini-workstation-taskbar button:hover,
+.mini-workstation-taskbar-item.is-visible {
+  border-color: rgba(83, 174, 255, 0.52);
+  background: rgba(34, 113, 205, 0.24);
+}
+
+.mini-workstation-taskbar-new {
+  color: #8dffd8 !important;
+}
+
+.mini-workstation-taskbar-status {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8e9fbb;
+}
+
+.mini-workstation-taskbar-item.is-visible .mini-workstation-taskbar-status {
+  background: #2bd59f;
+  box-shadow: 0 0 10px rgba(43, 213, 159, 0.72);
+}
+
+.mini-workstation-taskbar-item > span:last-child {
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.mini-workstation-launcher strong {
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.mini-workstation-launcher span {
-  color: rgba(220, 235, 255, 0.72);
-  font-size: 12px;
-  font-weight: 720;
-}
-
-.mini-workstation-launcher-shortcut {
-  flex: 0 0 auto;
-  min-width: 34px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 7px;
-  border: 1px solid rgba(130, 153, 190, 0.3);
-  border-radius: 7px;
-  background: rgba(30, 42, 68, 0.72);
-  color: #e8f2ff;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.mini-workstation-launcher-badge {
-  min-width: 18px;
-  height: 18px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: rgba(255, 109, 126, 0.9);
-  color: #fff !important;
-  font-size: 11px !important;
-  font-weight: 900 !important;
-}
-
-@media (max-width: 720px) {
-  .mini-workstation-launcher {
-    bottom: 18px;
-    max-width: calc(100vw - 32px);
-  }
 }
 
   .left-sidebar {

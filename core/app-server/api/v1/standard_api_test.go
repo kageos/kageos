@@ -99,6 +99,33 @@ func TestBuildCallbackAppReqWithBodyEncodesSystemTableGetRows(t *testing.T) {
 	}
 }
 
+func TestExtractTableExportCallbackResults(t *testing.T) {
+	plan, err := extractTableExportPlanCallbackResult(map[string]interface{}{
+		"snapshot": "max-id:20000",
+		"total":    20000,
+		"blocks": []map[string]interface{}{
+			{"index": 1, "start_row": 1, "end_row": 10000, "row_count": 10000, "cursor": "1-10000"},
+			{"index": 2, "start_row": 10001, "end_row": 20000, "row_count": 10000, "cursor": "10001-20000"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("extractTableExportPlanCallbackResult() error = %v", err)
+	}
+	if plan.Total != 20000 || len(plan.Blocks) != 2 || plan.Blocks[1].Cursor != "10001-20000" {
+		t.Fatalf("unexpected export plan: %#v", plan)
+	}
+
+	chunk, err := extractTableExportChunkCallbackResult(map[string]interface{}{
+		"rows": []map[string]interface{}{{"id": 1}},
+	})
+	if err != nil {
+		t.Fatalf("extractTableExportChunkCallbackResult() error = %v", err)
+	}
+	if len(chunk.Rows) != 1 || chunk.Rows[0]["id"] != float64(1) {
+		t.Fatalf("unexpected export chunk: %#v", chunk)
+	}
+}
+
 func TestExtractTableGetRowsCallbackRowsFindsMatchingID(t *testing.T) {
 	result := map[string]interface{}{
 		"rows": []interface{}{
