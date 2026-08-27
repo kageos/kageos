@@ -3,16 +3,27 @@ import { nextTick, ref, type Ref } from 'vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { uploadFile, notifyUploadComplete, type UploadProgress } from '@/architecture/presentation/context/uploadContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
-import { wrapWorkspaceResourcePath } from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
+import {
+  normalizeWorkspaceResourcePath,
+  parseWorkspacePromptSegments,
+  resolveWorkspaceResourcePath,
+  wrapWorkspaceResourcePath,
+} from '@/architecture/presentation/components/utils/workspaceInvocationSnippet'
 
 const UPLOAD_ROUTER = 'workspace/chat'
 
 type ClipboardFileTransfer = Pick<DataTransfer, 'files' | 'items'>
 
+interface WorkspaceNodeDropPayload {
+  type?: string
+  full_code_path?: string
+  name?: string
+}
+
 export interface UseMiniWorkstationUploadsOptions {
   fullCodePath: Ref<string>
   inputText: Ref<string>
-  inputRef: Ref<{ focus: () => void } | undefined>
+  inputRef: Ref<{ focus: () => void; focusAtEnd?: () => void } | undefined>
 }
 
 export function extractClipboardFiles(dataTransfer: ClipboardFileTransfer | null | undefined): File[] {
@@ -36,6 +47,38 @@ export function extractClipboardFiles(dataTransfer: ClipboardFileTransfer | null
   })
 
   return itemFiles
+}
+
+export function appendWorkspaceResourceTokens(currentText: string, paths: string[], basePath = ''): string {
+  const existingPaths = new Set(
+    parseWorkspacePromptSegments(currentText, basePath)
+      .filter(segment => segment.type === 'resource')
+      .map(segment => normalizeWorkspaceResourcePath(segment.path || ''))
+      .filter(Boolean)
+  )
+  const tokens: string[] = []
+
+  paths.forEach((path) => {
+    const normalized = normalizeWorkspaceResourcePath(path)
+    const resolved = normalizeWorkspaceResourcePath(resolveWorkspaceResourcePath(normalized, basePath))
+    if (!normalized || !resolved || existingPaths.has(resolved)) {
+      return
+    }
+    existingPaths.add(resolved)
+    tokens.push(wrapWorkspaceResourcePath(normalized))
+  })
+
+  if (tokens.length === 0) {
+    return currentText
+  }
+  const separator = currentText && !/\s$/.test(currentText) ? ' ' : ''
+  return `${currentText}${separator}${tokens.join(' ')}`
+}
+
+function parseWorkspaceNodeDropPayload(raw: string): WorkspaceNodeDropPayload[] {
+  const parsed = raw ? JSON.parse(raw) as WorkspaceNodeDropPayload | WorkspaceNodeDropPayload[] : null
+  return (Array.isArray(parsed) ? parsed : [parsed])
+    .filter((item): item is WorkspaceNodeDropPayload => Boolean(item?.full_code_path))
 }
 
 export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOptions) {
@@ -153,13 +196,18 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
     if (dataTransfer.types.includes('application/x-workspace-node')) {
       try {
         const raw = dataTransfer.getData('application/x-workspace-node')
-        const payload = raw ? JSON.parse(raw) as { type?: string; full_code_path?: string; name?: string } : null
-        if (payload?.full_code_path) {
-          const label = payload.type === 'package' ? '服务目录' : '函数'
-          const name = payload.name || payload.full_code_path.split('/').pop() || payload.full_code_path
-          inputText.value = `请处理以下${label}：${name} ${wrapWorkspaceResourcePath(payload.full_code_path)}`
+        const payloads = parseWorkspaceNodeDropPayload(raw)
+        const paths = payloads
+          .map(payload => payload.full_code_path || '')
+          .filter(Boolean)
+        if (paths.length > 0) {
+          inputText.value = appendWorkspaceResourceTokens(inputText.value, paths, fullCodePath.value)
           await nextTick()
-          inputRef.value?.focus()
+          if (inputRef.value?.focusAtEnd) {
+            inputRef.value.focusAtEnd()
+          } else {
+            inputRef.value?.focus()
+          }
         }
       } catch {
         // ignore parse error

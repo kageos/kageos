@@ -46,6 +46,7 @@ func (s *Server) setupRoutes() {
 	storageGroup.POST("/batch_upload_complete", storageHandler.BatchUploadComplete) // ✨ 批量上传完成通知
 	storageGroup.POST("/files/resolve", storageHandler.ResolveFileRefs)             // 批量解析 files ref，返回元数据和直连 URL
 	storageGroup.POST("/files/description", storageHandler.UpdateFileDescription)   // 更新文件描述元数据
+	storageGroup.POST("/files/delete", storageHandler.DeleteFileRefs)               // 删除当前用户拥有的文件并保留墓碑
 
 	// 文件操作（key 包含斜杠，使用 *key 匹配）
 	storageGroup.GET("/download/*key", storageHandler.DownloadFile)

@@ -232,7 +232,7 @@
           <div v-if="functionTaskItemCount > TASK_PAGE_SIZE" class="overview-pagination is-function">
             <el-pagination
               v-model:current-page="functionTaskPage"
-              small
+              size="small"
               :page-size="TASK_PAGE_SIZE"
               :total="functionTaskItemCount"
               layout="prev, pager, next"
@@ -315,7 +315,7 @@
           <div v-if="agentTaskItemCount > TASK_PAGE_SIZE" class="overview-pagination is-agent">
             <el-pagination
               v-model:current-page="agentTaskPage"
-              small
+              size="small"
               :page-size="TASK_PAGE_SIZE"
               :total="agentTaskItemCount"
               layout="prev, pager, next"

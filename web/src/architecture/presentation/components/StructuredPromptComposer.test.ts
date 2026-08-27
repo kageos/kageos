@@ -57,6 +57,15 @@ function mountComposer(modelValue: string) {
 }
 
 describe('StructuredPromptComposer', () => {
+  it('keeps editing and preview content left-aligned', async () => {
+    const wrapper = mountComposer('从左侧开始输入')
+    const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+
+    expect(editor.attributes('style')).toContain('text-align: left')
+    await wrapper.findAll('.spc-mode-btn')[1]?.trigger('click')
+    expect(wrapper.find('[data-testid="structured-prompt-preview"]').attributes('style')).toContain('text-align: left')
+  })
+
   it('renders resource path tokens in edit mode', () => {
     const wrapper = mountComposer('调用 </system/demos/weixin/wechat_articles/search_articles.form>')
 
@@ -64,6 +73,15 @@ describe('StructuredPromptComposer', () => {
     expect(token.exists()).toBe(true)
     expect(token.attributes('data-token-raw')).toBe('</system/demos/weixin/wechat_articles/search_articles.form>')
     expect(token.text()).toBe('search_articles.form')
+  })
+
+  it('renders multiple dragged resource paths as separate tokens', () => {
+    const wrapper = mountComposer('</system/sales/customers.table> </system/sales/create_customer.form>')
+
+    const tokens = wrapper.findAll('.spc-editor-token.is-resource')
+    expect(tokens).toHaveLength(2)
+    expect(tokens.map(token => token.text())).toEqual(['customers.table', 'create_customer.form'])
+    expect(wrapper.text()).not.toContain('请处理以下')
   })
 
   it('renders relative resource tokens against the current workspace path', () => {

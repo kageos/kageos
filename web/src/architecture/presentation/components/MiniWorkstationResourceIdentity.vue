@@ -112,7 +112,7 @@ const iconMeta = computed<{
       component: RAW_TABLE_ICON,
       alt: 'table',
       className: 'is-table',
-      color: '#10b981',
+      color: '#553CCE',
     }
   }
   if (normalizedTemplateType.value === TEMPLATE_TYPE.CHART) {
@@ -190,7 +190,7 @@ function resourceDisplayName(path: string) {
 }
 
 .mini-resource-identity.is-table .mini-resource-identity__icon {
-  color: #10b981;
+  color: #553CCE;
 }
 
 .mini-resource-identity.is-chart .mini-resource-identity__icon {

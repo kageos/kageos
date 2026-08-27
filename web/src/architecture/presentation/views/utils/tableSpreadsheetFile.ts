@@ -20,6 +20,38 @@ const sanitizeFileName = (value: string): string => {
   return normalized || '表格'
 }
 
+export interface TableDataDownloadOptions {
+  scope?: 'current-page' | 'all-filtered'
+  currentPage?: number
+  rangeStart?: number
+  rangeEnd?: number
+  date?: Date
+}
+
+export const buildTableExportFileName = (
+  tableName: string,
+  options: TableDataDownloadOptions = {}
+): string => {
+  const date = (options.date ?? new Date()).toISOString().slice(0, 10)
+  const scope = options.scope === 'current-page'
+    ? `_当前列表_第${Math.max(1, options.currentPage ?? 1)}页`
+    : options.scope === 'all-filtered'
+      ? `_全部数据_当前筛选${options.rangeStart && options.rangeEnd
+        ? `_第${options.rangeStart}-${options.rangeEnd}条`
+        : ''}`
+      : ''
+  return `${sanitizeFileName(tableName)}${scope}_${date}.xlsx`
+}
+
+export const buildTableExportArchiveFileName = (tableName: string, date = new Date()): string => (
+  `${sanitizeFileName(tableName)}_全部数据_当前筛选_${date.toISOString().slice(0, 10)}.zip`
+)
+
+export interface TableDataFile {
+  blob: Blob
+  fileName: string
+}
+
 const downloadBlob = (blob: Blob, fileName: string): void => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -163,11 +195,12 @@ export const downloadTableImportTemplate = async (
   downloadBlob(await workbookBlob(workbook), `${sanitizeFileName(tableName)}_导入模板.xlsx`)
 }
 
-export const downloadTableData = async (
+export const buildTableDataFile = async (
   fields: FieldConfig[],
   rows: TableRow[],
-  tableName: string
-): Promise<void> => {
+  tableName: string,
+  options: TableDataDownloadOptions = {}
+): Promise<TableDataFile> => {
   const { Workbook } = await import('exceljs')
   const workbook = new Workbook()
   workbook.creator = 'kageos'
@@ -182,5 +215,39 @@ export const downloadTableData = async (
     worksheet.getColumn(index + 1).width = Math.min(42, Math.max(14, field.name.length * 2 + 4))
   })
 
-  downloadBlob(await workbookBlob(workbook), `${sanitizeFileName(tableName)}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  return {
+    blob: await workbookBlob(workbook),
+    fileName: buildTableExportFileName(tableName, options)
+  }
+}
+
+export const downloadTableDataFiles = async (
+  files: TableDataFile[],
+  tableName: string
+): Promise<void> => {
+  if (files.length === 0) return
+  if (files.length === 1) {
+    downloadBlob(files[0]!.blob, files[0]!.fileName)
+    return
+  }
+
+  const { default: JSZip } = await import('jszip')
+  const archive = new JSZip()
+  files.forEach((file) => archive.file(file.fileName, file.blob))
+  downloadBlob(
+    await archive.generateAsync({ type: 'blob', compression: 'DEFLATE' }),
+    buildTableExportArchiveFileName(tableName)
+  )
+}
+
+export const downloadTableData = async (
+  fields: FieldConfig[],
+  rows: TableRow[],
+  tableName: string,
+  options: TableDataDownloadOptions = {}
+): Promise<void> => {
+  await downloadTableDataFiles(
+    [await buildTableDataFile(fields, rows, tableName, options)],
+    tableName
+  )
 }

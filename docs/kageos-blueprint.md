@@ -544,6 +544,7 @@ sudo ./install.sh --base-url https://app.example.com
 | 项目愿景和定位 | [kageos 项目说明](product-thinking-ai-era-application-governance.md) |
 | 完整运行架构图 | [kageos 当前架构图](current-architecture.md) |
 | 平台横切能力 | [kageos 平台能力总览](platform-capabilities.md) |
+| 系统资源与容量监控 | [系统资源监控](system-resource-monitoring.md) |
 | 定时任务设计 | [kageos 定时能力架构设计](scheduled-tasks-architecture-design.md) |
 | 生命周期命令 | [kageos 生命周期 SOP](kagectl-lifecycle-sop.md) |
 | 正式发版流程 | [kageos 发布 SOP](release-sop.md) |

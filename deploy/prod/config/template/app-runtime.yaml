@@ -40,3 +40,9 @@ app_database:
   max_idle_conns: 0
   max_idle_time: 30
   max_lifetime: 600
+  soft_delete_cleanup:
+    enabled: false
+    mode: "dry_run" # dry_run | purge
+    retention_days: 30
+    interval_minutes: 1440
+    batch_size: 500

@@ -71,6 +71,14 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
+        <div class="resource-access-indicator" :class="{ 'is-admin': hasAdminAccess }">
+          <el-icon><Lock v-if="!hasAdminAccess" /><UserFilled v-else /></el-icon>
+          <span>当前权限：{{ currentRoleLabel }}</span>
+          <span class="resource-manager-summary" :title="resourceManagerTitle">
+            管理者：{{ resourceManagerSummary }}
+          </span>
+          <el-button link type="primary" @click="openPermissionManagement">权限管理</el-button>
+        </div>
         <!-- 新增按钮：不支持时展示禁用态，避免误以为缺按钮 -->
         <el-button 
           :type="hasAddCallback ? 'primary' : 'default'"
@@ -83,37 +91,66 @@
         >
           {{ hasAddCallback ? '新增' : '新增（当前表格不支持）' }}
         </el-button>
-        <el-dropdown
-          trigger="click"
-          :disabled="spreadsheetBusy"
-          @command="handleSpreadsheetCommand"
-        >
-          <el-button class="action-btn" :loading="spreadsheetBusy" data-testid="table-spreadsheet-actions">
-            <el-icon><FolderOpened /></el-icon>
-            导入 / 导出
-            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="template" :disabled="!hasAddCallback">
-                <el-icon><DocumentAdd /></el-icon>
-                下载导入模板
-              </el-dropdown-item>
-              <el-dropdown-item command="import" :disabled="!hasAddCallback">
-                <el-icon><Upload /></el-icon>
-                导入 Excel / CSV
-              </el-dropdown-item>
-              <el-dropdown-item command="export" divided>
-                <el-icon><Download /></el-icon>
-                导出当前筛选结果
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <el-tooltip :disabled="hasAdminAccess" content="导入和导出需要当前函数的 Admin 或 Owner 权限">
+          <span class="permission-gated-control">
+            <el-dropdown
+              trigger="click"
+              :disabled="spreadsheetBusy || !hasAdminAccess"
+              @command="handleSpreadsheetCommand"
+            >
+              <el-button
+                class="action-btn"
+                :loading="spreadsheetBusy"
+                :disabled="!hasAdminAccess"
+                data-testid="table-spreadsheet-actions"
+              >
+                <el-icon><FolderOpened /></el-icon>
+                {{ hasAdminAccess ? '导入 / 导出' : '导入 / 导出（需 Admin）' }}
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="template" :disabled="!hasAddCallback">
+                    <el-icon><DocumentAdd /></el-icon>
+                    下载导入模板
+                  </el-dropdown-item>
+                  <el-dropdown-item command="import" :disabled="!hasAddCallback">
+                    <el-icon><Upload /></el-icon>
+                    导入 Excel / CSV
+                  </el-dropdown-item>
+                  <el-dropdown-item command="export-current-page" divided :disabled="tableData.length === 0">
+                    <el-icon><Download /></el-icon>
+                    导出当前列表（第 {{ currentPage }} 页 · {{ tableData.length }} 条）
+                  </el-dropdown-item>
+                  <el-dropdown-item command="export-all" :disabled="total === 0">
+                    <el-icon><Download /></el-icon>
+                    导出全部数据（按当前筛选 · 自动分块）
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </span>
+        </el-tooltip>
         <TableSpreadsheetGuidePopover
-          v-if="hasAddCallback"
+          v-if="hasAddCallback && hasAdminAccess"
           :fields="tableCreateFields"
         />
+        <el-tooltip
+          v-if="hasDeleteCallback"
+          :disabled="hasAdminAccess"
+          content="查看和管理回收站需要当前函数的 Admin 或 Owner 权限"
+        >
+          <span class="permission-gated-control">
+            <el-button
+              class="action-btn"
+              :icon="RefreshLeft"
+              :disabled="!hasAdminAccess"
+              @click="openRecycleBin"
+            >
+              {{ hasAdminAccess ? '回收站' : '回收站（需 Admin）' }}
+            </el-button>
+          </span>
+        </el-tooltip>
         <!-- 批量删除按钮：不支持时保留禁用提示 -->
         <el-button 
           v-if="!isBatchDeleteMode" 
@@ -276,7 +313,7 @@
         fixed="left"
         width="132"
         class-name="control-column"
-        :label-class-name="getSortHeaderClass(idField.code)"
+        :label-class-name="`control-column ${getSortHeaderClass(idField.code)}`"
         :sortable="getSortableConfig(idField)"
         :sort-order="sortOrderMap[idField.code] || null"
       >
@@ -322,6 +359,7 @@
         fixed="right" 
         :width="getActionColumnWidth()"
         class-name="action-column"
+        label-class-name="action-column"
       >
         <template #default="{ row }">
           <el-dropdown
@@ -412,26 +450,45 @@
     />
 
     <TableSpreadsheetImportDialog
-      v-if="hasAddCallback"
+      v-if="hasAddCallback && hasAdminAccess"
       v-model="spreadsheetImportVisible"
       :fields="tableCreateFields"
       :import-rows="importSpreadsheetRows"
+    />
+
+    <TableSpreadsheetExportDialog
+      v-if="hasAdminAccess"
+      v-model="spreadsheetExportVisible"
+      :total="spreadsheetExportPlan?.total ?? total"
+      :table-name="tableName"
+      :blocks="spreadsheetExportBlocks"
+      :stable-export="Boolean(spreadsheetExportPlan)"
+      :export-chunks="exportSpreadsheetChunks"
+    />
+
+    <TableDeletedRowsDialog
+      v-if="hasDeleteCallback && hasAdminAccess"
+      v-model="deletedRowsVisible"
+      :function-detail="props.functionDetail"
+      @restored="loadTableData"
     />
 
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElTable, ElForm, ElFormItem, ElButton, ElSkeleton, ElMessage } from 'element-plus'
-import { Search, Refresh, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, FolderOpened, DocumentAdd, Upload, Download } from '@element-plus/icons-vue'
+import { Search, Refresh, RefreshLeft, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, FolderOpened, DocumentAdd, Upload, Download, Lock, UserFilled } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import FormDialog from '@/architecture/presentation/components/FormDialog.vue'
 import TableSpreadsheetImportDialog from '@/architecture/presentation/components/TableSpreadsheetImportDialog.vue'
+import TableSpreadsheetExportDialog from '@/architecture/presentation/components/TableSpreadsheetExportDialog.vue'
 import TableSpreadsheetGuidePopover from '@/architecture/presentation/components/TableSpreadsheetGuidePopover.vue'
+import TableDeletedRowsDialog from '@/architecture/presentation/components/TableDeletedRowsDialog.vue'
 import { getSortableConfig } from '@/architecture/domain/utils/fieldSort'
 import { useTableInitialization } from '../composables/useTableInitialization'
 import { useTableBatchDelete } from '../composables/useTableBatchDelete'
@@ -444,16 +501,28 @@ import { useTableSearchAndSort } from '../composables/useTableSearchAndSort'
 import { useTableUrlSync } from '../composables/useTableUrlSync'
 import { useTableViewLifecycle } from '../composables/useTableViewLifecycle'
 import type { IServiceProvider } from '../../domain/interfaces/IServiceProvider'
-import type { FunctionDetail, FieldConfig, FieldValue } from '../../domain/types'
-import type { TableRow } from '../../domain/types'
+import type { FunctionDetail, FieldConfig, FieldValue, ServiceTree, TableRow } from '../../domain/types'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getFunctionCallbacks, getTableCreateFields, getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { writeTablePageSizePreference } from './utils/tablePageSizePreference'
-import { downloadTableData, downloadTableImportTemplate } from './utils/tableSpreadsheetFile'
-import { TABLE_EXPORT_MAX_ROWS } from './utils/tableSpreadsheetRuntime'
+import {
+  buildTableDataFile,
+  downloadTableData,
+  downloadTableDataFiles,
+  downloadTableImportTemplate,
+  type TableDataFile
+} from './utils/tableSpreadsheetFile'
+import type { TableExportChunk } from './utils/tableSpreadsheetRuntime'
+import {
+  tableExportChunk,
+  tableExportPlan,
+  type TableExportPlanResult
+} from '@/architecture/presentation/context/api/function'
+import { canAdmin } from '@/architecture/presentation/composables/useAccessControl'
 
 const props = defineProps<{
   functionDetail: FunctionDetail
+  currentFunction: ServiceTree | null
 }>()
 
 const route = useRoute()
@@ -525,9 +594,71 @@ const getSortHeaderClass = (fieldCode: string): string => {
 // 创建对话框
 const createDialogVisible = ref(false)
 const spreadsheetImportVisible = ref(false)
+const spreadsheetExportVisible = ref(false)
+const spreadsheetExportPlan = ref<TableExportPlanResult | null>(null)
+const spreadsheetExportFilters = ref<Record<string, unknown>>({})
+const deletedRowsVisible = ref(false)
 const spreadsheetBusy = ref(false)
 const tableCreateFields = computed(() => getTableCreateFields(props.functionDetail))
 const tableName = computed(() => props.functionDetail.name || props.functionDetail.code || '表格')
+const spreadsheetExportBlocks = computed<TableExportChunk[] | undefined>(() => (
+  spreadsheetExportPlan.value?.blocks.map((block) => ({
+    index: block.index,
+    startRow: block.start_row,
+    endRow: block.end_row,
+    rowCount: block.row_count,
+    cursor: block.cursor
+  }))
+))
+
+const recycleBinTab = 'recycle-bin'
+
+const hasAdminAccess = computed(() => canAdmin(props.currentFunction))
+const currentRoleLabel = computed(() => {
+  const roles = props.currentFunction?.role_codes || []
+  if (roles.includes('owner') || props.currentFunction?.permissions?.owner) return 'Owner'
+  if (roles.includes('admin') || props.currentFunction?.permissions?.admin) return 'Admin'
+  if (roles.includes('member')) return 'Member'
+  if (roles.includes('viewer')) return 'Viewer'
+  return '未识别'
+})
+const resourceManagerSummary = computed(() => {
+  const owner = String(props.currentFunction?.owner || '').trim()
+  const admins = String(props.currentFunction?.admins || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  if (owner && admins.length > 0) return `${owner} + ${admins.length} Admin`
+  if (owner) return owner
+  if (admins.length > 0) return `${admins[0]}${admins.length > 1 ? ` + ${admins.length - 1}` : ''}`
+  return '在权限管理中查看'
+})
+const resourceManagerTitle = computed(() => {
+  const owner = String(props.currentFunction?.owner || '').trim() || '未单独标注'
+  const admins = String(props.currentFunction?.admins || '').trim() || '请在权限管理中查看完整授权成员'
+  return `Owner：${owner}\nAdmin：${admins}`
+})
+
+const openPermissionManagement = () => {
+  void router.push({
+    path: '/permissions',
+    query: {
+      resource: props.currentFunction?.full_code_path || props.functionDetail.router || '',
+      ...(!hasAdminAccess.value ? { mode: 'request' } : {})
+    }
+  })
+}
+
+const openRecycleBin = () => {
+  if (!hasAdminAccess.value) {
+    ElMessage.warning('回收站需要当前函数的 Admin 或 Owner 权限，可前往权限管理申请')
+    return
+  }
+  void router.replace({
+    path: route.path,
+    query: { ...route.query, _tab: recycleBinTab }
+  })
+}
 
 const {
   preloadUserInfoFromSearchForm,
@@ -668,6 +799,26 @@ const hasDeleteCallback = computed(() => {
   return getFunctionCallbacks(props.functionDetail).includes('OnTableDeleteRows')
 })
 
+watch(
+  () => [route.query._tab, hasDeleteCallback.value, hasAdminAccess.value] as const,
+  ([tab, , admin]) => {
+    const normalizedTab = Array.isArray(tab) ? tab[0] : tab
+    deletedRowsVisible.value = normalizedTab === recycleBinTab && hasDeleteCallback.value && admin
+    if (normalizedTab === recycleBinTab && hasDeleteCallback.value && !admin) {
+      ElMessage.warning('回收站需要当前函数的 Admin 或 Owner 权限，请在权限管理中查看或申请')
+    }
+  },
+  { immediate: true }
+)
+
+watch(deletedRowsVisible, (visible) => {
+  const currentTab = Array.isArray(route.query._tab) ? route.query._tab[0] : route.query._tab
+  if (visible || currentTab !== recycleBinTab) return
+  const query = { ...route.query }
+  delete query._tab
+  void router.replace({ path: route.path, query })
+})
+
 const hasUpdateCallback = computed(() => {
   return getFunctionCallbacks(props.functionDetail).includes('OnTableUpdateRow')
 })
@@ -676,12 +827,81 @@ const importSpreadsheetRows = async (
   rows: Array<{ rowNumber: number, data: Record<string, unknown> }>
 ) => applicationService.addRows(props.functionDetail, rows)
 
+const exportSpreadsheetChunks = async (
+  chunks: TableExportChunk[],
+  onProgress: (completedIndex: number, currentIndex: number | null) => void
+): Promise<void> => {
+  const files: TableDataFile[] = []
+  for (let index = 0; index < chunks.length; index += 1) {
+    const chunk = chunks[index]!
+    const stablePlan = spreadsheetExportPlan.value
+    const rows = stablePlan && chunk.cursor
+      ? (await tableExportChunk(props.functionDetail.router || '', {
+          snapshot: stablePlan.snapshot,
+          cursor: chunk.cursor,
+          limit: chunk.rowCount,
+          filters: spreadsheetExportFilters.value
+        })).rows as TableRow[]
+      : (await applicationService.loadDataSnapshot(props.functionDetail, {
+          startRow: chunk.startRow - 1,
+          maxRows: chunk.rowCount,
+          pageSize: 500,
+          sorts: idField.value ? [{ field: idField.value.code, order: 'asc' }] : undefined
+        })).rows
+    if (rows.length !== chunk.rowCount) {
+      throw new Error(
+        `第 ${chunk.index} 个分块预期 ${chunk.rowCount} 条，实际读取 ${rows.length} 条；请重新打开导出窗口建立新计划`
+      )
+    }
+    files.push(await buildTableDataFile(
+      getTableListFields(props.functionDetail),
+      rows,
+      tableName.value,
+      {
+        scope: 'all-filtered',
+        rangeStart: chunk.startRow,
+        rangeEnd: chunk.endRow
+      }
+    ))
+    onProgress(chunk.index, chunks[index + 1]?.index ?? null)
+  }
+  await downloadTableDataFiles(files, tableName.value)
+}
+
 const handleSpreadsheetCommand = async (command: string | number | object) => {
+  if (!hasAdminAccess.value) {
+    ElMessage.warning('导入和导出需要当前函数的 Admin 或 Owner 权限')
+    return
+  }
   if (command === 'import') {
     if (hasAddCallback.value) spreadsheetImportVisible.value = true
     return
   }
-  if (command !== 'template' && command !== 'export') return
+  if (command === 'export-all') {
+    const callbacks = getFunctionCallbacks(props.functionDetail)
+    const supportsStableExport = callbacks.includes('OnTableExportPlan')
+      && callbacks.includes('OnTableExportChunk')
+    spreadsheetExportPlan.value = null
+    spreadsheetExportFilters.value = { ...stateManager.getState().searchParams }
+    if (supportsStableExport) {
+      spreadsheetBusy.value = true
+      try {
+        spreadsheetExportPlan.value = await tableExportPlan(
+          props.functionDetail.router || '',
+          spreadsheetExportFilters.value,
+          10000
+        )
+      } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : '建立稳定导出计划失败')
+        return
+      } finally {
+        spreadsheetBusy.value = false
+      }
+    }
+    spreadsheetExportVisible.value = true
+    return
+  }
+  if (!['template', 'export-current-page'].includes(String(command))) return
 
   spreadsheetBusy.value = true
   try {
@@ -690,16 +910,17 @@ const handleSpreadsheetCommand = async (command: string | number | object) => {
       return
     }
 
-    const snapshot = await applicationService.loadDataSnapshot(props.functionDetail, {
-      maxRows: TABLE_EXPORT_MAX_ROWS,
-      pageSize: 500
-    })
-    await downloadTableData(getTableListFields(props.functionDetail), snapshot.rows, tableName.value)
-    if (snapshot.truncated) {
-      ElMessage.warning(`结果共 ${snapshot.total} 行，本次已导出前 ${snapshot.rows.length} 行`)
-    } else {
-      ElMessage.success(`已导出 ${snapshot.rows.length} 行`)
+    if (command === 'export-current-page') {
+      await downloadTableData(
+        getTableListFields(props.functionDetail),
+        tableData.value,
+        tableName.value,
+        { scope: 'current-page', currentPage: currentPage.value }
+      )
+      ElMessage.success(`已导出当前列表 ${tableData.value.length} 条（第 ${currentPage.value} 页）`)
+      return
     }
+
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导入 / 导出操作失败')
   } finally {
@@ -800,6 +1021,43 @@ useTableViewLifecycle({
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.resource-access-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--el-color-warning-light-5);
+  border-radius: 8px;
+  background: var(--el-color-warning-light-9);
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.resource-access-indicator.is-admin {
+  border-color: var(--el-color-success-light-5);
+  background: var(--el-color-success-light-9);
+}
+
+.resource-access-indicator :deep(.el-button) {
+  height: 28px;
+  padding: 0 6px;
+}
+
+.resource-manager-summary {
+  max-width: 210px;
+  padding-left: 8px;
+  border-left: 1px solid var(--app-shell-panel-border);
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.permission-gated-control {
+  display: inline-flex;
 }
 
 .toolbar-right {

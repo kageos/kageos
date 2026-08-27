@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FieldConfig } from '@/architecture/domain/types'
 import {
+  buildTableExportChunks,
   buildTableImportPreview,
   coerceTableImportValue,
   describeTableSpreadsheetField,
@@ -34,6 +35,15 @@ const fields: FieldConfig[] = [
 ]
 
 describe('tableSpreadsheetRuntime', () => {
+  it('splits large exports into selectable 10,000-row Excel blocks', () => {
+    expect(buildTableExportChunks(25601)).toEqual([
+      { index: 1, startRow: 1, endRow: 10000, rowCount: 10000 },
+      { index: 2, startRow: 10001, endRow: 20000, rowCount: 10000 },
+      { index: 3, startRow: 20001, endRow: 25601, rowCount: 5601 }
+    ])
+    expect(buildTableExportChunks(0)).toEqual([])
+  })
+
   it('maps display headers and option labels to callback payload values', () => {
     const preview = buildTableImportPreview([
       ['客户名称', '预计金额', '状态', '无关列'],

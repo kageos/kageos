@@ -416,6 +416,33 @@ func (a *AppService) runScheduledTableDelete(ctx context.Context, payload schedu
 	if err := json.Unmarshal(body, &bodyData); err == nil {
 		logReq.RowIDs = scheduledRowIDsFromDeleteBody(bodyData)
 	}
+	if len(logReq.RowIDs) == 0 {
+		err := fmt.Errorf("请求体缺少有效 ids")
+		return scheduledFunctionErrorResult(err), err
+	}
+	rows, err := a.fetchScheduledTableRowsByIDs(ctx, payload.FullCodePath, logReq.RowIDs)
+	if err != nil {
+		err = fmt.Errorf("删除前读取记录快照失败: %w", err)
+		return scheduledFunctionErrorResult(err), err
+	}
+	logReq.OldValuesByRow = make(map[int64]json.RawMessage, len(rows))
+	for _, row := range rows {
+		id, ok := scheduledTableRowID(row)
+		if !ok {
+			continue
+		}
+		raw, marshalErr := json.Marshal(row)
+		if marshalErr != nil {
+			return scheduledFunctionErrorResult(marshalErr), fmt.Errorf("删除前序列化记录快照失败: %w", marshalErr)
+		}
+		logReq.OldValuesByRow[id] = raw
+	}
+	for _, id := range logReq.RowIDs {
+		if _, ok := logReq.OldValuesByRow[id]; !ok {
+			err := fmt.Errorf("记录不存在（id=%d），无法安全删除", id)
+			return scheduledFunctionErrorResult(err), err
+		}
+	}
 
 	now := time.Now()
 	resp, err := a.RequestApp(ctx, req)

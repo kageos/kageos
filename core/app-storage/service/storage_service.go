@@ -13,6 +13,7 @@ import (
 	"github.com/kageos/kageos/core/app-storage/storage"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/config"
+	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -161,6 +162,18 @@ func (s *StorageService) ResolveFileRefs(ctx context.Context, refs []string, aud
 				item.ThumbnailRef = record.ThumbnailRef
 				item.PreviewKind = record.PreviewKind
 				item.Storage = s.GetStorageType()
+				item.Status = record.Status
+				item.DeletedBy = record.DeletedBy
+				if record.DeletedAt != nil {
+					item.DeletedAt = record.DeletedAt.UnixMilli()
+				}
+				actor := strings.TrimSpace(contextx.GetRequestUser(ctx))
+				item.CanDelete = (record.Status == "completed" || record.Status == "delete_failed") &&
+					(actor == "system" || actor == record.Username)
+				if record.Status == "deleted" || record.Status == "deleting" {
+					out = append(out, item)
+					continue
+				}
 			}
 		}
 
@@ -262,14 +275,93 @@ func (s *StorageService) UpdateFileDescription(ctx context.Context, ref string, 
 
 // DeleteFile 删除文件
 func (s *StorageService) DeleteFile(ctx context.Context, key string) error {
-	bucket := s.getDefaultBucket()
-	err := s.storage.DeleteObject(ctx, bucket, key)
+	ref := s.BuildFileRef(s.getDefaultBucket(), key)
+	_, err := s.DeleteOwnedFile(ctx, ref, contextx.GetRequestUser(ctx))
+	return err
+}
+
+// DeleteOwnedFile 删除当前用户拥有的物理对象，同时保留元数据墓碑供历史记录展示。
+func (s *StorageService) DeleteOwnedFile(ctx context.Context, ref string, actor string) (*dto.DeleteFileRefResult, error) {
+	bucket, key, err := s.ParseFileRef(ref)
 	if err != nil {
-		logger.Errorf(ctx, "Failed to delete file: key_len=%d, err=%v", len(key), err)
-		return fmt.Errorf("删除文件失败")
+		return nil, err
 	}
-	logger.Infof(ctx, "Deleted file: key_len=%d", len(key))
-	return nil
+	ref = s.BuildFileRef(bucket, key)
+	actor = strings.TrimSpace(actor)
+	if actor == "" {
+		return nil, fmt.Errorf("无法确认当前用户")
+	}
+	if s.fileRepo == nil {
+		return nil, fmt.Errorf("文件元数据服务未初始化，无法安全删除")
+	}
+
+	record, err := s.fileRepo.GetUploadRecordByBucketKey(ctx, bucket, key)
+	if err != nil || record == nil {
+		return nil, fmt.Errorf("文件记录不存在，无法安全删除")
+	}
+	if actor != "system" && actor != record.Username {
+		return nil, fmt.Errorf("只能删除自己上传的文件")
+	}
+	if record.Status == "deleted" {
+		result := &dto.DeleteFileRefResult{Ref: ref, Status: "already_deleted", ReleasedBytes: record.FileSize, DeletedBy: record.DeletedBy}
+		if record.DeletedAt != nil {
+			result.DeletedAt = record.DeletedAt.UnixMilli()
+		}
+		return result, nil
+	}
+	if record.Status != "completed" && record.Status != "delete_failed" {
+		return nil, fmt.Errorf("文件当前状态为 %s，暂时不能删除", record.Status)
+	}
+
+	if err := s.fileRepo.UpdateDeletionState(ctx, bucket, key, "deleting", actor, nil, ""); err != nil {
+		return nil, fmt.Errorf("更新文件删除状态失败")
+	}
+
+	releasedBytes := record.FileSize
+	if strings.TrimSpace(record.ThumbnailRef) != "" {
+		thumbnailBucket, thumbnailKey, parseErr := s.ParseFileRef(record.ThumbnailRef)
+		if parseErr != nil {
+			s.recordDeleteFailure(ctx, bucket, key, actor, parseErr)
+			return nil, fmt.Errorf("缩略图引用不合法，文件清理未完整完成")
+		}
+		if thumbnailRecord, getErr := s.fileRepo.GetUploadRecordByBucketKey(ctx, thumbnailBucket, thumbnailKey); getErr == nil && thumbnailRecord != nil {
+			releasedBytes += thumbnailRecord.FileSize
+		}
+		_ = s.fileRepo.UpdateDeletionState(ctx, thumbnailBucket, thumbnailKey, "deleting", actor, nil, "")
+		if err := s.storage.DeleteObject(ctx, thumbnailBucket, thumbnailKey); err != nil {
+			s.recordDeleteFailure(ctx, bucket, key, actor, err)
+			return nil, fmt.Errorf("缩略图删除失败，文件清理未完整完成")
+		}
+	}
+	if err := s.storage.DeleteObject(ctx, bucket, key); err != nil {
+		s.recordDeleteFailure(ctx, bucket, key, actor, err)
+		return nil, fmt.Errorf("删除文件失败")
+	}
+
+	deletedAt := time.Now()
+	if err := s.fileRepo.UpdateDeletionState(ctx, bucket, key, "deleted", actor, &deletedAt, ""); err != nil {
+		return nil, fmt.Errorf("文件已删除，但墓碑状态保存失败")
+	}
+	if strings.TrimSpace(record.ThumbnailRef) != "" {
+		if thumbnailBucket, thumbnailKey, parseErr := s.ParseFileRef(record.ThumbnailRef); parseErr == nil {
+			_ = s.fileRepo.UpdateDeletionState(ctx, thumbnailBucket, thumbnailKey, "deleted", actor, &deletedAt, "")
+		}
+	}
+
+	logger.Infof(ctx, "Deleted owned file: ref=%s actor=%s released_bytes=%d", ref, actor, releasedBytes)
+	return &dto.DeleteFileRefResult{
+		Ref:           ref,
+		Status:        "deleted",
+		ReleasedBytes: releasedBytes,
+		DeletedAt:     deletedAt.UnixMilli(),
+		DeletedBy:     actor,
+	}, nil
+}
+
+func (s *StorageService) recordDeleteFailure(ctx context.Context, bucket string, key string, actor string, deleteErr error) {
+	if err := s.fileRepo.UpdateDeletionState(ctx, bucket, key, "delete_failed", actor, nil, deleteErr.Error()); err != nil {
+		logger.Errorf(ctx, "Failed to persist delete failure: key_len=%d, err=%v", len(key), err)
+	}
 }
 
 // GetFileInfo 获取文件信息

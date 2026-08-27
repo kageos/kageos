@@ -38,10 +38,14 @@ type callbackRequestEnvelope struct {
 }
 
 const (
-	privateRuntimePythonRouter     = "/_runtime/python"
-	internalTableGetRowsCallback   = "__table_get_rows"
-	tableGetRowsCallbackHTTPMethod = http.MethodPost
-	maxStandardAPIRequestBodyBytes = 16 << 20
+	privateRuntimePythonRouter          = "/_runtime/python"
+	internalTableGetRowsCallback        = "__table_get_rows"
+	internalTableGetDeletedRowsCallback = "__table_get_deleted_rows"
+	internalTableRestoreRowsCallback    = "__table_restore_rows"
+	tableExportPlanCallback             = "OnTableExportPlan"
+	tableExportChunkCallback            = "OnTableExportChunk"
+	tableGetRowsCallbackHTTPMethod      = http.MethodPost
+	maxStandardAPIRequestBodyBytes      = 16 << 20
 )
 
 type tableGetRowsCallbackReq struct {
@@ -185,6 +189,74 @@ func extractTableGetRowsCallbackRows(result interface{}) ([]map[string]interface
 		return nil, fmt.Errorf("%s 未返回 rows", internalTableGetRowsCallback)
 	}
 	return payload.Rows, nil
+}
+
+func extractTableDeletedRowsCallbackResult(result interface{}) (*dto.GetTableDeletedRowsResp, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", internalTableGetDeletedRowsCallback, err)
+	}
+	var payload dto.GetTableDeletedRowsResp
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", internalTableGetDeletedRowsCallback, err)
+	}
+	if payload.Rows == nil {
+		payload.Rows = []map[string]interface{}{}
+	}
+	return &payload, nil
+}
+
+func extractTableRestoreRowsCallbackResult(result interface{}) (*dto.RestoreTableRowsResp, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", internalTableRestoreRowsCallback, err)
+	}
+	var payload dto.RestoreTableRowsResp
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", internalTableRestoreRowsCallback, err)
+	}
+	if payload.Rows == nil {
+		payload.Rows = []map[string]interface{}{}
+	}
+	return &payload, nil
+}
+
+func extractTableExportPlanCallbackResult(result interface{}) (*dto.TableExportPlanResp, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", tableExportPlanCallback, err)
+	}
+	var payload dto.TableExportPlanResp
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", tableExportPlanCallback, err)
+	}
+	if payload.Snapshot == "" || payload.Total < 0 {
+		return nil, fmt.Errorf("%s 返回了无效的 snapshot 或 total", tableExportPlanCallback)
+	}
+	if payload.Blocks == nil {
+		payload.Blocks = []dto.TableExportBlock{}
+	}
+	for index, block := range payload.Blocks {
+		if block.Index < 1 || block.StartRow < 1 || block.EndRow < block.StartRow || block.RowCount < 1 || block.Cursor == "" {
+			return nil, fmt.Errorf("%s 返回的第 %d 个分块无效", tableExportPlanCallback, index+1)
+		}
+	}
+	return &payload, nil
+}
+
+func extractTableExportChunkCallbackResult(result interface{}) (*dto.TableExportChunkResp, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", tableExportChunkCallback, err)
+	}
+	var payload dto.TableExportChunkResp
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, fmt.Errorf("解析 %s 结果失败: %w", tableExportChunkCallback, err)
+	}
+	if payload.Rows == nil {
+		return nil, fmt.Errorf("%s 未返回 rows", tableExportChunkCallback)
+	}
+	return &payload, nil
 }
 
 // buildRequestAppReq 构建 RequestAppReq 请求对象
@@ -373,6 +445,24 @@ func (s *StandardAPI) fetchTableRowsByIDs(c *gin.Context, fullCodePath string, i
 	return extractTableGetRowsCallbackRows(resp.Result)
 }
 
+func (s *StandardAPI) requestPrivateTableCallback(c *gin.Context, fullCodePath, callbackType string, body []byte, rawQuery string) (*dto.RequestAppResp, error) {
+	req, err := s.buildCallbackAppReqWithBody(c, fullCodePath, callbackType, http.MethodPost, body, rawQuery)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.appService.RequestApp(contextx.ToContext(c), req)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("%s 返回空响应", callbackType)
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("%s 失败: %s", callbackType, resp.Error)
+	}
+	return resp, nil
+}
+
 func (s *StandardAPI) ensureTableCallbackEnabled(c *gin.Context, fullCodePath, callbackType, denyMessage string) error {
 	function, err := s.appService.GetFunctionByFullCodePath(contextx.ToContext(c), fullCodePath)
 	if err != nil {
@@ -456,6 +546,99 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 	response.OkWithData(c, resp.Result, metadata)
 }
 
+// TableExportPlan asks an optional workspace callback to freeze export
+// membership and return independently selectable cursor blocks.
+func (s *StandardAPI) TableExportPlan(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, tableExportPlanCallback, "该表未实现稳定导出计划回调"); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, tableExportChunkCallback, "该表未实现稳定导出分块回调"); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	var request dto.TableExportPlanReq
+	if err := c.ShouldBindJSON(&request); err != nil {
+		response.FailWithMessage(c, "导出计划参数无效: "+err.Error())
+		return
+	}
+	if request.ChunkSize < 1 {
+		request.ChunkSize = 10000
+	}
+	if request.ChunkSize > 10000 {
+		request.ChunkSize = 10000
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		response.FailWithMessage(c, "构造导出计划失败: "+err.Error())
+		return
+	}
+	callbackResp, err := s.requestPrivateTableCallback(c, fullCodePath, tableExportPlanCallback, body, "")
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	result, err := extractTableExportPlanCallbackResult(callbackResp.Result)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+// TableExportChunk reads one cursor block from a stable export plan.
+func (s *StandardAPI) TableExportChunk(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, tableExportChunkCallback, "该表未实现稳定导出分块回调"); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	var request dto.TableExportChunkReq
+	if err := c.ShouldBindJSON(&request); err != nil {
+		response.FailWithMessage(c, "导出分块参数无效: "+err.Error())
+		return
+	}
+	if request.Snapshot == "" || request.Cursor == "" || request.Limit < 1 || request.Limit > 10000 {
+		response.FailWithMessage(c, "导出分块缺少有效 snapshot、cursor 或 limit")
+		return
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		response.FailWithMessage(c, "构造导出分块失败: "+err.Error())
+		return
+	}
+	callbackResp, err := s.requestPrivateTableCallback(c, fullCodePath, tableExportChunkCallback, body, "")
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	result, err := extractTableExportChunkCallbackResult(callbackResp.Result)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
 // TableCreate Table 新增接口
 // @Summary Table 新增
 // @Description 新增表格记录
@@ -473,12 +656,22 @@ func (s *StandardAPI) TableSearch(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /workspace/api/v1/table/create/{full-code-path} [post]
 func (s *StandardAPI) TableCreate(c *gin.Context) {
+	s.tableCreate(c, access.ActionWrite)
+}
+
+// TableImportRow keeps ordinary row creation available to Member users while
+// enforcing the Admin boundary for spreadsheet imports.
+func (s *StandardAPI) TableImportRow(c *gin.Context) {
+	s.tableCreate(c, access.ActionAdmin)
+}
+
+func (s *StandardAPI) tableCreate(c *gin.Context, requiredAction access.Action) {
 	fullCodePath := normalizeFullCodePathParam(c)
 	if fullCodePath == "" {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionWrite); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, requiredAction); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -569,7 +762,7 @@ func (s *StandardAPI) TableTemplate(c *gin.Context) {
 		response.FailWithMessage(c, "full-code-path 参数不能为空")
 		return
 	}
-	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionRead); err != nil {
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
 		response.FailWithMessage(c, err.Error())
 		return
 	}
@@ -977,6 +1170,281 @@ func (s *StandardAPI) TableUpdate(c *gin.Context) {
 	response.OkWithData(c, resp.Result, metadata)
 }
 
+// TableDeletedRows 查询当前 Table 的软删除记录。
+func (s *StandardAPI) TableDeletedRows(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableDeleteRows", "该表未开启删除能力，没有回收站"); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	body, err := json.Marshal(dto.GetTableDeletedRowsReq{Page: page, PageSize: pageSize})
+	if err != nil {
+		response.FailWithMessage(c, "构造回收站查询失败: "+err.Error())
+		return
+	}
+	resp, err := s.requestPrivateTableCallback(c, fullCodePath, internalTableGetDeletedRowsCallback, body, "")
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	result, err := extractTableDeletedRowsCallbackResult(resp.Result)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+func (s *StandardAPI) resolveRecycleBinPolicyScope(c *gin.Context, fullCodePath string) (*dto.AppDBCleanupPolicyReq, error) {
+	body, err := json.Marshal(dto.GetTableDeletedRowsReq{Page: 1, PageSize: 1})
+	if err != nil {
+		return nil, err
+	}
+	callbackResp, err := s.requestPrivateTableCallback(c, fullCodePath, internalTableGetDeletedRowsCallback, body, "")
+	if err != nil {
+		return nil, err
+	}
+	meta, err := extractTableDeletedRowsCallbackResult(callbackResp.Result)
+	if err != nil || meta.Table == "" || meta.PackagePath == "" {
+		return nil, fmt.Errorf("无法确定回收站存储位置，请更新并重新部署当前应用")
+	}
+	user, app, _, err := parseFullCodePath(fullCodePath)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.AppDBCleanupPolicyReq{
+		User: user, App: app, PackagePath: meta.PackagePath, Table: meta.Table,
+		RequestUser: contextx.GetRequestUser(c),
+	}, nil
+}
+
+// TableRecyclePolicy returns the effective table-level automatic cleanup policy.
+func (s *StandardAPI) TableRecyclePolicy(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	scope, err := s.resolveRecycleBinPolicyScope(c, fullCodePath)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	result, err := s.appService.GetAppDatabaseCleanupPolicy(contextx.ToContext(c), scope)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+// UpdateTableRecyclePolicy saves a persistent override for one application table.
+func (s *StandardAPI) UpdateTableRecyclePolicy(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	var update dto.AppDBCleanupPolicyUpdateReq
+	if err := c.ShouldBindJSON(&update); err != nil {
+		response.FailWithMessage(c, "回收站策略参数无效: "+err.Error())
+		return
+	}
+	scope, err := s.resolveRecycleBinPolicyScope(c, fullCodePath)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	update.AppDBCleanupPolicyReq = *scope
+	result, err := s.appService.UpdateAppDatabaseCleanupPolicy(contextx.ToContext(c), &update)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+// TableRestoreRows 从回收站恢复软删除记录。
+func (s *StandardAPI) TableRestoreRows(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	if err := s.ensureTableCallbackEnabled(c, fullCodePath, "OnTableDeleteRows", "该表未开启删除能力，没有可恢复记录"); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	var restoreReq dto.RestoreTableRowsReq
+	if err := c.ShouldBindJSON(&restoreReq); err != nil || len(restoreReq.IDs) == 0 {
+		response.FailWithMessage(c, "请求体缺少有效 ids")
+		return
+	}
+	seen := make(map[int64]struct{}, len(restoreReq.IDs))
+	uniqueIDs := make([]int64, 0, len(restoreReq.IDs))
+	for _, id := range restoreReq.IDs {
+		if id <= 0 {
+			response.FailWithMessage(c, "ids 必须为正整数")
+			return
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+	restoreReq.IDs = uniqueIDs
+	body, err := json.Marshal(restoreReq)
+	if err != nil {
+		response.FailWithMessage(c, "构造恢复请求失败: "+err.Error())
+		return
+	}
+	resp, err := s.requestPrivateTableCallback(c, fullCodePath, internalTableRestoreRowsCallback, body, "")
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	result, err := extractTableRestoreRowsCallbackResult(resp.Result)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+
+	user, app, router, _ := parseFullCodePath(fullCodePath)
+	logReq := &dto.RecordTableActionLogReq{
+		TenantUser:     user,
+		RequestUser:    contextx.GetRequestUser(c),
+		App:            app,
+		Router:         router,
+		Action:         "OnTableRestoreRows",
+		Source:         c.GetHeader(contextx.ClientSourceHeader),
+		RowIDs:         restoreReq.IDs,
+		OldValuesByRow: make(map[int64]json.RawMessage, len(result.Rows)),
+		Updates:        json.RawMessage(`{"deleted_at":null,"deleted_by":""}`),
+		IPAddress:      c.ClientIP(),
+		UserAgent:      c.GetHeader("User-Agent"),
+		TraceID:        contextx.GetTraceId(c),
+		Version:        resp.Version,
+		Status:         "success",
+	}
+	for _, row := range result.Rows {
+		id, ok := tableRowID(row)
+		if !ok {
+			continue
+		}
+		raw, marshalErr := json.Marshal(row)
+		if marshalErr == nil {
+			logReq.OldValuesByRow[id] = raw
+		}
+	}
+	if logErr := s.appService.RecordTableActionLog(contextx.ToContext(c), logReq); logErr != nil {
+		logger.Warnf(contextx.ToContext(c), "[TableRestoreRows] 记录 Table 恢复操作日志失败: %v", logErr)
+	}
+	response.OkWithData(c, result)
+}
+
+// TablePurgeRows permanently deletes selected rows already in the recycle bin.
+func (s *StandardAPI) TablePurgeRows(c *gin.Context) {
+	fullCodePath := normalizeFullCodePathParam(c)
+	if fullCodePath == "" {
+		response.FailWithMessage(c, "full-code-path 参数不能为空")
+		return
+	}
+	if err := requireAccess(c, s.permissionService, fullCodePath, access.ActionAdmin); err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	var purgeReq dto.PurgeTableRowsReq
+	if err := c.ShouldBindJSON(&purgeReq); err != nil || len(purgeReq.IDs) == 0 || len(purgeReq.IDs) > 100 {
+		response.FailWithMessage(c, "请提供 1-100 个有效 ids")
+		return
+	}
+	seen := make(map[int64]struct{}, len(purgeReq.IDs))
+	ids := make([]int64, 0, len(purgeReq.IDs))
+	for _, id := range purgeReq.IDs {
+		if id <= 0 {
+			response.FailWithMessage(c, "ids 必须为正整数")
+			return
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	metaBody, _ := json.Marshal(dto.GetTableDeletedRowsReq{Page: 1, PageSize: 1})
+	callbackResp, err := s.requestPrivateTableCallback(c, fullCodePath, internalTableGetDeletedRowsCallback, metaBody, "")
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	meta, err := extractTableDeletedRowsCallbackResult(callbackResp.Result)
+	if err != nil || meta.Table == "" || meta.PackagePath == "" {
+		response.FailWithMessage(c, "无法确定回收站存储位置，请更新并重新部署当前应用")
+		return
+	}
+	user, app, router, _ := parseFullCodePath(fullCodePath)
+	result, err := s.appService.PurgeAppDatabaseRows(contextx.ToContext(c), &dto.AppDBPurgeRowsReq{
+		User: user, App: app, PackagePath: meta.PackagePath, Table: meta.Table, IDs: ids,
+	})
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	logReq := &dto.RecordTableActionLogReq{
+		TenantUser: user, RequestUser: contextx.GetRequestUser(c), App: app, Router: router,
+		Action: "OnTablePurgeRows", RowIDs: ids, OldValuesByRow: make(map[int64]json.RawMessage),
+		IPAddress: c.ClientIP(), UserAgent: c.GetHeader("User-Agent"), TraceID: contextx.GetTraceId(c),
+		Version: callbackResp.Version, Status: "success",
+	}
+	for _, row := range result.Rows {
+		id, ok := tableRowID(row)
+		if !ok {
+			continue
+		}
+		if raw, marshalErr := json.Marshal(row); marshalErr == nil {
+			logReq.OldValuesByRow[id] = raw
+		}
+	}
+	if logErr := s.appService.RecordTableActionLog(contextx.ToContext(c), logReq); logErr != nil {
+		logger.Warnf(contextx.ToContext(c), "[TablePurgeRows] 记录彻底删除日志失败: %v", logErr)
+	}
+	response.OkWithData(c, result)
+}
+
 // TableDelete Table 删除接口
 // @Summary Table 删除
 // @Description 删除表格记录（支持批量删除）
@@ -1050,6 +1518,34 @@ func (s *StandardAPI) TableDelete(c *gin.Context) {
 				}
 			}
 			logReq.RowIDs = rowIDs
+		}
+	}
+	if logReq == nil || len(logReq.RowIDs) == 0 {
+		response.FailWithMessage(c, "请求体缺少有效 ids")
+		return
+	}
+	rows, err := s.fetchTableRowsByIDs(c, fullCodePath, logReq.RowIDs)
+	if err != nil {
+		response.FailWithMessage(c, "删除前读取记录快照失败: "+err.Error())
+		return
+	}
+	logReq.OldValuesByRow = make(map[int64]json.RawMessage, len(rows))
+	for _, row := range rows {
+		id, ok := tableRowID(row)
+		if !ok {
+			continue
+		}
+		raw, marshalErr := json.Marshal(row)
+		if marshalErr != nil {
+			response.FailWithMessage(c, "删除前序列化记录快照失败: "+marshalErr.Error())
+			return
+		}
+		logReq.OldValuesByRow[id] = raw
+	}
+	for _, id := range logReq.RowIDs {
+		if _, ok := logReq.OldValuesByRow[id]; !ok {
+			response.FailWithMessage(c, fmt.Sprintf("记录不存在（id=%d），无法安全删除", id))
+			return
 		}
 	}
 

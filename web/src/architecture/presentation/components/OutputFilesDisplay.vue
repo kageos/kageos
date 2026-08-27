@@ -4,23 +4,38 @@
   支持传入 result（原始 JSON 字符串/对象）或已解析的 fileGroups。
 -->
 <template>
-  <div v-if="displayGroups.length > 0" class="output-files-display">
+  <div v-if="displayGroups.length > 0" ref="displayRoot" class="output-files-display">
     <div class="output-files-head">
       <div class="output-files-head-title">
         <el-icon><FolderOpened /></el-icon>
         <span>{{ sectionTitle }}</span>
+        <span v-if="storageSummary" class="output-files-storage-summary">{{ storageSummary }}</span>
       </div>
-      <el-button
-        v-if="canArchiveDownload"
-        class="output-files-archive-btn"
-        size="small"
-        text
-        :icon="Download"
-        :loading="archiveDownloading"
-        @click="downloadArchive"
-      >
-        打包下载
-      </el-button>
+      <div class="output-files-head-actions">
+        <el-button
+          v-if="canCleanAll"
+          class="output-files-clean-btn"
+          size="small"
+          text
+          type="danger"
+          :icon="DeleteIcon"
+          :loading="batchDeleting"
+          @click="deleteAllFiles"
+        >
+          清理这些文件
+        </el-button>
+        <el-button
+          v-if="canArchiveDownload"
+          class="output-files-archive-btn"
+          size="small"
+          text
+          :icon="Download"
+          :loading="archiveDownloading"
+          @click="downloadArchive"
+        >
+          打包下载
+        </el-button>
+      </div>
     </div>
     <div class="output-files-wrap">
       <div v-for="(group, gIdx) in displayGroups" :key="gIdx" class="output-files-group">
@@ -30,10 +45,16 @@
             v-for="(file, fIdx) in visibleGroupFiles(group, gIdx)"
             :key="fIdx"
             class="output-files-item"
-            :class="{ 'output-files-item--media': isPreviewableMedia(file) }"
+            :class="{
+              'output-files-item--media': !isDeletedFile(file) && isPreviewableMedia(file),
+              'output-files-item--deleted': isDeletedFile(file),
+            }"
           >
             <div class="output-files-main">
-              <div class="output-files-preview" v-if="isImageFile(file) && imagePreviewUrl(file)">
+              <div v-if="isDeletedFile(file)" class="output-files-icon output-files-icon--deleted">
+                <el-icon><DeleteIcon /></el-icon>
+              </div>
+              <div class="output-files-preview" v-else-if="isImageFile(file) && imagePreviewUrl(file)">
                 <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-preview-link">
                   <img
                     :src="imagePreviewUrl(file)"
@@ -59,25 +80,47 @@
                 <el-icon><Document /></el-icon>
               </div>
               <div class="output-files-info">
-                <a :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer" class="output-files-name">
+                <a
+                  v-if="!isDeletedFile(file)"
+                  :href="fileDisplayUrl(file)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="output-files-name"
+                  :title="fileDisplayName(file)"
+                >
                   {{ fileDisplayName(file) }}
                 </a>
+                <span v-else class="output-files-name output-files-name--deleted" :title="fileDisplayName(file)">
+                  {{ fileDisplayName(file) }}
+                </span>
+                <span v-if="isDeletedFile(file)" class="output-files-deleted-detail">
+                  已删除<span v-if="file.deleted_by"> · {{ file.deleted_by }}</span><span v-if="file.deleted_at"> · {{ formatDeletedAt(file.deleted_at) }}</span>
+                </span>
               </div>
             </div>
             <div class="output-files-footer">
               <span class="output-files-meta">
                 <span v-if="fileFormat(file)" class="output-files-format">{{ fileFormat(file) }}</span>
                 <span v-if="file.size != null" class="output-files-size">{{ formatFileSize(file.size) }}</span>
+                <span v-if="isDeletedFile(file) && file.size != null" class="output-files-released">已释放空间</span>
               </span>
-              <div class="output-files-actions">
+              <div v-if="!isDeletedFile(file)" class="output-files-actions">
                 <el-link type="primary" :href="fileDisplayUrl(file)" target="_blank" rel="noopener noreferrer">打开</el-link>
                 <el-link
+                  class="output-files-download"
                   type="primary"
-                  :href="fileDisplayUrl(file)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  :download="fileDisplayName(file)"
-                >下载</el-link>
+                  underline="never"
+                  :disabled="isFileDownloading(file)"
+                  @click.prevent="downloadFile(file)"
+                >{{ isFileDownloading(file) ? '下载中…' : '下载' }}</el-link>
+                <el-link
+                  v-if="canDeleteFile(file)"
+                  class="output-files-delete"
+                  type="danger"
+                  underline="never"
+                  :disabled="isFileDeleting(file)"
+                  @click.prevent="deleteSingleFile(file)"
+                >{{ isFileDeleting(file) ? '删除中…' : '删除' }}</el-link>
               </div>
             </div>
           </div>
@@ -98,9 +141,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Document, Download, FolderOpened } from '@element-plus/icons-vue'
-import { resolveFileRefs, type ResolvedFile } from '@/architecture/presentation/context/api/storage'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete as DeleteIcon, Document, Download, FolderOpened } from '@element-plus/icons-vue'
+import { deleteFileRefs, resolveFileRefs, type DeleteFileRefResult, type ResolvedFile } from '@/architecture/presentation/context/api/storage'
 import type { ToolResultMetadata } from '@/architecture/presentation/context/api/workspace'
 import { extractFileGroupsFromResult, type OutputFileGroup, type OutputFileItem } from '@/architecture/presentation/composables/useOutputFileGroups'
 import { normalizeStorageFileDisplayUrl } from '@/architecture/presentation/utils/storageFileUrl'
@@ -121,6 +164,8 @@ const props = withDefaults(
     sectionTitle?: string
     /** 是否展示多文件打包下载 */
     archiveDownload?: boolean
+    /** 是否允许当前上下文删除由本人上传的文件 */
+    deletable?: boolean
     /** 打包下载文件名 */
     archiveFileName?: string
     /** 是否在文件很多时折叠列表 */
@@ -133,6 +178,7 @@ const props = withDefaults(
   {
     sectionTitle: '输出文件',
     archiveDownload: true,
+    deletable: false,
     archiveFileName: '',
     collapsible: true,
     collapseThreshold: 4,
@@ -162,6 +208,8 @@ const sourceGroupsSignature = computed(() => {
       preview_kind: file.preview_kind ?? '',
       content_type: file.content_type ?? '',
       size: file.size ?? null,
+      status: file.status ?? '',
+      deleted_at: file.deleted_at ?? null,
     })),
   })))
 })
@@ -195,14 +243,29 @@ watch(sourceGroupsSignature, async () => {
 
 /** 展示用的文件组：优先 fileGroups，否则从 result 解析 */
 const displayGroups = computed((): OutputFileGroup[] => resolvedGroups.value)
+const displayRoot = ref<HTMLElement | null>(null)
 const archiveDownloading = ref(false)
+const batchDeleting = ref(false)
 const archiveSourceFiles = computed(() => {
   return displayGroups.value.flatMap((group) =>
-    group.files.map((file, fileIndex) => ({ file, group, fileIndex }))
+    group.files
+      .filter(file => !isDeletedFile(file))
+      .map((file, fileIndex) => ({ file, group, fileIndex }))
   )
 })
 const canArchiveDownload = computed(() => props.archiveDownload && archiveSourceFiles.value.length > 1)
+const deletableSourceFiles = computed(() => archiveSourceFiles.value.filter(source => canDeleteFile(source.file)))
+const canCleanAll = computed(() => props.deletable && deletableSourceFiles.value.length > 1)
+const storageSummary = computed(() => {
+  const files = archiveSourceFiles.value.map(source => source.file)
+  if (files.length === 0) return '文件已清理'
+  const knownBytes = files.reduce((sum, file) => sum + (typeof file.size === 'number' ? file.size : 0), 0)
+  const sizeText = knownBytes > 0 ? ` · ${formatFileSize(knownBytes)}` : ''
+  return `共 ${files.length} 个${sizeText}`
+})
 const expandedGroupKeys = ref<Set<string>>(new Set())
+const downloadingFileKeys = ref<Set<string>>(new Set())
+const deletingFileKeys = ref<Set<string>>(new Set())
 
 function mergeResolvedGroups(groups: OutputFileGroup[]): OutputFileGroup[] {
   return groups.map(group => ({
@@ -211,16 +274,21 @@ function mergeResolvedGroups(groups: OutputFileGroup[]): OutputFileGroup[] {
       if (!file.ref) return file
       const item = resolvedByRef.get(file.ref)
       if (!item) return file
+      const deleted = item.status === 'deleted'
       return {
         ...file,
         name: item.name || file.name,
         source_name: item.source_name || file.source_name || item.name,
         size: item.size ?? file.size,
-        download_url: item.download_url || file.download_url,
+        download_url: deleted ? '' : (item.download_url || file.download_url),
         thumbnail_ref: item.thumbnail_ref || file.thumbnail_ref,
         thumbnail_url: item.thumbnail_url || file.thumbnail_url,
         preview_kind: item.preview_kind || file.preview_kind,
         content_type: item.content_type || file.content_type,
+        status: item.status || file.status,
+        can_delete: item.can_delete ?? file.can_delete,
+        deleted_at: item.deleted_at ?? file.deleted_at,
+        deleted_by: item.deleted_by || file.deleted_by,
       }
     })
   }))
@@ -269,7 +337,170 @@ function fileDisplayName(file: OutputFileItem): string {
 }
 
 function fileDisplayUrl(file: OutputFileItem): string {
+  if (isDeletedFile(file)) return ''
   return normalizeStorageFileDisplayUrl(file.download_url || file.ref || '')
+}
+
+function isDeletedFile(file: OutputFileItem): boolean {
+  return file.status === 'deleted'
+}
+
+function canDeleteFile(file: OutputFileItem): boolean {
+  return props.deletable && Boolean(file.ref) && file.can_delete === true && !isDeletedFile(file)
+}
+
+function fileDownloadKey(file: OutputFileItem): string {
+  return String(file.ref || file.download_url || `${fileDisplayName(file)}:${file.size ?? ''}`)
+}
+
+function isFileDownloading(file: OutputFileItem): boolean {
+  return downloadingFileKeys.value.has(fileDownloadKey(file))
+}
+
+function setFileDownloading(file: OutputFileItem, downloading: boolean): void {
+  const next = new Set(downloadingFileKeys.value)
+  const key = fileDownloadKey(file)
+  if (downloading) {
+    next.add(key)
+  } else {
+    next.delete(key)
+  }
+  downloadingFileKeys.value = next
+}
+
+function isFileDeleting(file: OutputFileItem): boolean {
+  return deletingFileKeys.value.has(fileDownloadKey(file))
+}
+
+function setFileDeleting(file: OutputFileItem, deleting: boolean): void {
+  const next = new Set(deletingFileKeys.value)
+  const key = fileDownloadKey(file)
+  if (deleting) {
+    next.add(key)
+  } else {
+    next.delete(key)
+  }
+  deletingFileKeys.value = next
+}
+
+function messageBoxAppendTarget(): HTMLElement | string {
+  return displayRoot.value?.closest<HTMLElement>('[data-testid="mini-workstation"]') || 'body'
+}
+
+async function deleteSingleFile(file: OutputFileItem): Promise<void> {
+  if (!canDeleteFile(file) || isFileDeleting(file) || !file.ref) return
+  const sizeText = typeof file.size === 'number' ? `，预计释放 ${formatFileSize(file.size)}` : ''
+  try {
+    await ElMessageBox.confirm(
+      `删除后历史记录仍会保留，但文件将无法再次下载${sizeText}。此操作不可恢复。`,
+      `删除「${fileDisplayName(file)}」？`,
+      {
+        type: 'warning',
+        confirmButtonText: '删除并释放空间',
+        cancelButtonText: '取消',
+        appendTo: messageBoxAppendTarget(),
+      }
+    )
+  } catch {
+    return
+  }
+
+  setFileDeleting(file, true)
+  try {
+    const response = await deleteFileRefs([file.ref])
+    applyDeleteResults(response.results)
+    const result = response.results[0]
+    if (!result || result.status === 'failed') {
+      throw new Error(result?.error || '文件删除失败')
+    }
+    ElMessage.success(`已删除文件，释放 ${formatFileSize(result.released_bytes || Number(file.size) || 0)}`)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '文件删除失败')
+  } finally {
+    setFileDeleting(file, false)
+  }
+}
+
+async function deleteAllFiles(): Promise<void> {
+  if (!canCleanAll.value || batchDeleting.value) return
+  const files = deletableSourceFiles.value.map(source => source.file)
+  const refs = files.map(file => file.ref).filter(Boolean) as string[]
+  const knownBytes = files.reduce((sum, file) => sum + (typeof file.size === 'number' ? file.size : 0), 0)
+  try {
+    await ElMessageBox.confirm(
+      `将永久删除 ${refs.length} 个文件，历史记录仍会保留${knownBytes > 0 ? `，预计释放 ${formatFileSize(knownBytes)}` : ''}。此操作不可恢复。`,
+      '清理这些工作台文件？',
+      {
+        type: 'warning',
+        confirmButtonText: '全部删除并释放空间',
+        cancelButtonText: '取消',
+        appendTo: messageBoxAppendTarget(),
+      }
+    )
+  } catch {
+    return
+  }
+
+  batchDeleting.value = true
+  try {
+    const response = await deleteFileRefs(refs)
+    applyDeleteResults(response.results)
+    const failures = response.results.filter(result => result.status === 'failed')
+    if (response.deleted_count > 0) {
+      ElMessage.success(`已删除 ${response.deleted_count} 个文件，释放 ${formatFileSize(response.released_bytes)}`)
+    }
+    if (failures.length > 0) {
+      ElMessage.error(`${failures.length} 个文件未能删除：${failures[0]?.error || '请稍后重试'}`)
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '批量清理失败')
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
+function applyDeleteResults(results: DeleteFileRefResult[]): void {
+  for (const result of results) {
+    if (result.status !== 'deleted' && result.status !== 'already_deleted') continue
+    const previous = resolvedByRef.get(result.ref)
+    resolvedByRef.set(result.ref, {
+      ...(previous || { ref: result.ref, bucket: '', key: '' }),
+      status: 'deleted',
+      can_delete: false,
+      deleted_at: result.deleted_at || previous?.deleted_at || Date.now(),
+      deleted_by: result.deleted_by || previous?.deleted_by,
+      download_url: '',
+      server_download_url: '',
+      thumbnail_url: '',
+      server_thumbnail_url: '',
+    })
+  }
+  resolvedGroups.value = mergeResolvedGroups(sourceGroups.value)
+}
+
+async function downloadFile(file: OutputFileItem): Promise<void> {
+  if (isFileDownloading(file)) return
+
+  const url = fileDisplayUrl(file)
+  const displayName = sanitizeArchiveSegment(fileDisplayName(file))
+  if (!url) {
+    ElMessage.error(`文件「${displayName}」缺少下载地址`)
+    return
+  }
+
+  setFileDownloading(file, true)
+  try {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    triggerBlobDownload(await response.blob(), displayName)
+  } catch (error) {
+    const detail = error instanceof Error && error.message ? `：${error.message}` : ''
+    ElMessage.error(`文件「${displayName}」下载失败${detail}`)
+  } finally {
+    setFileDownloading(file, false)
+  }
 }
 
 function groupKey(group: OutputFileGroup, index: number): string {
@@ -372,6 +603,14 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatDeletedAt(value: unknown): string {
+  const timestamp = Number(value)
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(timestamp))
+}
+
 function onImageError(e: Event) {
   const el = e.target as HTMLImageElement
   if (el) el.style.display = 'none'
@@ -464,7 +703,22 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   gap: 6px;
 }
 
-.output-files-archive-btn {
+.output-files-storage-summary {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+}
+
+.output-files-head-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.output-files-archive-btn,
+.output-files-clean-btn {
   flex-shrink: 0;
   height: 24px;
   padding: 0 6px;
@@ -511,6 +765,12 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-small);
+}
+
+.output-files-item--deleted {
+  min-height: 96px;
+  background: var(--el-fill-color-light);
+  border-style: dashed;
 }
 
 .output-files-item--media {
@@ -596,6 +856,10 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   font-size: 24px;
 }
 
+.output-files-icon--deleted {
+  color: var(--el-text-color-placeholder);
+}
+
 .output-files-info {
   flex: 1;
   min-width: 0;
@@ -618,6 +882,17 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   &:hover {
     text-decoration: underline;
   }
+}
+
+.output-files-name--deleted {
+  color: var(--el-text-color-secondary);
+  text-decoration: line-through;
+}
+
+.output-files-deleted-detail {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--el-text-color-placeholder);
 }
 
 .output-files-footer {
@@ -649,6 +924,10 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   font-size: 12px;
 }
 
+.output-files-released {
+  color: var(--el-color-success);
+}
+
 .output-files-actions {
   display: flex;
   flex: 0 0 auto;
@@ -677,6 +956,14 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 @media (max-width: 560px) {
   .output-files-wrap {
     padding: 8px;
+  }
+
+  .output-files-head {
+    align-items: flex-start;
+  }
+
+  .output-files-head-actions {
+    flex-wrap: wrap;
   }
 
   .output-files-list {

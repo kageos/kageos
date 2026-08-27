@@ -16,6 +16,10 @@ export interface OutputFileItem {
   content_type?: string
   preview_kind?: string
   size?: number
+  status?: string
+  can_delete?: boolean
+  deleted_at?: number
+  deleted_by?: string
   [key: string]: unknown
 }
 

@@ -138,4 +138,23 @@ describe('useMiniWorkstationSessionView', () => {
     sessionFilter.value = 'running'
     expect(api.currentDirectorySessionList.value.map(item => item.session_id)).toEqual(['running-ticket'])
   })
+
+  it('keeps list order stable when the active session changes and treats failed sessions as ended', () => {
+    const { api, sessionId } = createHarness({
+      sessionId: 'active',
+      filter: 'all',
+      mini: [
+        createSession({ session_id: 'newer', updated_at: '2026-05-03T00:00:00Z' }),
+        createSession({ session_id: 'active', updated_at: '2026-05-01T00:00:00Z' }),
+      ]
+    })
+
+    expect(api.currentDirectorySessionList.value.map(item => item.session_id)).toEqual(['newer', 'active'])
+    sessionId.value = 'newer'
+    expect(api.currentDirectorySessionList.value.map(item => item.session_id)).toEqual(['newer', 'active'])
+    sessionId.value = 'active'
+    expect(api.currentDirectorySessionList.value.map(item => item.session_id)).toEqual(['newer', 'active'])
+    expect(api.matchesSessionFilter(createSession({ status: 'failed' }), 'done')).toBe(true)
+    expect(api.matchesSessionFilter(createSession({ status: 'cancelled' }), 'done')).toBe(true)
+  })
 })

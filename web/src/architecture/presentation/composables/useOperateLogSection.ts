@@ -101,6 +101,7 @@ export function useOperateLogSection({
   const keyword = ref('')
   const actionFilter = ref('')
   const sourceFilter = ref('')
+  const showScheduledTasks = ref(false)
   const userFilter = ref('')
   const userOptions = ref<Array<{ label: string; value: string; userInfo?: UserInfo }>>([])
   const userFilterLoading = ref(false)
@@ -140,6 +141,8 @@ export function useOperateLogSection({
     { label: t('operateLog.add'), value: 'OnTableAddRow' },
     { label: t('operateLog.update'), value: 'OnTableUpdateRow' },
     { label: t('operateLog.delete'), value: 'OnTableDeleteRows' },
+    { label: t('operateLog.restore'), value: 'OnTableRestoreRows' },
+    { label: t('operateLog.purge'), value: 'OnTablePurgeRows' },
   ])
   const sourceOptions = computed(() => [
     { label: t('operateLog.allSources'), value: '' },
@@ -361,6 +364,8 @@ export function useOperateLogSection({
       const focusedLogID = readPositiveID(focusLogId?.value)
       const focusedTraceID = (focusTraceId?.value || '').trim()
       const effectiveKeyword = keyword.value.trim()
+      const hasFocusedLog = Boolean(focusedLogID || focusedTraceID)
+      const explicitlySelectedScheduledSource = sourceFilter.value === 'scheduled_task'
       const response = await getOperateLogs({
         ...(focusedLogID ? { id: focusedLogID } : {}),
         ...(!focusedLogID && focusedTraceID ? { trace_id: focusedTraceID } : {}),
@@ -371,6 +376,7 @@ export function useOperateLogSection({
         ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
         ...(userFilter.value ? { actor_user: userFilter.value } : {}),
         ...(effectiveKeyword ? { keyword: effectiveKeyword } : {}),
+        ...(!hasFocusedLog && !explicitlySelectedScheduledSource ? { exclude_scheduled_tasks: !showScheduledTasks.value } : {}),
         page: currentPage.value,
         page_size: pageSize.value,
         order_by: 'created_at DESC',
@@ -515,6 +521,7 @@ export function useOperateLogSection({
       case 'scheduled_function_execute':
         return 'info'
       case 'OnTableAddRow':
+      case 'OnTableRestoreRows':
       case 'service_tree.node.created':
       case 'permission.request.created':
       case 'permission.request.approved':
@@ -526,6 +533,7 @@ export function useOperateLogSection({
       case 'permission.role.revoked':
         return 'warning'
       case 'OnTableDeleteRows':
+      case 'OnTablePurgeRows':
       case 'service_tree.node.deleted':
       case 'permission.request.rejected':
         return 'danger'
@@ -548,6 +556,10 @@ export function useOperateLogSection({
         return t('operateLog.update')
       case 'OnTableDeleteRows':
         return t('operateLog.delete')
+      case 'OnTableRestoreRows':
+        return t('operateLog.restore')
+      case 'OnTablePurgeRows':
+        return t('operateLog.purge')
       case 'service_tree.node.created':
         return t('operateLog.create')
       case 'service_tree.node.updated':
@@ -771,7 +783,7 @@ export function useOperateLogSection({
   }
 
   const getValueEntries = (log: OperateLogEntry): OperateLogValueEntry[] => {
-    const values = parseJSON(log.action === 'OnTableDeleteRows' ? log.old_values : log.updates)
+    const values = parseJSON(['OnTableDeleteRows', 'OnTableRestoreRows', 'OnTablePurgeRows'].includes(log.action) ? log.old_values : log.updates)
     if (!values || typeof values !== 'object' || Array.isArray(values)) {
       return []
     }
@@ -847,6 +859,10 @@ export function useOperateLogSection({
         return t('operateLog.updated', { record: recordName })
       case 'OnTableDeleteRows':
         return t('operateLog.deleted', { record: recordName })
+      case 'OnTableRestoreRows':
+        return t('operateLog.restored', { record: recordName })
+      case 'OnTablePurgeRows':
+        return t('operateLog.purged', { record: recordName })
       default:
         return t('operateLog.executed', { action: getActionLabel(log.action) })
     }
@@ -860,6 +876,10 @@ export function useOperateLogSection({
         return t('operateLog.updateEmpty')
       case 'OnTableDeleteRows':
         return t('operateLog.deleteEmpty')
+      case 'OnTableRestoreRows':
+        return t('operateLog.restoreEmpty')
+      case 'OnTablePurgeRows':
+        return t('operateLog.purgeEmpty')
       case 'form_submit':
       case 'public_form_submit':
         return t('operateLog.formSubmitEmpty')
@@ -918,7 +938,7 @@ export function useOperateLogSection({
     }
     if (
       log.summary &&
-      (log.resource_type === 'permission' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows'].includes(log.action))
+      (log.resource_type === 'permission' || !['OnTableAddRow', 'OnTableUpdateRow', 'OnTableDeleteRows', 'OnTableRestoreRows', 'OnTablePurgeRows'].includes(log.action))
     ) {
       return log.summary
     }
@@ -1055,6 +1075,10 @@ export function useOperateLogSection({
     resetAndLoad()
   }
 
+  const handleScheduledTasksChange = () => {
+    resetAndLoad()
+  }
+
   const handleUserChange = () => {
     resetAndLoad()
   }
@@ -1138,6 +1162,7 @@ export function useOperateLogSection({
     keyword,
     actionFilter,
     sourceFilter,
+    showScheduledTasks,
     userFilter,
     userOptions,
     userFilterLoading,
@@ -1179,6 +1204,7 @@ export function useOperateLogSection({
     handleSearch,
     handleActionChange,
     handleSourceChange,
+    handleScheduledTasksChange,
     handleUserChange,
     searchUserOptions,
     handlePageChange,

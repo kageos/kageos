@@ -82,12 +82,16 @@
           />
           <span class="mini-msg-time">{{ msg.created_at ? formatMessageTime(msg.created_at) : '—' }}</span>
         </div>
-        <div class="mini-msg-user-body">
+        <div
+          class="mini-msg-user-body"
+          :class="{ 'mini-msg-user-body--with-files': Boolean(msg.files?.length) }"
+        >
           <OutputFilesDisplay
             v-if="msg.files?.length"
             :file-groups="[{ label: '', files: msg.files }]"
             :section-title="t('miniWorkstation.uploadedFiles')"
             :archive-download="false"
+            deletable
             class="mini-msg-files"
           />
           <div
@@ -296,6 +300,7 @@
                 <OutputFilesDisplay
                   v-if="getFileGroupsFromCalls(block.calls).length"
                   :file-groups="getFileGroupsFromCalls(block.calls)"
+                  deletable
                   class="mini-msg-files"
                 />
                 <OutputDisplayFields
@@ -384,6 +389,7 @@
             <OutputFilesDisplay
               v-if="getFileGroupsFromCalls(msg.tool_calls).length"
               :file-groups="getFileGroupsFromCalls(msg.tool_calls)"
+              deletable
               class="mini-msg-files"
             />
             <OutputDisplayFields
@@ -457,6 +463,7 @@ const props = withDefaults(defineProps<{
   fullCodePath?: string
   resourceType?: string
   resourceTemplateType?: string
+  resourceLabels?: Record<string, string>
   streamingDisplayLength: number
   renderMarkdown: (text: string) => string
   formatMessageTime: (value: string) => string
@@ -468,6 +475,7 @@ const props = withDefaults(defineProps<{
   fullCodePath: '',
   resourceType: '',
   resourceTemplateType: '',
+  resourceLabels: () => ({}),
   pendingInteraction: null,
 })
 
@@ -755,7 +763,7 @@ function renderContentBlock(text: string, msgIndex: number, blockIndex: number, 
 }
 
 function renderWorkbenchMarkdown(text: string): string {
-  return props.renderMarkdown(renderWorkspaceResourceTokensAsHtml(text, props.fullCodePath))
+  return props.renderMarkdown(renderWorkspaceResourceTokensAsHtml(text, props.fullCodePath, props.resourceLabels))
 }
 
 function onWorkspaceMarkdownCopy(event: ClipboardEvent) {
@@ -1436,19 +1444,20 @@ onBeforeUnmount(() => {
 }
 .mini-md-content :deep(img) {
   display: block;
-  width: auto;
-  max-width: min(100%, 260px);
-  max-height: 180px;
-  margin: 6px 0;
+  width: min(100%, 680px);
+  max-width: 100%;
+  height: auto;
+  max-height: min(54vh, 520px);
+  margin: 10px 0;
   object-fit: contain;
   border: 1px solid var(--border-light);
-  border-radius: 8px;
-  background: var(--bg-tertiary);
+  border-radius: 10px;
+  background: #0b0f16;
   box-shadow: none;
 }
 .mini-msg--maximized .mini-md-content :deep(img) {
-  max-width: min(100%, 460px);
-  max-height: 300px;
+  width: min(100%, 1080px);
+  max-height: min(72vh, 820px);
 }
 .mini-md-content :deep(.workspace-resource-token) {
   display: inline-flex;
@@ -1574,6 +1583,10 @@ onBeforeUnmount(() => {
   background: rgba(var(--color-primary-rgb), 0.08);
   color: var(--text-primary);
 }
+.mini-msg-user-body--with-files {
+  align-self: stretch;
+  width: 100%;
+}
 .mini-msg-files {
   margin: 4px 0;
 }
@@ -1674,6 +1687,41 @@ onBeforeUnmount(() => {
 .mini-msg-files :deep(.output-files-actions) {
   font-size: 11px;
   gap: 8px;
+}
+
+/* 图片、视频是消息正文，不应沿用普通附件的 40px 图标布局。 */
+.mini-msg-files :deep(.output-files-item--media) {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 8px;
+}
+.mini-msg-files :deep(.output-files-item--media .output-files-main) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.mini-msg-files :deep(.output-files-item--media .output-files-preview) {
+  width: 100%;
+  height: clamp(210px, 48vw, 460px);
+  aspect-ratio: auto;
+  border-radius: 10px;
+  background: #0b0f16;
+}
+.mini-msg-files :deep(.output-files-item--media .output-files-info) {
+  width: 100%;
+  margin-top: 0;
+}
+.mini-msg-files :deep(.output-files-item--media .output-files-footer) {
+  align-items: center;
+  flex-direction: row;
+}
+
+/* 最大化时工具详情使用 MessageToolCalls，仍在消息节点下统一放大媒体预览。 */
+.mini-msg--maximized :deep(.output-files-item--media .output-files-preview) {
+  width: 100%;
+  height: clamp(360px, 58vw, 760px);
+  aspect-ratio: auto;
 }
 
 .mini-msg-display-fields {

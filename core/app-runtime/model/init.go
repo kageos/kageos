@@ -9,5 +9,6 @@ func InitTables(db *gorm.DB) error {
 		&App{},
 		&AppVersion{},
 		&AppDatabase{},
+		&AppDatabaseCleanupPolicy{},
 	)
 }

@@ -1,0 +1,89 @@
+{
+  "kind": "agent_app_prd",
+  "schema_version": "prd.v2",
+  "project": {
+    "name": "站点可用性巡检",
+    "code": "site_monitor",
+    "summary": "按固定频率检测站点可用性，记录每次结果，并只在故障和恢复时通知负责人。"
+  },
+  "tables": [
+    {
+      "name": "监控目标",
+      "title": "监控目标",
+      "desc": "维护需要检测的地址、超时阈值、负责人和启停状态。",
+      "fields": [
+        {"name": "目标名称", "widget": "input", "required": true, "desc": "站点或接口的业务名称。"},
+        {"name": "检测地址", "widget": "input", "required": true, "desc": "允许检测的 HTTP 或 HTTPS 地址。"},
+        {"name": "超时秒数", "widget": "integer", "required": true, "desc": "单次检测超时，建议 1-30 秒。"},
+        {"name": "负责人", "widget": "user", "required": true, "desc": "接收故障和恢复通知的人员。"},
+        {"name": "启用状态", "widget": "switch", "required": true, "desc": "关闭后不再参与自动巡检。"},
+        {"name": "当前状态", "widget": "select", "required": false, "hide": "create,update", "desc": "有未知、正常、故障三个状态，由检测结果更新。"}
+      ],
+      "search_fields": [
+        {"name": "目标名称", "widget": "input", "required": false, "desc": "按目标名称搜索。"},
+        {"name": "当前状态", "widget": "select", "required": false, "desc": "按未知、正常、故障筛选。"},
+        {"name": "负责人", "widget": "user", "required": false, "desc": "按负责人筛选。"}
+      ],
+      "handlers": ["OnTableAddRow", "OnTableUpdateRow", "OnTableDeleteRow"],
+      "examples": [
+        {"目标名称": "官网", "检测地址": "https://example.com/health", "超时秒数": 5, "负责人": "值班人员", "启用状态": true, "当前状态": "未知"}
+      ]
+    },
+    {
+      "name": "检测记录",
+      "title": "检测记录",
+      "desc": "保存每次检测的状态码、耗时和错误信息，供追溯和统计。",
+      "fields": [
+        {"name": "目标名称", "widget": "input", "required": true, "desc": "被检测目标名称。"},
+        {"name": "检测时间", "widget": "datetime", "required": true, "desc": "实际完成检测的时间。"},
+        {"name": "检测结果", "widget": "select", "required": true, "desc": "有正常、故障两个结果。"},
+        {"name": "响应毫秒", "widget": "integer", "required": true, "desc": "请求耗时，失败时仍记录已消耗时间。"},
+        {"name": "状态码", "widget": "integer", "required": false, "desc": "收到 HTTP 响应时记录。"},
+        {"name": "错误摘要", "widget": "text_area", "required": false, "desc": "超时、网络错误或异常状态码的简短说明。"}
+      ],
+      "search_fields": [
+        {"name": "目标名称", "widget": "input", "required": false, "desc": "按目标名称筛选。"},
+        {"name": "检测结果", "widget": "select", "required": false, "desc": "按正常或故障筛选。"},
+        {"name": "创建开始时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的开始时间。"},
+        {"name": "创建结束时间", "widget": "datetime", "required": false, "desc": "按记录创建时间范围查询的结束时间。"}
+      ],
+      "handlers": [],
+      "examples": [
+        {"目标名称": "官网", "检测时间": "2026-08-27 09:00", "检测结果": "正常", "响应毫秒": 128, "状态码": 200, "错误摘要": ""}
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "name": "立即检测",
+      "desc": "手工选择一个目标执行与定时巡检相同的检测逻辑。",
+      "target_table": "检测记录",
+      "request_fields": [
+        {"name": "监控目标", "widget": "select", "required": true, "desc": "从已启用的监控目标中选择。"}
+      ],
+      "response_fields": [
+        {"name": "检测结果", "widget": "input", "required": false, "desc": "返回正常或故障。"},
+        {"name": "响应毫秒", "widget": "integer", "required": false, "desc": "返回本次请求耗时。"}
+      ],
+      "example": {"request": {"监控目标": "官网"}, "response": {"检测结果": "正常", "响应毫秒": 128}}
+    }
+  ],
+  "charts": [
+    {
+      "name": "响应耗时趋势",
+      "desc": "按时间查看目标的响应耗时变化。",
+      "source_table": "检测记录",
+      "chart_type": "line",
+      "dimension": "检测时间",
+      "metrics": ["平均响应毫秒"],
+      "filters": [{"name": "目标名称", "widget": "input", "required": false, "desc": "按目标筛选。"}],
+      "examples": [{"dimension": "09:00", "metrics": {"平均响应毫秒": 128}}, {"dimension": "10:00", "metrics": {"平均响应毫秒": 156}}]
+    }
+  ],
+  "rules": [
+    "使用 Form schedule 按固定频率调用检测逻辑；同一逻辑同时供立即检测复用。",
+    "每次检测都写入检测记录，并更新监控目标当前状态。",
+    "仅在正常变为故障或故障恢复为正常时通知负责人，连续同状态不重复轰炸。",
+    "检测地址必须经过协议、目标范围和超时校验，不能把任意内网地址暴露为开放探测入口。"
+  ]
+}

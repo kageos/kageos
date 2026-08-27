@@ -2,6 +2,27 @@ import { describe, expect, it, vi } from 'vitest'
 import { TableGatewayImpl } from './TableGatewayImpl'
 
 describe('TableGatewayImpl', () => {
+  it('uses the Admin-protected import endpoint for spreadsheet rows', async () => {
+    const apiClient = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ id: 1, name: 'Imported' }),
+      put: vi.fn(),
+      delete: vi.fn()
+    }
+    const gateway = new TableGatewayImpl(apiClient)
+
+    await gateway.addRow(
+      { router: '/workspace/demo/users' } as any,
+      { name: 'Imported' },
+      { operation: 'import' }
+    )
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/workspace/api/v1/table/import/workspace/demo/users',
+      { name: 'Imported' }
+    )
+  })
+
   it('sends table updates through the standard table update endpoint with changed fields only', async () => {
     const apiClient = {
       get: vi.fn(),
@@ -48,4 +69,3 @@ describe('TableGatewayImpl', () => {
     })
   })
 })
-

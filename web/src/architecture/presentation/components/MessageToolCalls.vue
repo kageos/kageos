@@ -89,6 +89,7 @@
     <OutputFilesDisplay
       v-if="fileGroups.length > 0"
       :file-groups="fileGroups"
+      deletable
       class="message-output-files"
     />
     <OutputDisplayFields

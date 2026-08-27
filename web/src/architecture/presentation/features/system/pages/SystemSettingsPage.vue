@@ -42,7 +42,137 @@
             </el-button>
           </div>
 
-          <div v-if="activeTab === 'email'" v-loading="loading" class="section-pane">
+          <div v-if="activeTab === 'operations'" v-loading="resourcesLoading" class="section-pane operations-pane">
+            <template v-if="resourceOverview">
+              <el-alert
+                :title="forecastTitle"
+                :description="forecastDescription"
+                :type="forecastAlertType"
+                show-icon
+                :closable="false"
+              />
+              <el-alert
+                :title="environmentTitle"
+                :description="environmentDescription"
+                type="info"
+                show-icon
+                :closable="false"
+              />
+
+              <div class="resource-summary-grid">
+                <article class="resource-summary-card">
+                  <span class="resource-summary-label">{{ t('systemSettings.resources.disk') }}</span>
+                  <strong>{{ formatBytes(resourceOverview.current.disk_used_bytes) }} / {{ formatBytes(resourceOverview.current.disk_total_bytes) }}</strong>
+                  <el-progress :percentage="roundedPercent(resourceOverview.current.disk_used_percent)" :status="progressStatus(resourceOverview.current.disk_used_percent)" />
+                  <small>{{ t('systemSettings.resources.diskFree', { value: formatBytes(resourceOverview.current.disk_free_bytes) }) }}</small>
+                </article>
+                <article class="resource-summary-card">
+                  <span class="resource-summary-label">{{ t('systemSettings.resources.memory') }}</span>
+                  <strong v-if="resourceOverview.current.memory_available">
+                    {{ formatBytes(resourceOverview.current.memory_used_bytes) }} / {{ formatBytes(resourceOverview.current.memory_total_bytes) }}
+                  </strong>
+                  <strong v-else>{{ t('systemSettings.resources.unavailable') }}</strong>
+                  <el-progress v-if="resourceOverview.current.memory_available" :percentage="roundedPercent(resourceOverview.current.memory_used_percent)" />
+                  <small>{{ t('systemSettings.resources.cpuCores', { count: resourceOverview.current.cpu_cores }) }}</small>
+                </article>
+                <article class="resource-summary-card">
+                  <span class="resource-summary-label">{{ t('systemSettings.resources.cpuAndLoad') }}</span>
+                  <strong v-if="resourceOverview.current.load_available">
+                    {{ resourceOverview.current.load_1.toFixed(2) }} / {{ resourceOverview.current.load_5.toFixed(2) }} / {{ resourceOverview.current.load_15.toFixed(2) }}
+                  </strong>
+                  <strong v-else-if="resourceOverview.current.cpu_available">
+                    {{ t('systemSettings.resources.cpuUsageValue', { value: roundedPercent(resourceOverview.current.cpu_used_percent) }) }}
+                  </strong>
+                  <strong v-else>{{ t('systemSettings.resources.unavailable') }}</strong>
+                  <small>{{ resourceOverview.current.load_available ? t('systemSettings.resources.loadHint') : t('systemSettings.resources.cpuUsageHint') }}</small>
+                </article>
+                <article class="resource-summary-card">
+                  <span class="resource-summary-label">{{ t('systemSettings.resources.host') }}</span>
+                  <strong>{{ resourceOverview.current.hostname || '-' }}</strong>
+                  <small>{{ resourceOverview.current.operating_system }} / {{ resourceOverview.current.architecture }} · {{ formatUptime(resourceOverview.current.uptime_seconds) }}</small>
+                </article>
+              </div>
+
+              <div class="resource-panel">
+                <div class="resource-panel-heading">
+                  <div>
+                    <h4>{{ t('systemSettings.resources.storagePoolsTitle') }}</h4>
+                    <p>{{ t('systemSettings.resources.storagePoolsDesc') }}</p>
+                  </div>
+                </div>
+                <div class="storage-pool-grid">
+                  <article v-for="pool in resourceOverview.current.storage_pools" :key="pool.key" class="storage-pool-card">
+                    <div class="storage-pool-title">
+                      <strong>{{ storagePoolName(pool.key, pool.name) }}</strong>
+                      <el-tag v-if="pool.primary" size="small" effect="plain">{{ t('systemSettings.resources.primaryPool') }}</el-tag>
+                    </div>
+                    <div v-if="pool.available" class="storage-pool-amount">{{ formatBytes(pool.used_bytes) }} / {{ formatBytes(pool.total_bytes) }}</div>
+                    <div v-else class="storage-pool-amount">{{ t('systemSettings.resources.usedKnownCapacityUnknown', { value: formatBytes(pool.used_bytes) }) }}</div>
+                    <el-progress v-if="pool.available" :percentage="roundedPercent(pool.used_percent)" :status="progressStatus(pool.used_percent)" />
+                    <small v-if="pool.available">{{ t('systemSettings.resources.diskFree', { value: formatBytes(pool.free_bytes) }) }}</small>
+                    <small v-else>{{ t('systemSettings.resources.capacityUnavailableHint') }}</small>
+                  </article>
+                </div>
+              </div>
+
+              <div class="resource-panel">
+                <div class="resource-panel-heading">
+                  <div>
+                    <h4>{{ t('systemSettings.resources.historyTitle') }}</h4>
+                    <p>{{ t('systemSettings.resources.historyDesc', { minutes: resourceOverview.sample_interval_minutes }) }}</p>
+                  </div>
+                  <el-radio-group v-model="resourceHistoryHours" size="small" @change="loadResources">
+                    <el-radio-button :value="24">24h</el-radio-button>
+                    <el-radio-button :value="168">7d</el-radio-button>
+                    <el-radio-button :value="720">30d</el-radio-button>
+                  </el-radio-group>
+                </div>
+                <div v-if="resourceOverview.history.length > 1" class="resource-chart-wrap">
+                  <svg class="resource-chart" viewBox="0 0 800 180" preserveAspectRatio="none" role="img" :aria-label="t('systemSettings.resources.historyTitle')">
+                    <line v-for="level in [25, 50, 75]" :key="level" x1="0" :y1="180 - level * 1.8" x2="800" :y2="180 - level * 1.8" class="chart-grid-line" />
+                    <polyline :points="historyPolyline('disk_used_percent')" class="chart-line disk-line" />
+                    <polyline :points="historyPolyline('memory_used_percent')" class="chart-line memory-line" />
+                  </svg>
+                  <div class="chart-legend">
+                    <span><i class="legend-dot disk-dot" />{{ t('systemSettings.resources.diskUsage') }}</span>
+                    <span><i class="legend-dot memory-dot" />{{ t('systemSettings.resources.memoryUsage') }}</span>
+                    <span>{{ historyTimeRange }}</span>
+                  </div>
+                </div>
+                <el-empty v-else :description="t('systemSettings.resources.historyCollecting')" />
+              </div>
+
+              <div class="resource-panel">
+                <div class="resource-panel-heading">
+                  <div>
+                    <h4>{{ t('systemSettings.resources.breakdownTitle') }}</h4>
+                    <p>{{ t('systemSettings.resources.breakdownDesc') }}</p>
+                  </div>
+                </div>
+                <el-table :data="resourceOverview.current.components" stripe>
+                  <el-table-column :label="t('systemSettings.resources.service')" min-width="180">
+                    <template #default="{ row }">{{ resourceComponentName(row.key, row.name) }}</template>
+                  </el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.storagePool')" min-width="150">
+                    <template #default="{ row }">{{ storagePoolName(row.pool_key, row.pool_key) }}</template>
+                  </el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.usedSpace')" min-width="160">
+                    <template #default="{ row }">{{ row.available ? formatBytes(row.used_bytes) : t('systemSettings.resources.notMounted') }}</template>
+                  </el-table-column>
+                  <el-table-column :label="t('systemSettings.resources.share')" min-width="220">
+                    <template #default="{ row }">
+                      <el-progress v-if="row.available" :percentage="componentDiskPercent(row.used_bytes, row.pool_key)" />
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+              <p class="resource-collected-at">{{ t('systemSettings.resources.collectedAt', { time: formatResourceTime(resourceOverview.current.collected_at) }) }}</p>
+            </template>
+            <el-empty v-else-if="!resourcesLoading" :description="t('systemSettings.resources.empty')" />
+          </div>
+
+          <div v-else-if="activeTab === 'email'" v-loading="loading" class="section-pane">
             <el-alert
               v-if="form.registration_mode === 'admin_only'"
               :title="t('systemSettings.registrationDisabled')"
@@ -373,6 +503,7 @@ import SystemUserManagementPage from '@/architecture/presentation/features/syste
 import {
   getSystemSettings,
   getLoginAnnouncementConfig,
+  getSystemResourceOverview,
   listAuthLoginProviders,
   listLogArchiveBatches,
   updateSystemSettings,
@@ -384,10 +515,12 @@ import {
   type AuthLoginProviderInfo,
   type LogArchiveBatch,
   type LoginAnnouncement,
+  type SystemResourceHistoryPoint,
+  type SystemResourceOverview,
   type SystemSettings
 } from '@/architecture/presentation/context/api/system-settings'
 
-type SettingsTab = 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'backups' | 'appearance' | 'language'
+type SettingsTab = 'operations' | 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'backups' | 'appearance' | 'language'
 
 interface SettingsSection {
   key: SettingsTab
@@ -399,7 +532,7 @@ const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
 const testEmail = ref('')
-const defaultSettingsTab: SettingsTab = 'login'
+const defaultSettingsTab: SettingsTab = 'operations'
 const activeTab = ref<SettingsTab>(defaultSettingsTab)
 const connectorPanelKey = ref(0)
 const openapiPanelKey = ref(0)
@@ -412,6 +545,9 @@ const archiveTotal = ref(0)
 const archiveRetentionDays = ref(90)
 const archiveCronExpr = ref('20 3 * * *')
 const archiveTimezone = ref('Asia/Shanghai')
+const resourcesLoading = ref(false)
+const resourceOverview = ref<SystemResourceOverview | null>(null)
+const resourceHistoryHours = ref(168)
 const providersLoading = ref(false)
 const announcementSaving = ref(false)
 const authProviders = ref<AuthLoginProviderInfo[]>([])
@@ -426,6 +562,7 @@ const localeStore = useLocaleStore()
 const themeStore = useThemeStore()
 
 const allSettingsSections = computed<SettingsSection[]>(() => [
+  { key: 'operations', title: t('systemSettings.sections.operationsTitle'), desc: t('systemSettings.sections.operationsDesc') },
   { key: 'email', title: t('systemSettings.sections.emailTitle'), desc: t('systemSettings.sections.emailDesc') },
   { key: 'login', title: t('systemSettings.sections.loginTitle'), desc: t('systemSettings.sections.loginDesc') },
   { key: 'users', title: t('systemSettings.sections.usersTitle'), desc: t('systemSettings.sections.usersDesc') },
@@ -446,6 +583,7 @@ const settingsSections = computed<SettingsSection[]>(() => {
 })
 
 const settingsDocSlugMap: Record<SettingsTab, KageosDocSlug> = {
+  operations: 'runtime',
   email: 'runtime',
   login: 'login',
   connectors: 'connectors',
@@ -466,6 +604,69 @@ const currentDocsURL = computed(() => {
 
 const availableThemes = computed(() => themeStore.getAvailableThemes())
 const currentThemeName = computed(() => themeStore.currentTheme.name)
+
+const forecastAlertType = computed(() => {
+  if (resourceOverview.value?.forecast.status === 'critical') return 'error'
+  if (resourceOverview.value?.forecast.status === 'warning') return 'warning'
+  return 'success'
+})
+
+const forecastTitle = computed(() => {
+  const status = resourceOverview.value?.forecast.status || 'healthy'
+  return t(`systemSettings.resources.forecast.${status}`)
+})
+
+const forecastDescription = computed(() => {
+  const forecast = resourceOverview.value?.forecast
+  if (!forecast) return ''
+  if (typeof forecast.days_to_target === 'number') {
+    return t('systemSettings.resources.forecastDays', {
+      days: forecast.days_to_target,
+      target: forecast.target_percent,
+      growth: formatBytes(forecast.daily_growth_bytes),
+    })
+  }
+  if (forecast.status === 'critical') {
+    return t('systemSettings.resources.forecastCriticalNow', {
+      pool: storagePoolName(forecast.pool_key, forecast.pool_key),
+      percent: roundedPercent(forecast.current_used_percent),
+    })
+  }
+  if (forecast.status === 'warning') {
+    return t('systemSettings.resources.forecastWarningNow', {
+      pool: storagePoolName(forecast.pool_key, forecast.pool_key),
+      percent: roundedPercent(forecast.current_used_percent),
+      target: forecast.target_percent,
+    })
+  }
+  return t('systemSettings.resources.forecastStable', { target: forecast.target_percent })
+})
+
+const historyTimeRange = computed(() => {
+  const history = resourceOverview.value?.history || []
+  if (!history.length) return ''
+  return `${formatResourceTime(history[0].collected_at)} — ${formatResourceTime(history[history.length - 1].collected_at)}`
+})
+
+const environmentTitle = computed(() => {
+  const environment = resourceOverview.value?.current.environment
+  if (!environment) return ''
+  return t(`systemSettings.resources.environments.${environment.mode}.${environment.deployment}`)
+})
+
+const environmentDescription = computed(() => {
+  const environment = resourceOverview.value?.current.environment
+  if (!environment) return ''
+  const engine = environment.container_engine && environment.container_engine !== 'none'
+    ? environment.container_engine
+    : t('systemSettings.resources.noContainerEngine')
+  return t('systemSettings.resources.environmentDesc', {
+    os: resourceOverview.value?.current.operating_system,
+    arch: resourceOverview.value?.current.architecture,
+    engine,
+    source: t(`systemSettings.resources.storageSources.${environment.storage_root_source}`),
+  })
+})
 
 const form = reactive<SystemSettings>({
   registration_mode: 'admin_only',
@@ -563,6 +764,10 @@ async function saveLoginAnnouncement() {
 }
 
 async function refreshActiveTab() {
+  if (activeTab.value === 'operations') {
+    await loadResources()
+    return
+  }
   if (activeTab.value === 'login') {
     await loadAuthProviders()
     return
@@ -590,12 +795,85 @@ async function refreshActiveTab() {
 }
 
 function handleTabChange(tabName: string | number) {
+  if (tabName === 'operations' && !resourceOverview.value) {
+    loadResources()
+  }
   if (tabName === 'login' && !authProviders.value.length) {
     loadAuthProviders()
   }
   if (tabName === 'backups' && !archiveBatches.value.length) {
     loadArchives()
   }
+}
+
+async function loadResources() {
+  resourcesLoading.value = true
+  try {
+    resourceOverview.value = await getSystemResourceOverview(resourceHistoryHours.value)
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.resources.loadFailed'))
+  } finally {
+    resourcesLoading.value = false
+  }
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value < 0) return '-'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  let amount = value
+  let unit = 0
+  while (amount >= 1024 && unit < units.length - 1) {
+    amount /= 1024
+    unit += 1
+  }
+  return `${amount.toFixed(unit === 0 ? 0 : amount >= 100 ? 0 : 1)} ${units[unit]}`
+}
+
+function roundedPercent(value: number) {
+  return Math.min(100, Math.max(0, Number(value.toFixed(1))))
+}
+
+function progressStatus(value: number): 'success' | 'warning' | 'exception' | undefined {
+  if (value >= 90) return 'exception'
+  if (value >= 80) return 'warning'
+  if (value < 60) return 'success'
+  return undefined
+}
+
+function componentDiskPercent(bytes: number, poolKey: string) {
+  const total = resourceOverview.value?.current.storage_pools.find((pool) => pool.key === poolKey)?.total_bytes || 0
+  return total > 0 ? roundedPercent(bytes * 100 / total) : 0
+}
+
+function storagePoolName(key: string, fallback: string) {
+  const translated = t(`systemSettings.resources.pools.${key}`)
+  return translated.includes('systemSettings.resources.pools.') ? fallback : translated
+}
+
+function resourceComponentName(key: string, fallback: string) {
+  const translated = t(`systemSettings.resources.components.${key}`)
+  return translated.includes('systemSettings.resources.components.') ? fallback : translated
+}
+
+function formatUptime(seconds: number) {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  return t('systemSettings.resources.uptime', { days, hours })
+}
+
+function formatResourceTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function historyPolyline(key: keyof Pick<SystemResourceHistoryPoint, 'disk_used_percent' | 'memory_used_percent'>) {
+  const history = resourceOverview.value?.history || []
+  if (history.length < 2) return ''
+  return history.map((point, index) => {
+    const x = index * 800 / (history.length - 1)
+    const y = 180 - Math.min(100, Math.max(0, point[key])) * 1.8
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
 }
 
 async function loadArchives() {
@@ -1255,6 +1533,115 @@ onMounted(() => {
   line-height: 1.45;
 }
 
+.operations-pane { display: grid; gap: 20px; }
+
+.resource-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.resource-summary-card,
+.resource-panel {
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-primary);
+}
+
+.resource-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.resource-summary-card strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-summary-card small,
+.resource-panel-heading p,
+.resource-collected-at { color: var(--text-secondary); }
+
+.resource-summary-label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.resource-panel { padding: 20px; }
+
+.storage-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.storage-pool-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-secondary);
+}
+
+.storage-pool-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.storage-pool-amount { color: var(--text-primary); font-size: 16px; }
+.storage-pool-card small { color: var(--text-secondary); }
+
+.resource-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.resource-panel-heading h4,
+.resource-panel-heading p { margin: 0; }
+.resource-panel-heading p { margin-top: 5px; font-size: 13px; }
+.resource-chart-wrap { overflow: hidden; }
+.resource-chart { display: block; width: 100%; height: 180px; }
+.chart-grid-line { stroke: var(--border-light); stroke-width: 1; }
+
+.chart-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.disk-line { stroke: var(--el-color-primary); }
+.memory-line { stroke: var(--el-color-warning); }
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chart-legend span:last-child { margin-left: auto; }
+.legend-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+.disk-dot { background: var(--el-color-primary); }
+.memory-dot { background: var(--el-color-warning); }
+.resource-collected-at { margin: -6px 0 0; text-align: right; font-size: 12px; }
+
 @media (max-width: 768px) {
   .system-settings-page {
     padding: 12px;
@@ -1280,6 +1667,10 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .resource-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .settings-form,
   .provider-form {
     max-width: none;
@@ -1293,8 +1684,11 @@ onMounted(() => {
 
 @media (max-width: 520px) {
   .settings-sidebar,
-  .preference-grid {
+  .preference-grid,
+  .resource-summary-grid {
     grid-template-columns: 1fr;
   }
+
+  .resource-panel-heading { flex-direction: column; }
 }
 </style>

@@ -170,11 +170,19 @@ func (s *Server) setupRoutes() {
 	// Table 函数接口
 	table := apiV1.Group("/table")
 	table.Use(jwtAuth)
-	table.GET("/search/*full-code-path", standardAPI.TableSearch)     // Table 查询
-	table.GET("/template/*full-code-path", standardAPI.TableTemplate) // Table 下载导入模板
-	table.POST("/create/*full-code-path", standardAPI.TableCreate)    // Table 新增
-	table.PUT("/update/*full-code-path", standardAPI.TableUpdate)     // Table 更新
-	table.DELETE("/delete/*full-code-path", standardAPI.TableDelete)  // Table 删除
+	table.GET("/search/*full-code-path", standardAPI.TableSearch)        // Table 查询
+	table.GET("/template/*full-code-path", standardAPI.TableTemplate)    // Table 下载导入模板
+	table.POST("/create/*full-code-path", standardAPI.TableCreate)       // Table 新增
+	table.POST("/import/*full-code-path", standardAPI.TableImportRow)    // Table 导入（Admin+）
+	table.PUT("/update/*full-code-path", standardAPI.TableUpdate)        // Table 更新
+	table.DELETE("/delete/*full-code-path", standardAPI.TableDelete)     // Table 删除
+	table.GET("/deleted/*full-code-path", standardAPI.TableDeletedRows)  // Table 回收站
+	table.POST("/restore/*full-code-path", standardAPI.TableRestoreRows) // Table 恢复
+	table.DELETE("/purge/*full-code-path", standardAPI.TablePurgeRows)   // Table 彻底删除
+	table.GET("/recycle-policy/*full-code-path", standardAPI.TableRecyclePolicy)
+	table.PUT("/recycle-policy/*full-code-path", standardAPI.UpdateTableRecyclePolicy)
+	table.POST("/export/plan/*full-code-path", standardAPI.TableExportPlan)
+	table.POST("/export/chunk/*full-code-path", standardAPI.TableExportChunk)
 
 	// Form 函数接口
 	form := apiV1.Group("/form")

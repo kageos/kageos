@@ -767,6 +767,43 @@ func (s *Storage) ResolveFileRefs(c *gin.Context) {
 	response.OkWithData(c, dto.ResolveFileRefsResp{Files: files})
 }
 
+// DeleteFileRefs 删除当前用户拥有的文件，并保留可供历史记录展示的墓碑元数据。
+func (s *Storage) DeleteFileRefs(c *gin.Context) {
+	var req dto.DeleteFileRefsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	ctx := contextx.ToContext(c)
+	actor := contextx.GetRequestUser(c)
+	results := make([]dto.DeleteFileRefResult, 0, len(req.Refs))
+	deletedCount := 0
+	var releasedBytes int64
+	for _, ref := range req.Refs {
+		result, err := s.storageService.DeleteOwnedFile(ctx, ref, actor)
+		if err != nil {
+			results = append(results, dto.DeleteFileRefResult{
+				Ref:    ref,
+				Status: "failed",
+				Error:  err.Error(),
+			})
+			continue
+		}
+		results = append(results, *result)
+		if result.Status == "deleted" {
+			deletedCount++
+			releasedBytes += result.ReleasedBytes
+		}
+	}
+
+	response.OkWithData(c, dto.DeleteFileRefsResp{
+		Results:       results,
+		DeletedCount:  deletedCount,
+		ReleasedBytes: releasedBytes,
+	})
+}
+
 // UpdateFileDescription 更新文件描述
 // @Summary 更新文件描述
 // @Description 更新文件引用对应的描述元数据
@@ -1025,6 +1062,10 @@ func (s *Storage) ListFiles(c *gin.Context) {
 // @Failure 500 {string} string "服务器内部错误"
 // @Router /storage/api/v1/batch_delete [post]
 func (s *Storage) DeleteFilesByRouter(c *gin.Context) {
+	if contextx.GetRequestUser(c) != "system" {
+		response.FailWithMessage(c, "按路径批量删除仅允许系统管理员执行")
+		return
+	}
 	var req dto.DeleteFilesByRouterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.FailWithMessage(c, "请求参数错误: "+err.Error())

@@ -104,4 +104,36 @@ describe('MiniWorkstationComposer', () => {
     expect(onInputEnter).not.toHaveBeenCalled()
     expect(wrapper.emitted('update:inputText')?.at(-1)?.[0]).toBe('第一行\n')
   })
+
+  it('uses the input-only layout for a non-maximized window', () => {
+    const wrapper = mountComposer({
+      compactWindow: true,
+      attachedFiles: [
+        { name: 'draft.txt', source_name: 'draft.txt', ref: 'file://draft.txt' },
+        { name: '客户名单.xlsx', source_name: '客户名单.xlsx', ref: 'file://customers.xlsx' },
+      ],
+    })
+
+    expect(wrapper.find('[data-testid="mini-workstation-composer"]').classes()).toContain('mini-ws-input--compact-window')
+    expect(wrapper.find('[data-testid="mini-workstation-attached-files"]').exists()).toBe(true)
+    expect(wrapper.find('.mini-ws-files').classes()).toContain('mini-ws-files--compact')
+    expect(wrapper.findAll('.mini-ws-file-chip')).toHaveLength(2)
+    expect(wrapper.text()).toContain('draft.txt')
+    expect(wrapper.text()).toContain('客户名单.xlsx')
+    expect(wrapper.find('[data-testid="mini-workstation-input"]').exists()).toBe(true)
+    expect(wrapper.find('.mini-path-pill').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mini-workstation-send"]').exists()).toBe(true)
+  })
+
+  it('allows an attached file to be removed from the visible file strip', async () => {
+    const removeFile = vi.fn()
+    const wrapper = mountComposer({
+      attachedFiles: [{ name: 'draft.txt', source_name: 'draft.txt', ref: 'file://draft.txt' }],
+      removeFile,
+    })
+
+    await wrapper.find('.mini-ws-file-chip__remove').trigger('click')
+
+    expect(removeFile).toHaveBeenCalledWith(0)
+  })
 })

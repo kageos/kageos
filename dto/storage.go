@@ -170,5 +170,29 @@ type ResolvedFile struct {
 	ThumbnailURL       string `json:"thumbnail_url,omitempty"`
 	ServerThumbnailURL string `json:"server_thumbnail_url,omitempty"`
 	PreviewKind        string `json:"preview_kind,omitempty"`
+	Status             string `json:"status,omitempty"`
+	CanDelete          bool   `json:"can_delete,omitempty"`
+	DeletedAt          int64  `json:"deleted_at,omitempty"`
+	DeletedBy          string `json:"deleted_by,omitempty"`
 	Error              string `json:"error,omitempty"`
+}
+
+// DeleteFileRefsReq 删除当前用户拥有的文件。使用稳定 ref，避免调用方自行拆 bucket/key。
+type DeleteFileRefsReq struct {
+	Refs []string `json:"refs" binding:"required,min=1,max=100"`
+}
+
+type DeleteFileRefResult struct {
+	Ref           string `json:"ref"`
+	Status        string `json:"status"`
+	ReleasedBytes int64  `json:"released_bytes,omitempty"`
+	DeletedAt     int64  `json:"deleted_at,omitempty"`
+	DeletedBy     string `json:"deleted_by,omitempty"`
+	Error         string `json:"error,omitempty"`
+}
+
+type DeleteFileRefsResp struct {
+	Results       []DeleteFileRefResult `json:"results"`
+	DeletedCount  int                   `json:"deleted_count"`
+	ReleasedBytes int64                 `json:"released_bytes"`
 }

@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import MiniWorkstationMessages from './MiniWorkstationMessages.vue'
+import OutputFilesDisplay from './OutputFilesDisplay.vue'
 
 vi.mock('@/architecture/presentation/context/appStoresContext', () => ({
   useAuthStore: () => ({
@@ -34,6 +35,9 @@ function mountMessages(messages: any[] = [
       maximized: false,
       sending: false,
       fullCodePath: '/system/app',
+      resourceLabels: {
+        '/system/app/orders.table': '订单明细',
+      },
       streamingDisplayLength: 0,
       renderMarkdown: renderMarkdownForTest,
       formatMessageTime: (value: string) => value,
@@ -62,9 +66,29 @@ describe('MiniWorkstationMessages', () => {
     expect(wrapper.find('.mini-msg-user-body h1').text()).toBe('处理订单')
 
     const token = wrapper.get('a.workspace-resource-token')
-    expect(token.text()).toContain('orders.table')
+    expect(token.text()).toBe('订单明细')
+    expect(token.text()).not.toContain('表格')
     expect(token.attributes('data-full-code-path')).toBe('/system/app/orders.table')
     expect(token.attributes('href')).toBe('/workspace/system/app/orders.table')
+  })
+
+  it('expands user messages that contain uploaded files', () => {
+    const wrapper = mountMessages([{
+      role: 'user',
+      user: 'demo',
+      content: '看一下这张图片',
+      created_at: '2026-07-05T10:00:00Z',
+      files: [{
+        name: 'screenshot.png',
+        source_name: 'screenshot.png',
+        download_url: '/files/screenshot.png',
+        content_type: 'image/png',
+      }],
+    }])
+
+    expect(wrapper.get('.mini-msg-user-body').classes()).toContain('mini-msg-user-body--with-files')
+    expect(wrapper.get('.output-files-item').classes()).toContain('output-files-item--media')
+    expect(wrapper.getComponent(OutputFilesDisplay).props('deletable')).toBe(true)
   })
 
   it('labels collapsed assistant activity by tool count instead of display rounds', () => {

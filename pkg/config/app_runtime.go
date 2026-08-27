@@ -94,6 +94,9 @@ const (
 	defaultAppDatabaseMaxIdleConns = 0
 	defaultAppDatabaseMaxIdleTime  = 30
 	defaultAppDatabaseMaxLifetime  = 600
+	defaultSoftDeleteRetentionDays = 30
+	defaultSoftDeleteIntervalMins  = 1440
+	defaultSoftDeleteBatchSize     = 500
 )
 
 // AppRuntimeTimeoutConfig App Runtime 超时配置
@@ -147,21 +150,32 @@ type GitConfig struct {
 // apps. Admin credentials stay in app-runtime and are never injected into app
 // containers.
 type AppDatabaseConfig struct {
-	Enabled        bool   `mapstructure:"enabled"`
-	Dialect        string `mapstructure:"dialect"`
-	Host           string `mapstructure:"host"`
-	Port           int    `mapstructure:"port"`
-	AdminUser      string `mapstructure:"admin_user"`
-	AdminPassword  string `mapstructure:"admin_password"`
-	GrantHost      string `mapstructure:"grant_host"`
-	SecretKey      string `mapstructure:"secret_key"`
-	ClusterKey     string `mapstructure:"cluster_key"`
-	DatabasePrefix string `mapstructure:"database_prefix"`
-	UserPrefix     string `mapstructure:"user_prefix"`
-	MaxOpenConns   int    `mapstructure:"max_open_conns"`
-	MaxIdleConns   int    `mapstructure:"max_idle_conns"`
-	MaxIdleTime    int    `mapstructure:"max_idle_time"` // seconds
-	MaxLifetime    int    `mapstructure:"max_lifetime"`  // seconds
+	Enabled           bool                    `mapstructure:"enabled"`
+	Dialect           string                  `mapstructure:"dialect"`
+	Host              string                  `mapstructure:"host"`
+	Port              int                     `mapstructure:"port"`
+	AdminUser         string                  `mapstructure:"admin_user"`
+	AdminPassword     string                  `mapstructure:"admin_password"`
+	GrantHost         string                  `mapstructure:"grant_host"`
+	SecretKey         string                  `mapstructure:"secret_key"`
+	ClusterKey        string                  `mapstructure:"cluster_key"`
+	DatabasePrefix    string                  `mapstructure:"database_prefix"`
+	UserPrefix        string                  `mapstructure:"user_prefix"`
+	MaxOpenConns      int                     `mapstructure:"max_open_conns"`
+	MaxIdleConns      int                     `mapstructure:"max_idle_conns"`
+	MaxIdleTime       int                     `mapstructure:"max_idle_time"` // seconds
+	MaxLifetime       int                     `mapstructure:"max_lifetime"`  // seconds
+	SoftDeleteCleanup SoftDeleteCleanupConfig `mapstructure:"soft_delete_cleanup"`
+}
+
+// SoftDeleteCleanupConfig controls platform-owned hard deletion of expired
+// soft-deleted app rows. Mode defaults to dry_run; purge must be explicit.
+type SoftDeleteCleanupConfig struct {
+	Enabled         bool   `mapstructure:"enabled"`
+	Mode            string `mapstructure:"mode"` // dry_run | purge
+	RetentionDays   int    `mapstructure:"retention_days"`
+	IntervalMinutes int    `mapstructure:"interval_minutes"`
+	BatchSize       int    `mapstructure:"batch_size"`
 }
 
 func (c *AppManageServiceConfig) GetBasePath() string {
@@ -454,6 +468,27 @@ func (c AppDatabaseConfig) WithDefaults() AppDatabaseConfig {
 			c.MaxLifetime = value
 		}
 	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_SOFT_DELETE_CLEANUP_ENABLED")); v != "" {
+		c.SoftDeleteCleanup.Enabled = strings.EqualFold(v, "true") || v == "1" || strings.EqualFold(v, "yes")
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_SOFT_DELETE_CLEANUP_MODE")); v != "" {
+		c.SoftDeleteCleanup.Mode = strings.ToLower(v)
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_SOFT_DELETE_RETENTION_DAYS")); v != "" {
+		if value, err := strconv.Atoi(v); err == nil {
+			c.SoftDeleteCleanup.RetentionDays = value
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_SOFT_DELETE_CLEANUP_INTERVAL_MINUTES")); v != "" {
+		if value, err := strconv.Atoi(v); err == nil {
+			c.SoftDeleteCleanup.IntervalMinutes = value
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("KAGEOS_APP_DB_SOFT_DELETE_CLEANUP_BATCH_SIZE")); v != "" {
+		if value, err := strconv.Atoi(v); err == nil {
+			c.SoftDeleteCleanup.BatchSize = value
+		}
+	}
 
 	if c.Dialect == "" {
 		c.Dialect = defaultAppDatabaseDialect
@@ -487,6 +522,24 @@ func (c AppDatabaseConfig) WithDefaults() AppDatabaseConfig {
 	}
 	if c.MaxLifetime <= 0 {
 		c.MaxLifetime = defaultAppDatabaseMaxLifetime
+	}
+	if c.SoftDeleteCleanup.Mode == "" {
+		c.SoftDeleteCleanup.Mode = "dry_run"
+	}
+	if c.SoftDeleteCleanup.Mode != "dry_run" && c.SoftDeleteCleanup.Mode != "purge" {
+		c.SoftDeleteCleanup.Mode = "dry_run"
+	}
+	if c.SoftDeleteCleanup.RetentionDays <= 0 {
+		c.SoftDeleteCleanup.RetentionDays = defaultSoftDeleteRetentionDays
+	}
+	if c.SoftDeleteCleanup.IntervalMinutes <= 0 {
+		c.SoftDeleteCleanup.IntervalMinutes = defaultSoftDeleteIntervalMins
+	}
+	if c.SoftDeleteCleanup.BatchSize <= 0 {
+		c.SoftDeleteCleanup.BatchSize = defaultSoftDeleteBatchSize
+	}
+	if c.SoftDeleteCleanup.BatchSize > 10000 {
+		c.SoftDeleteCleanup.BatchSize = 10000
 	}
 	return c
 }

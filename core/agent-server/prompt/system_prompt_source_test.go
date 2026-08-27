@@ -550,3 +550,62 @@ func TestCaseCatalogDocsPreferPRDJSONV2(t *testing.T) {
 		}
 	}
 }
+
+func TestRepresentativeCaseCatalogDocsKeepSelectionBoundaries(t *testing.T) {
+	casePaths := []string{
+		"/system/prompt/case_catalog/agent/docs_service_desk",
+		"/system/prompt/case_catalog/automation/site_monitor",
+		"/system/prompt/case_catalog/transaction/consumable_inventory",
+		"/system/prompt/case_catalog/public/service_booking",
+		"/system/prompt/case_catalog/agent/hybrid_crm_followup",
+	}
+	for _, docPath := range casePaths {
+		_, content := GetPromptDocContent(nil, docPath)
+		for _, needle := range []string{
+			`"schema_version": "prd.v2"`,
+			"## 三、适用场景与选择边界",
+			"### 适用场景",
+			"### 不适用场景",
+			"### 与相邻案例怎么选",
+			"### 五分钟价值路径",
+			"### 不要照搬",
+		} {
+			if !strings.Contains(content, needle) {
+				t.Fatalf("%s should keep case selection marker %q, got: %q", docPath, needle, content)
+			}
+		}
+	}
+
+	_, index := GetPromptDocContent(nil, "/system/prompt/case_catalog")
+	for _, needle := range []string{
+		"## 容易混淆的案例怎么选",
+		"Form schedule",
+		"AgentTask",
+		"事实与建议分开",
+		"事务、行锁和不可变流水",
+		"公开面与内部面分开",
+	} {
+		if !strings.Contains(index, needle) {
+			t.Fatalf("case catalog index should keep selection guidance %q, got: %q", needle, index)
+		}
+	}
+}
+
+func TestPromptDistinguishesFunctionAndAgentTaskDefaultState(t *testing.T) {
+	_, sdk := GetPromptDocContent(nil, "/system/prompt/sdk/agent-app-sdk-readme")
+	for _, needle := range []string{
+		"普通 `FormSchedule` 是安装后即可运行的确定性业务自动化",
+		"必须显式写 `Enabled: true`",
+		"数字员工 `AgentTask` 可以显式写 `Enabled: false`",
+		"运行态状态不应被代码更新覆盖",
+	} {
+		if !strings.Contains(sdk, needle) {
+			t.Fatalf("SDK prompt should keep schedule default-state guidance %q", needle)
+		}
+	}
+
+	_, manifest := GetPromptDocContent(nil, "/system/prompt/sdk/reference/kageos-manifest-runbook-agenttask")
+	if !strings.Contains(manifest, "数字员工默认显式写 `Enabled: false`") {
+		t.Fatal("AgentTask manifest guide should require user-enabled digital employees")
+	}
+}

@@ -128,10 +128,12 @@ export function useMiniWorkstationSessionView(options: UseMiniWorkstationSession
 
   function filterSessionCenterList(list: WorkspaceSessionItem[]) {
     const keyword = options.sessionSearchKeyword.value.trim().toLowerCase()
-    return list.filter((session) => {
-      if (!matchesSessionFilter(session, options.sessionFilter.value)) return false
-      return matchesSessionKeyword(session, keyword)
-    })
+    return list
+      .filter((session) => {
+        if (!matchesSessionFilter(session, options.sessionFilter.value)) return false
+        return matchesSessionKeyword(session, keyword)
+      })
+      .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))
   }
 
   function matchesSessionKeyword(session: WorkspaceSessionItem, keyword: string) {

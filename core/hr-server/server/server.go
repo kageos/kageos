@@ -39,6 +39,7 @@ type Server struct {
 	authProviderService *service.AuthLoginProviderService
 	emailService        *service.EmailService
 	settingsService     *service.SystemSettingsService
+	resourceService     *service.SystemResourceService
 	userService         *service.UserService
 	departmentService   *service.DepartmentService
 	tokenPublisher      service.TokenPublisher
@@ -127,6 +128,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}()
 
 	logger.Infof(ctx, "[Server] HR-server started successfully")
+	s.resourceService.Start(ctx)
 	return nil
 }
 
@@ -134,6 +136,7 @@ func (s *Server) Start(ctx context.Context) error {
 func (s *Server) Stop(ctx context.Context) error {
 	logger.Infof(ctx, "[Server] Stopping hr-server...")
 	var stopErr error
+	s.resourceService.Stop()
 
 	if s.httpRuntime != nil {
 		if err := s.httpRuntime.Shutdown(ctx); err != nil {
@@ -216,6 +219,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	emailCodeRepo := repository.NewEmailCodeRepository(s.db)
 	deptRepo := repository.NewDepartmentRepository(s.db)
 	settingRepo := repository.NewSystemSettingRepository(s.db)
+	resourceRepo := repository.NewSystemResourceRepository(s.db)
 	authProviderRepo := repository.NewAuthLoginProviderRepository(s.db)
 	authOAuthStateRepo := repository.NewAuthOAuthStateRepository(s.db)
 	authOAuthRegistrationIntentRepo := repository.NewAuthOAuthRegistrationIntentRepository(s.db)
@@ -232,6 +236,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	s.authOAuthService = service.NewAuthOAuthService(s.authService, s.authProviderService, authOAuthStateRepo, authOAuthRegistrationIntentRepo, authExternalIdentityRepo, userRepo)
 	s.authWechatService = service.NewAuthWechatOfficialService(s.authProviderService, authWechatAttemptRepo, s.authOAuthService)
 	s.settingsService = service.NewSystemSettingsService(settingRepo)
+	s.resourceService = service.NewSystemResourceService(resourceRepo)
 
 	// 初始化邮件服务
 	s.emailService = service.NewEmailService(emailCodeRepo, s.settingsService)

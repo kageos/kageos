@@ -103,6 +103,8 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
   const automationAgents = ref<WorkspaceAutomationAgentItem[]>([])
   const loadingSessions = ref(false)
   const loadingGlobalSessions = ref(false)
+  const sessionLoadFailed = ref(false)
+  const globalSessionLoadFailed = ref(false)
   const stopping = ref(false)
 
   let miniStreamCleanup: (() => void) | null = null
@@ -115,6 +117,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
     }
 
     loadingSessions.value = true
+    sessionLoadFailed.value = false
     try {
       const source = resolveWorkspaceSessionSourceFilter(sessionSourceFilter.value)
       const response = await getWorkspaceSessions({ full_code_path: fullCodePath.value, page: 1, page_size: 100, ...source })
@@ -122,6 +125,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
       automationAgents.value = response.automation_agents || []
     } catch {
       miniSessionList.value = []
+      sessionLoadFailed.value = true
     } finally {
       loadingSessions.value = false
     }
@@ -129,6 +133,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
 
   async function loadGlobalSessions() {
     loadingGlobalSessions.value = true
+    globalSessionLoadFailed.value = false
     try {
       const [running, finished] = await Promise.allSettled([
         getRunningSessions(),
@@ -138,6 +143,9 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
         ...(running.status === 'fulfilled' ? running.value.sessions || [] : []),
         ...(finished.status === 'fulfilled' ? finished.value.sessions || [] : [])
       ]
+      if (running.status === 'rejected' && finished.status === 'rejected') {
+        globalSessionLoadFailed.value = true
+      }
       const byId = new Map<string, WorkspaceSessionItem>()
       for (const session of merged) {
         if (!session.session_id) continue
@@ -147,6 +155,7 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
         .sort((left, right) => new Date(right.updated_at || right.created_at).getTime() - new Date(left.updated_at || left.created_at).getTime())
     } catch {
       globalSessionList.value = []
+      globalSessionLoadFailed.value = true
     } finally {
       loadingGlobalSessions.value = false
     }
@@ -362,6 +371,8 @@ export function useMiniWorkstationSessions(options: UseMiniWorkstationSessionsOp
     automationAgents,
     loadingSessions,
     loadingGlobalSessions,
+    sessionLoadFailed,
+    globalSessionLoadFailed,
     stopping,
     loadMiniSessions,
     loadGlobalSessions,

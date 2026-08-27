@@ -1,11 +1,15 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/kageos/kageos/core/app-runtime/model"
 	"github.com/kageos/kageos/dto"
 	appconfig "github.com/kageos/kageos/pkg/config"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func newTestAppDatabaseService(t *testing.T) *AppDatabaseService {
@@ -47,6 +51,96 @@ func TestAppDatabaseMigrationPrivilegesExcludeDeleteAndDrop(t *testing.T) {
 	for _, required := range []string{"SELECT", "CREATE", "ALTER", "INDEX"} {
 		if !strings.Contains(appDBMigrationPrivileges, required) {
 			t.Fatalf("migration privileges missing %s: %s", required, appDBMigrationPrivileges)
+		}
+	}
+}
+
+func TestSoftDeleteCleanupDefaultsAreSafe(t *testing.T) {
+	cfg := (appconfig.AppDatabaseConfig{}).WithDefaults().SoftDeleteCleanup
+	if cfg.Enabled {
+		t.Fatal("soft-delete cleanup must be disabled by default")
+	}
+	if cfg.Mode != "dry_run" {
+		t.Fatalf("cleanup mode = %q, want dry_run", cfg.Mode)
+	}
+	if cfg.RetentionDays != 30 || cfg.IntervalMinutes != 1440 || cfg.BatchSize != 500 {
+		t.Fatalf("unexpected cleanup defaults: %+v", cfg)
+	}
+}
+
+func TestSoftDeleteCleanupRejectsUnsafeModeAndCapsBatch(t *testing.T) {
+	cfg := (appconfig.AppDatabaseConfig{SoftDeleteCleanup: appconfig.SoftDeleteCleanupConfig{
+		Enabled:   true,
+		Mode:      "delete_everything",
+		BatchSize: 50000,
+	}}).WithDefaults().SoftDeleteCleanup
+	if cfg.Mode != "dry_run" {
+		t.Fatalf("invalid cleanup mode = %q, want dry_run", cfg.Mode)
+	}
+	if cfg.BatchSize != 10000 {
+		t.Fatalf("cleanup batch = %d, want capped at 10000", cfg.BatchSize)
+	}
+}
+
+func newCleanupPolicyTestService(t *testing.T) *AppDatabaseService {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open cleanup policy db: %v", err)
+	}
+	if err := model.InitTables(db); err != nil {
+		t.Fatalf("migrate cleanup policy db: %v", err)
+	}
+	if err := db.Create(&model.AppDatabase{
+		User: "alice", App: "crm", PackagePath: "sales", FullCodePath: "/alice/crm/sales",
+		ClusterKey: "test", DatabaseName: "app_test", DatabaseUser: "app_user",
+		PasswordCiphertext: "cipher", PasswordNonce: "nonce", Dialect: "mysql", Status: appDBStatusActive,
+	}).Error; err != nil {
+		t.Fatalf("create app database: %v", err)
+	}
+	svc, err := NewAppDatabaseService(db, appconfig.AppDatabaseConfig{
+		Enabled: true, Dialect: "mysql", AdminUser: "root", AdminPassword: "password", SecretKey: "test-secret",
+		SoftDeleteCleanup: appconfig.SoftDeleteCleanupConfig{
+			Enabled: false, Mode: "dry_run", RetentionDays: 30, IntervalMinutes: 1440, BatchSize: 500,
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewAppDatabaseService: %v", err)
+	}
+	return svc
+}
+
+func TestSoftDeleteCleanupPolicyUsesDeploymentDefaultAndPersistsTableOverride(t *testing.T) {
+	svc := newCleanupPolicyTestService(t)
+	scope := dto.AppDBCleanupPolicyReq{User: "alice", App: "crm", PackagePath: "sales", Table: "leads"}
+	initial, err := svc.GetSoftDeleteCleanupPolicy(context.Background(), &scope)
+	if err != nil {
+		t.Fatalf("GetSoftDeleteCleanupPolicy default: %v", err)
+	}
+	if initial.Source != "deployment" || initial.Enabled || initial.RetentionDays != 30 {
+		t.Fatalf("unexpected deployment policy: %+v", initial)
+	}
+
+	updated, err := svc.UpdateSoftDeleteCleanupPolicy(context.Background(), &dto.AppDBCleanupPolicyUpdateReq{
+		AppDBCleanupPolicyReq: scope, Enabled: true, Mode: "purge", RetentionDays: 45,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSoftDeleteCleanupPolicy: %v", err)
+	}
+	if updated.Source != "table" || !updated.Enabled || updated.Mode != "purge" || updated.RetentionDays != 45 {
+		t.Fatalf("unexpected table policy: %+v", updated)
+	}
+}
+
+func TestSoftDeleteCleanupPolicyRejectsUnsafeValues(t *testing.T) {
+	svc := newCleanupPolicyTestService(t)
+	base := dto.AppDBCleanupPolicyReq{User: "alice", App: "crm", PackagePath: "sales", Table: "leads"}
+	for _, request := range []*dto.AppDBCleanupPolicyUpdateReq{
+		{AppDBCleanupPolicyReq: base, Enabled: true, Mode: "drop", RetentionDays: 30},
+		{AppDBCleanupPolicyReq: base, Enabled: true, Mode: "purge", RetentionDays: 0},
+	} {
+		if _, err := svc.UpdateSoftDeleteCleanupPolicy(context.Background(), request); err == nil {
+			t.Fatalf("unsafe cleanup policy should fail: %+v", request)
 		}
 	}
 }

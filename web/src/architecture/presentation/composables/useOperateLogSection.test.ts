@@ -29,6 +29,34 @@ function deferred<T>() {
 }
 
 describe('useOperateLogSection', () => {
+  it('hides scheduled task logs by default and can include them on demand', async () => {
+    const scope = effectScope()
+    getOperateLogsMock.mockReset().mockResolvedValue({ logs: [], total: 0 })
+
+    try {
+      const section = scope.run(() =>
+        useOperateLogSection({
+          fullCodePath: ref('/alice/ops/tickets.table'),
+          rowId: ref(0),
+          functionDetail: ref({ template_type: 'table', schema: { type: 'table', table: { fields: [] } } }),
+          autoLoad: ref(false),
+          scope: ref('function'),
+        }),
+      )!
+
+      section.load()
+      await flushPromises()
+      expect(getOperateLogsMock).toHaveBeenLastCalledWith(expect.objectContaining({ exclude_scheduled_tasks: true }))
+
+      section.showScheduledTasks.value = true
+      section.handleScheduledTasksChange()
+      await flushPromises()
+      expect(getOperateLogsMock).toHaveBeenLastCalledWith(expect.objectContaining({ exclude_scheduled_tasks: false }))
+    } finally {
+      scope.stop()
+    }
+  })
+
   it('ignores an older log response after switching resources', async () => {
     const scope = effectScope()
     const first = deferred<any>()

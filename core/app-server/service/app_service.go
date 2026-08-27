@@ -38,6 +38,15 @@ type AppRuntimeClient interface {
 	DeleteApp(ctx context.Context, hostID int64, req *dto.DeleteAppRuntimeReq) (*dto.DeleteAppResp, error)
 }
 
+type appDatabaseRowsPurger interface {
+	PurgeAppDatabaseRows(ctx context.Context, hostID int64, req *dto.AppDBPurgeRowsReq) (*dto.AppDBPurgeRowsResp, error)
+}
+
+type appDatabaseCleanupPolicyClient interface {
+	GetAppDatabaseCleanupPolicy(ctx context.Context, hostID int64, req *dto.AppDBCleanupPolicyReq) (*dto.AppDBCleanupPolicyResp, error)
+	UpdateAppDatabaseCleanupPolicy(ctx context.Context, hostID int64, req *dto.AppDBCleanupPolicyUpdateReq) (*dto.AppDBCleanupPolicyResp, error)
+}
+
 var _ AppRuntimeClient = (*appcall.Client)(nil)
 
 type AppServiceDependencies struct {
@@ -223,6 +232,51 @@ func (a *AppService) RequestApp(ctx context.Context, req *dto.RequestAppReq) (*d
 	return resp, nil
 }
 
+func (a *AppService) PurgeAppDatabaseRows(ctx context.Context, req *dto.AppDBPurgeRowsReq) (*dto.AppDBPurgeRowsResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("purge request is nil")
+	}
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	purger, ok := a.appCall.(appDatabaseRowsPurger)
+	if !ok {
+		return nil, fmt.Errorf("current runtime client does not support permanent deletion")
+	}
+	return purger.PurgeAppDatabaseRows(ctx, app.HostID, req)
+}
+
+func (a *AppService) GetAppDatabaseCleanupPolicy(ctx context.Context, req *dto.AppDBCleanupPolicyReq) (*dto.AppDBCleanupPolicyResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("cleanup policy request is nil")
+	}
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	client, ok := a.appCall.(appDatabaseCleanupPolicyClient)
+	if !ok {
+		return nil, fmt.Errorf("current runtime client does not support recycle-bin policy management")
+	}
+	return client.GetAppDatabaseCleanupPolicy(ctx, app.HostID, req)
+}
+
+func (a *AppService) UpdateAppDatabaseCleanupPolicy(ctx context.Context, req *dto.AppDBCleanupPolicyUpdateReq) (*dto.AppDBCleanupPolicyResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("cleanup policy request is nil")
+	}
+	app, err := a.appRepo.GetAppByUserName(req.User, req.App)
+	if err != nil {
+		return nil, err
+	}
+	client, ok := a.appCall.(appDatabaseCleanupPolicyClient)
+	if !ok {
+		return nil, fmt.Errorf("current runtime client does not support recycle-bin policy management")
+	}
+	return client.UpdateAppDatabaseCleanupPolicy(ctx, app.HostID, req)
+}
+
 func (a *AppService) applyRequestSourceContext(ctx context.Context, req *dto.RequestAppReq) {
 	if a == nil || a.serviceTreeRepo == nil || req == nil {
 		return
@@ -333,7 +387,7 @@ func (a *AppService) IncrementFunctionRunCount(ctx context.Context, fullCodePath
 	}
 }
 
-// RecordTableActionLog 记录 Table 操作日志（OnTableAddRow, OnTableUpdateRow, OnTableDeleteRows）。
+// RecordTableActionLog 记录 Table 操作日志（新增、更新、删除和恢复）。
 func (a *AppService) RecordTableActionLog(ctx context.Context, req *dto.RecordTableActionLogReq) error {
 	if req == nil {
 		return nil
@@ -379,12 +433,37 @@ func (a *AppService) RecordTableActionLog(ctx context.Context, req *dto.RecordTa
 	case "OnTableDeleteRows":
 		// 删除操作：为每个删除的记录创建一条日志
 		for _, rowID := range req.RowIDs {
-			log := a.buildTableActionOperateLog(ctx, req, resourceID, rowID, nil, nil, version)
+			log := a.buildTableActionOperateLog(ctx, req, resourceID, rowID, nil, req.OldValuesByRow[rowID], version)
 			go func(parent context.Context, log *model.OperateLog) {
 				writeCtx, cancel := newDetachedWriteContext(parent)
 				defer cancel()
 				if err := a.operateLogRepo.CreateOperateLog(writeCtx, log); err != nil {
 					logger.Warnf(writeCtx, "[RecordTableActionLog] 记录 Table 删除操作日志失败: %v", err)
+				}
+			}(ctx, log)
+		}
+
+	case "OnTableRestoreRows":
+		// 恢复操作：保留恢复前的删除状态，并记录清空 deleted_at/deleted_by 的变更。
+		for _, rowID := range req.RowIDs {
+			log := a.buildTableActionOperateLog(ctx, req, resourceID, rowID, req.Updates, req.OldValuesByRow[rowID], version)
+			go func(parent context.Context, log *model.OperateLog) {
+				writeCtx, cancel := newDetachedWriteContext(parent)
+				defer cancel()
+				if err := a.operateLogRepo.CreateOperateLog(writeCtx, log); err != nil {
+					logger.Warnf(writeCtx, "[RecordTableActionLog] 记录 Table 恢复操作日志失败: %v", err)
+				}
+			}(ctx, log)
+		}
+
+	case "OnTablePurgeRows":
+		for _, rowID := range req.RowIDs {
+			log := a.buildTableActionOperateLog(ctx, req, resourceID, rowID, nil, req.OldValuesByRow[rowID], version)
+			go func(parent context.Context, log *model.OperateLog) {
+				writeCtx, cancel := newDetachedWriteContext(parent)
+				defer cancel()
+				if err := a.operateLogRepo.CreateOperateLog(writeCtx, log); err != nil {
+					logger.Warnf(writeCtx, "[RecordTableActionLog] 记录 Table 彻底删除日志失败: %v", err)
 				}
 			}(ctx, log)
 		}
@@ -459,6 +538,10 @@ func buildTableActionLogSummary(requestUser, action, fullCodePath string, rowID 
 			return fmt.Sprintf("%s failed to update row #%d on %s", requestUser, rowID, fullCodePath)
 		case "OnTableDeleteRows":
 			return fmt.Sprintf("%s failed to delete row #%d on %s", requestUser, rowID, fullCodePath)
+		case "OnTableRestoreRows":
+			return fmt.Sprintf("%s failed to restore row #%d on %s", requestUser, rowID, fullCodePath)
+		case "OnTablePurgeRows":
+			return fmt.Sprintf("%s failed to permanently delete row #%d on %s", requestUser, rowID, fullCodePath)
 		default:
 			return fmt.Sprintf("%s failed to execute %s on %s", requestUser, action, fullCodePath)
 		}
@@ -470,6 +553,10 @@ func buildTableActionLogSummary(requestUser, action, fullCodePath string, rowID 
 		return fmt.Sprintf("%s updated row #%d on %s", requestUser, rowID, fullCodePath)
 	case "OnTableDeleteRows":
 		return fmt.Sprintf("%s deleted row #%d on %s", requestUser, rowID, fullCodePath)
+	case "OnTableRestoreRows":
+		return fmt.Sprintf("%s restored row #%d on %s", requestUser, rowID, fullCodePath)
+	case "OnTablePurgeRows":
+		return fmt.Sprintf("%s permanently deleted row #%d on %s", requestUser, rowID, fullCodePath)
 	default:
 		return fmt.Sprintf("%s executed %s on %s", requestUser, action, fullCodePath)
 	}

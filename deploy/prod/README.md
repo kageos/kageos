@@ -9,7 +9,7 @@ kageos 的生产部署由 `kagectl` 统一控制。Compose 仍是底层容器执
 - [QUICK_START.md](QUICK_START.md)
 - [DEPLOY_TUTORIAL.md](DEPLOY_TUTORIAL.md)
 
-**范围**：主站、中间件（MySQL / NATS / MinIO）、内置 Nginx、容器内 Podman 用户应用运行时、站内信消息服务和定时调度服务。不包含企业 License、外部通知渠道、旧控制面或备份控制面。
+**范围**：主站、中间件（MySQL / NATS / MinIO）、内置 Nginx、容器内 Podman 用户应用运行时、站内信消息服务和定时调度服务。提供生产单机的手动备份、校验和恢复命令；暂不包含定时备份控制面、企业 License、外部通知渠道或旧控制面。
 
 ## 部署分层
 
@@ -150,6 +150,8 @@ tail -f .kageos/prod/kagectl-up.log
 go run ./cmd/kagectl status
 go run ./cmd/kagectl verify
 go run ./cmd/kagectl reload-tls
+go run ./cmd/kagectl backup
+go run ./cmd/kagectl backup verify .kageos/prod/backups/<archive>.tar.gz
 go run ./cmd/kagectl logs --layer L3
 ./prod-stop.sh
 go run ./cmd/kagectl uninstall --dry-run
@@ -187,7 +189,9 @@ tail -f .kageos/prod/kagectl-up.log
 | `<storage.root>/logs` | `/app/logs` | 平台日志 |
 | `<storage.root>/podman_storage` | `/var/lib/containers` | 容器内 Podman 存储 |
 
-`kagectl render/up` 只刷新 `.kageos/prod/generated/` 下的可再生配置，不再向 `storage.root` 同步主仓 `sdk/pkg/dto/core` 源码快照。用户应用源码、构建产物和运行元数据都位于 `<storage.root>/namespace`，应用构建只依赖公开的 `github.com/kageos/kageos-sdk` 包。备份时以 `mysql`、`minio`、`namespace`、`data`、`logs` 等持久目录为准，不要对这些目录做未经验证的清理。
+`kagectl render/up` 只刷新 `.kageos/prod/generated/` 下的可再生配置，不再向 `storage.root` 同步主仓 `sdk/pkg/dto/core` 源码快照。用户应用源码、构建产物和运行元数据都位于 `<storage.root>/namespace`，应用构建只依赖公开的 `github.com/kageos/kageos-sdk` 包。不要对 `mysql`、`minio`、`namespace`、`data` 等持久目录做未经验证的清理。手动 `kagectl backup` 覆盖这些业务数据、TLS 和私有配置；普通平台日志和可重建的 `podman_storage` 不进入归档。
+
+完整的手动备份、离线校验、恢复 dry-run 和破坏性恢复步骤见 [备份与恢复](../../docs/backup-restore.md)。当前命令为保证 MySQL、MinIO 与工作空间文件的一致性，会短暂停止生产 Compose 栈；只支持 bundled MySQL 和 bundled MinIO。备份默认保存在 `.kageos/prod/backups/`，仍应复制到另一块磁盘、另一台服务器或受控对象存储。
 
 ## 文件说明
 

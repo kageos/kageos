@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ServiceTree } from '@/architecture/domain/types'
 import { findNodeByPath } from '../utils/workspaceUtils'
-import { resolveWorkspaceRootNodeForRoute } from './useWorkspaceViewLifecycle'
+import {
+  resolveWorkspaceRootNodeForRoute,
+  shouldEnsureFunctionDetailForTab,
+} from './useWorkspaceViewLifecycle'
 
 function node(patch: Partial<ServiceTree>): ServiceTree {
   return {
@@ -51,4 +54,20 @@ describe('resolveWorkspaceRootNodeForRoute', () => {
       findNodeByPath
     )).toBeNull()
   })
+})
+
+describe('shouldEnsureFunctionDetailForTab', () => {
+  it.each(['create', 'edit', 'detail', 'recycle-bin'])(
+    'loads function detail for direct %s routes',
+    (tab) => {
+      expect(shouldEnsureFunctionDetailForTab(tab)).toBe(true)
+    }
+  )
+
+  it.each(['run', 'permission', 'operateLog', ''])(
+    'does not force an extra detail load for %s',
+    (tab) => {
+      expect(shouldEnsureFunctionDetailForTab(tab)).toBe(false)
+    }
+  )
 })

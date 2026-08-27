@@ -45,6 +45,13 @@ export function resolveWorkspaceRootNodeForRoute(
   return tree.find((node) => node.type === 'package') || null
 }
 
+export function shouldEnsureFunctionDetailForTab(tab: string): boolean {
+  return tab === 'create'
+    || tab === 'edit'
+    || tab === 'detail'
+    || tab === 'recycle-bin'
+}
+
 export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOptions) {
   let unsubscribeFunctionLoaded: (() => void) | null = null
   let unsubscribeServiceTreeLoaded: (() => void) | null = null
@@ -141,24 +148,18 @@ export function useWorkspaceViewLifecycle(options: UseWorkspaceViewLifecycleOpti
     }
   })
 
-  watch(() => options.queryTab(), async (newTab: string) => {
-    if (newTab === 'create' || newTab === 'edit' || newTab === 'detail') {
-      const currentFunction = options.currentFunction()
-      if (!currentFunction) {
-        return
-      }
-
-      if (!options.currentFunctionDetail() || newTab === 'detail') {
+  // 冷启动时 URL 的 _tab 先存在、函数节点后恢复。必须同时监听两者，
+  // 否则地址栏回车进入 recycle-bin 时会错过函数详情加载时机。
+  watch(
+    () => [options.currentFunction()?.id, options.queryTab()] as const,
+    async ([functionID, tab]) => {
+      if (!functionID || !shouldEnsureFunctionDetailForTab(tab)) return
+      if (!options.currentFunctionDetail() || tab === 'detail') {
         await ensureFunctionDetailLoaded()
       }
-    }
-  }, { immediate: false })
-
-  watch(() => options.route.query._tab, async (newTab: any) => {
-    if (newTab === 'create' || newTab === 'edit' || newTab === 'detail') {
-      await ensureFunctionDetailLoaded()
-    }
-  }, { immediate: false })
+    },
+    { immediate: true }
+  )
 
   onUnmounted(() => {
     options.setCurrentFunctionDetail(null)

@@ -501,6 +501,7 @@ const editorStyle = computed(() => {
   return {
     minHeight: `${minRows * lineHeight + verticalPadding}px`,
     maxHeight: `${maxRows * lineHeight + verticalPadding}px`,
+    textAlign: 'left' as const,
   }
 })
 
@@ -1778,12 +1779,26 @@ function focus() {
   })
 }
 
+function focusAtEnd() {
+  if (props.readonlyPreview) {
+    return
+  }
+  mode.value = 'edit'
+  void nextTick(() => {
+    const editor = editorRef.value
+    if (!editor) return
+    editor.focus()
+    restoreCaretTextOffset(editor, currentText.value.length)
+  })
+}
+
 function blur() {
   editorRef.value?.blur()
 }
 
 defineExpose({
   focus,
+  focusAtEnd,
   blur,
   insertTextAtCaret,
   getElement: () => editorRef.value,
@@ -1895,11 +1910,15 @@ defineExpose({
   color: var(--spc-text);
   font-size: 14px;
   line-height: 24px;
+  text-align: left;
 }
 
 .spc-editor {
   flex: 1;
+  width: 100%;
   outline: none;
+  direction: ltr;
+  unicode-bidi: plaintext;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1913,9 +1932,12 @@ defineExpose({
 
 .spc-editor.is-empty::before {
   content: attr(data-placeholder);
+  display: block;
+  width: 100%;
   color: var(--text-placeholder, rgba(141, 160, 189, 0.64));
   -webkit-text-fill-color: var(--text-placeholder, rgba(141, 160, 189, 0.64));
   font-weight: 400;
+  text-align: left;
   pointer-events: none;
 }
 
@@ -1962,7 +1984,7 @@ defineExpose({
 
 :deep(.spc-editor-token.is-table),
 .spc-resource-chip:has(.spc-resource-icon-fallback.is-table) {
-  border-color: rgba(16, 185, 129, 0.2);
+  border-color: rgba(85, 60, 206, 0.24);
 }
 
 :deep(.spc-editor-token.is-tool),
@@ -2000,7 +2022,7 @@ defineExpose({
 
 .spc-resource-icon-fallback.is-table,
 :deep(.spc-resource-icon-fallback.is-table) {
-  background: #10b981;
+  background: #553CCE;
   box-shadow: none;
 }
 

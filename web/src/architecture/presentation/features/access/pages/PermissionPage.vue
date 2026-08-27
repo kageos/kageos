@@ -151,7 +151,7 @@
               </div>
             </div>
 
-            <div class="tree-container">
+            <div ref="treeContainerRef" class="tree-container">
               <el-tree
                 ref="treeRef"
                 class="resource-tree"
@@ -867,6 +867,7 @@ import {
   loadPermissionRequestSummary,
   settlePermissionRequestSummary,
 } from '@/architecture/presentation/features/access/utils/permissionRequestSummaryStore'
+import { scrollCurrentPermissionTreeNodeIntoView } from '@/architecture/presentation/features/access/utils/permissionTreeScroll'
 
 type AccessTab = 'current' | 'inherited'
 type RoleTone = 'view' | 'edit' | 'admin' | 'owner'
@@ -930,6 +931,7 @@ const permissionLabelMap = {
 } satisfies Record<string, string>
 
 const treeRef = ref()
+const treeContainerRef = ref<HTMLElement | null>(null)
 const treeData = ref<ServiceTree[]>([])
 const appName = ref('')
 const pageLoading = ref(false)
@@ -1329,6 +1331,8 @@ async function reloadPage() {
     await nextTick()
     syncVisibleTreeChecks()
     treeRef.value?.setCurrentKey?.(initialPath)
+    await nextTick()
+    scrollCurrentPermissionTreeNodeIntoView(treeContainerRef.value)
     await loadPermissionWorkflow(true)
     refreshRequestNodeDisabledState()
     await nextTick()
@@ -1543,6 +1547,8 @@ function setWorkflowTab(tab: WorkflowTab) {
     refreshRequestNodeDisabledState()
     void nextTick(() => {
       syncVisibleTreeChecks()
+      treeRef.value?.setCurrentKey?.(activeResourcePath.value)
+      void nextTick(() => scrollCurrentPermissionTreeNodeIntoView(treeContainerRef.value))
       void loadApprovers()
     })
   } else {

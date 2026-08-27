@@ -104,6 +104,9 @@
               >
                 {{ t('common.search') }}
               </el-button>
+              <el-checkbox v-model="showScheduledTasks" @change="handleScheduledTasksChange">
+                {{ t('operateLog.showScheduledTasks') }}
+              </el-checkbox>
             </div>
 
             <el-table
@@ -325,6 +328,9 @@
           >
             {{ t('common.search') }}
           </el-button>
+          <el-checkbox v-model="showScheduledTasks" @change="handleScheduledTasksChange">
+            {{ t('operateLog.showScheduledTasks') }}
+          </el-checkbox>
         </div>
 
         <el-table
@@ -578,6 +584,7 @@ import { Clock, Refresh, Search } from '@element-plus/icons-vue'
 
 import {
   ElButton,
+  ElCheckbox,
   ElDialog,
   ElDivider,
   ElEmpty,
@@ -654,6 +661,7 @@ const {
   keyword,
   actionFilter,
   sourceFilter,
+  showScheduledTasks,
   userFilter,
   userOptions,
   userFilterLoading,
@@ -687,6 +695,7 @@ const {
   handleSearch,
   handleActionChange,
   handleSourceChange,
+  handleScheduledTasksChange,
   handleUserChange,
   searchUserOptions,
   handlePageChange,

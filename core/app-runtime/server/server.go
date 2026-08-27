@@ -201,6 +201,7 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 	s.appDatabaseService = appDatabaseService
 	logger.Infof(ctx, "[Server] App database service enabled=%v", appDatabaseService.IsEnabled())
+	go appDatabaseService.StartSoftDeleteCleanup(ctx)
 
 	// 初始化应用发现服务（需要在 AppManageService 之前）
 	runtimeID := s.cfg.GetRuntimeInstanceID()

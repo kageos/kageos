@@ -523,4 +523,45 @@ describe('TableDomainService URL restore', () => {
     expect(stateManager.getState().data).toEqual([{ id: 99, status: 'visible-page' }])
     expect(stateManager.setState).not.toHaveBeenCalled()
   })
+
+  it('loads a later export block without changing the visible table state', async () => {
+    const stateManager = {
+      getState: () => ({
+        data: [{ id: 99 }],
+        searchParams: { status: 'open' },
+        sorts: []
+      }),
+      setState: vi.fn()
+    }
+    const tableGateway = {
+      loadRows: vi.fn().mockResolvedValue({
+        items: [{ id: 10001 }, { id: 10002 }],
+        paginated: { current_page: 3, page_size: 5000, total_count: 10002, total_pages: 3 }
+      })
+    }
+    const service = new TableDomainService(
+      tableGateway as any,
+      stateManager as any,
+      { emit: vi.fn(), on: () => () => {}, off: () => {} } as any
+    )
+
+    const snapshot = await service.loadDataSnapshot({ router: '/orders' } as any, {
+      startRow: 10000,
+      maxRows: 2,
+      pageSize: 5000,
+      sorts: [{ field: 'id', order: 'asc' }]
+    })
+
+    expect(snapshot.rows).toEqual([{ id: 10001 }, { id: 10002 }])
+    expect(tableGateway.loadRows).toHaveBeenCalledWith({
+      functionDetail: { router: '/orders' },
+      params: {
+        status: 'open',
+        page: 21,
+        page_size: 500,
+        sorts: JSON.stringify([{ field: 'id', order: 'asc' }])
+      }
+    })
+    expect(stateManager.setState).not.toHaveBeenCalled()
+  })
 })
