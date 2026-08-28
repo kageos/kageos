@@ -53,6 +53,13 @@ go run ./cmd/kagectl bootstrap --dev --engine docker
 http://localhost:5173
 ```
 
+该地址可以通过浏览器的“安装应用”用于验证 PWA，本地开发模式下应用名默认为
+`kageos Local`。它仍然依赖当前前台运行的 Vite 和后端进程；停止
+`scripts/dev.sh`、`npm run dev` 或后端后，已安装窗口不会自行启动这些服务。
+需要日常使用、重启后仍可打开的本地桌面入口时，使用
+[`deploy/aio`](../aio/README.md) 的常驻容器，并从稳定的
+`http://localhost:8080` 安装，不要把开发端口当作正式本地安装。
+
 首次执行 `bootstrap --dev` 或 `init --dev` 时，终端会打印 `kageos dev initialization summary`。本地默认管理员：
 
 ```text

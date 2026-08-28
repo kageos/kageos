@@ -43,6 +43,8 @@ WORKDIR /src/web
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+# AIO is the stable local-install surface; keep it visually distinct from hosted kageos.
+ENV VITE_PWA_APP_NAME="kageos Local"
 
 COPY web/package.json web/package-lock.json ./
 RUN npm ci

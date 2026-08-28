@@ -8,6 +8,7 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import ElementPlus from 'unplugin-element-plus/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -15,6 +16,7 @@ export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const proxyTarget = env.VITE_PROXY_TARGET || 'http://localhost:9090'
   const minioTarget = env.VITE_MINIO_PROXY_TARGET || 'http://localhost:9000'
+  const pwaAppName = env.VITE_PWA_APP_NAME || (command === 'serve' ? 'kageos Local' : 'kageos')
   const elementPlusResolver = ElementPlusResolver({ importStyle: 'css' })
 
   return {
@@ -34,12 +36,61 @@ export default defineConfig(({ command, mode }) => {
     // resolver 只处理模板自动导入的组件，本插件覆盖显式导入这条路径，二者互补。
     // 默认即按需注入编译好的 css（.../style/css），无需额外配置。
     ElementPlus({}),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      manifestFilename: 'site.webmanifest',
+      includeAssets: ['favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png'],
+      manifest: {
+        id: '/',
+        name: pwaAppName,
+        short_name: pwaAppName,
+        description: '下一代软件开发与运行平台',
+        lang: 'zh-CN',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#020617',
+        theme_color: '#020617',
+        icons: [
+          {
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+        ],
+      },
+      workbox: {
+        cleanupOutdatedCaches: true,
+        navigateFallback: '/index.html',
+        // API、认证和文件请求必须始终访问当前 origin 的真实服务，不能由离线缓存伪造成功。
+        runtimeCaching: [
+          {
+            urlPattern: /^https?:\/\/[^/]+\/(?:api|workspace\/api|public\/api|agent\/api|storage\/api|hr\/api|connector\/(?:api|oauth)|timer\/api|message\/api)(?:\/|$)/,
+            handler: 'NetworkOnly',
+            method: 'GET',
+          },
+        ],
+      },
+      // localhost 是安全上下文，开发环境也生成 manifest/SW，便于验证本地安装。
+      devOptions: {
+        enabled: true,
+        navigateFallbackAllowlist: [/^\/$/, /^\/login(?:\/|$)/, /^\/workspace(?:\/|$)/],
+      },
+    }),
   ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
-    },
   },
+    },
   // 预声明依赖：让 Vite 在 dev 启动时一次性预构建，避免边浏览边发现 EP 组件样式 /
   // echarts 深层 install 模块而反复 re-optimize + 整页 reload（reload 半途会让
   // echarts 坐标系注册出现竞态，表现为 "cartesian2d cannot be found"）。
@@ -150,7 +201,7 @@ export default defineConfig(({ command, mode }) => {
         target: minioTarget,
         changeOrigin: false,
       },
-    },
   },
+    },
   }
 })

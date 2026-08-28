@@ -102,6 +102,24 @@ http://localhost:8080
 
 默认初始用户是 `system`。
 
+## 安装为本地桌面 Web 应用
+
+容器就绪后，在 Chromium 系浏览器打开且始终使用同一个地址：
+
+```text
+http://localhost:8080
+```
+
+确认登录和接口正常，再使用浏览器的“安装应用”功能。`localhost` 属于浏览器认可的
+本地安全上下文；不要在 `localhost`、`127.0.0.1` 和局域网 IP 之间切换后重复安装，
+因为每个 origin 都会被识别成不同应用。Docker 示例已配置
+`--restart unless-stopped`，Docker 服务恢复后会重新拉起 kageos；桌面图标本身不会
+启动容器。
+
+本地安装与 `https://app.kageos.com` 等线上安装可以共存。PWA 身份由 origin 和
+manifest `id` 共同决定，API 始终通过各自 origin 的同源代理访问；Service Worker
+只缓存前端静态资源，不缓存 API、认证或文件请求。
+
 ## Run With Podman
 
 ```bash

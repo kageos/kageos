@@ -8,6 +8,7 @@ import { getCurrentRouteFullPath, getCurrentRoutePath, navigateTo } from '@/arch
 import type { ApiResponse } from '@/architecture/shared/apiTypes'
 import { isWorkspaceForbiddenError } from '@/architecture/shared/apiError'
 import { extractApiMessage, isAuthExpiredBusinessResponse, isRefreshRequestUrl } from './authSession'
+import { getNetworkUnavailableMessage } from './networkUnavailable'
 import { queryParamsSerializer } from './queryParamsSerializer'
 
 const CLIENT_SOURCE_HEADER = 'X-Client-Source'
@@ -346,7 +347,10 @@ service.interceptors.response.use(
     } else if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请检查网络连接')
     } else {
-      ElMessage.error('网络错误，请检查网络连接')
+      ElMessage.error({
+        message: getNetworkUnavailableMessage(),
+        grouping: true,
+      })
     }
 
     return Promise.reject(error)
