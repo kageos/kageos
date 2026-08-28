@@ -227,3 +227,32 @@ jobs:
           if [[ "$push_latest" == "true" ]]; then
             copy_image "$source_image" "${target_image}:latest"
           fi
+
+      - name: Publish latest release pointer
+        if: needs.metadata.outputs.push_latest == 'true'
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${R2_ACCOUNT_ID:-}" || -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
+            echo "R2 credentials are not configured; skipping latest release pointer upload."
+            exit 0
+          fi
+
+          if ! command -v aws >/dev/null 2>&1; then
+            python3 -m pip install --user awscli
+            export PATH="${HOME}/.local/bin:${PATH}"
+          fi
+
+          bucket="${R2_BUCKET:-kageos-releases}"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          mkdir -p dist/r2/releases
+          printf '%s\n' "$RELEASE_VERSION" > dist/r2/releases/latest.txt
+          aws --endpoint-url "$endpoint" s3 cp dist/r2/releases/latest.txt "s3://${bucket}/releases/latest.txt" \
+            --cache-control "no-cache, max-age=60"

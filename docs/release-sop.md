@@ -7,11 +7,25 @@
 正式版本只通过 `kageos` 主仓的语义化 tag 发布：
 
 ```bash
-git tag -a v0.1.9 -m "v0.1.9"
-git push origin v0.1.9
+scripts/release-kageos.sh 0.1.67
 ```
 
-不要把手动发布 `latest` 当成正式发版。`latest` 是正式版本发布成功后自动更新的移动指针。
+不要把手动发布 `latest` 当成正式发版。`latest` 是正式版本发布成功后自动更新的移动指针。只有脚本不可用时，才按本文档里的手工命令补救。
+
+发布前先填这张表，不能空着发版：
+
+| 检查项 | 结果 |
+| --- | --- |
+| SDK 是否有改动 | yes / no |
+| SDK tag | `v0.x.x` / skipped |
+| kageos `go.mod` SDK 版本 | `github.com/kageos/kageos-sdk v0.x.x` |
+| kageos 平台版本 | `v0.1.x` |
+| Docker Hub kagebase | pending / success |
+| Docker Hub kageos | pending / success |
+| 阿里云 ACR kagebase | pending / success |
+| 阿里云 ACR kageos | pending / success |
+| `downloads.kageos.com/releases/latest.txt` | `0.1.x` |
+| 生产 `sudo kageos update` | not run / success |
 
 ## 标准顺序
 
@@ -27,7 +41,7 @@ git tag -a v0.2.2 -m "v0.2.2"
 git push origin main v0.2.2
 ```
 
-如果 SDK 没有改动，跳过这一步。
+如果 SDK 没有改动，跳过这一步。不要在 `kageos-sdk` 存在未提交改动、未推送提交或 HEAD 没有 tag 的情况下发平台版本。
 
 ### 2. 升级主仓 SDK 依赖
 
@@ -45,6 +59,20 @@ git push origin main
 主仓的 `pkg/sdkmodule` 会从 `go.mod` 读取平台当前 SDK 版本。运行时创建或更新工作空间应用时，会把应用 `go.mod` 里的 `github.com/kageos/kageos-sdk` 升到平台当前版本，但不会降级用户已经手动使用的更高版本。
 
 ### 3. 发布前检查
+
+先跑脚本护栏：
+
+```bash
+scripts/release-preflight.sh 0.1.67
+```
+
+它会阻止以下遗漏：
+
+- `kageos` 不在 `main` 或没有同步 `origin/main`
+- 平台 tag 已经存在
+- `kageos-sdk` 有未提交改动
+- `kageos-sdk` HEAD 没有 SDK tag
+- `kageos/go.mod` 没有引用最新 SDK tag
 
 在 `kageos` 主仓执行：
 
@@ -94,7 +122,13 @@ git status --short --branch
 
 ### 4. 打 kageos 版本 tag
 
-确认 `main` 已推送后打正式 tag：
+确认 `main` 已推送后通过脚本打正式 tag：
+
+```bash
+scripts/release-kageos.sh 0.1.67
+```
+
+脚本会运行 preflight、关键检查、推送 `main`、创建 `v0.1.67` tag 并推送 tag。手工补救命令是：
 
 ```bash
 git status --short --branch
@@ -116,6 +150,7 @@ tag 会同时触发：
 - `docker.io/qiayanai/kageos:<version>`
 - `docker.io/qiayanai/kageos:latest`
 - 阿里云 ACR 的 `kageos:<version>` 和 `kageos:latest`
+- `downloads.kageos.com/releases/latest.txt`
 
 `kagebase-release.yml` 发布：
 
@@ -126,6 +161,20 @@ tag 会同时触发：
 正式 release 镜像里的默认用户应用基础镜像会指向同版本的 `docker.io/qiayanai/kagebase:<version>`。
 
 ## 发布后验证
+
+优先运行：
+
+```bash
+scripts/verify-kageos-release.sh 0.1.67
+```
+
+如果需要验证阿里云 ACR，带上仓库配置：
+
+```bash
+ALIYUN_REGISTRY=crpi-pp1889gb5d5betoy.cn-beijing.personal.cr.aliyuncs.com \
+ALIYUN_NAMESPACE=qiayanai \
+scripts/verify-kageos-release.sh 0.1.67
+```
 
 检查 GitHub Actions：
 
@@ -158,7 +207,9 @@ sudo bash -lc 'source /etc/kageos-helper.env; $KAGEOS_ENGINE exec "$KAGEOS_CONTA
 
 `sudo kageos update` 的 helper 来自 `kageos-website/public/install-prod.sh`，不是 `kageos` 主仓。
 
-国内安装或更新时，`--cn` 默认使用国内镜像源，不再尝试 release tarball。只有显式设置：
+helper 的主入口现在应使用 `https://kageos.com/install-prod.sh`。`kageos update` 默认从 `https://downloads.kageos.com/releases/latest.txt` 解析最新平台版本；指定版本时才固定到指定版本。
+
+release tarball 是可选兜底。只有显式设置：
 
 ```dotenv
 KAGEOS_CN=1
@@ -166,13 +217,13 @@ KAGEOS_CN_TARBALL=1
 KAGEOS_RELEASE_VERSION=latest
 ```
 
-helper 才会重新拉取 `https://kageos.ai/install-prod.sh`，并把 release tarball 纳入兜底。默认发布流程不再自动生成或同步 R2 release tarball；只有手动运行 `release-archive-sync.yml` 后，release tarball 链路才可用。这个可选链路依赖：
+helper 才会把 release tarball 纳入兜底。默认发布流程只保证镜像和 latest 指针；只有手动运行 `release-archive-sync.yml` 后，release tarball 链路才可用。这个可选链路依赖：
 
-- 官网已经发布最新 `install-prod.sh`
+- `https://kageos.com/install-prod.sh` 已经发布最新 helper
 - R2 的 `latest.txt` 指向最新 tag
 - R2 上对应架构 tarball 和 sha256 文件存在
 
-如果只是镜像发布成功，但官网安装脚本还没有上线，线上 `kageos update` 的行为仍由旧 helper 脚本决定。
+如果只是镜像发布成功，但 helper 脚本还没有上线，线上 `kageos update` 的行为仍由旧 helper 脚本决定。
 
 ## 补救 Workflow
 
