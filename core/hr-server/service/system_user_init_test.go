@@ -11,8 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestInitSystemUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.T) {
-	t.Parallel()
+func TestInitSystemUserWithPasswordPreservesExistingMismatchedPasswordByDefault(t *testing.T) {
+	t.Setenv("KAGEOS_SYNC_SYSTEM_USER_PASSWORD", "")
 
 	db := openSystemUserTestDB(t)
 	oldHash, err := bcrypt.GenerateFromPassword([]byte("old-password"), bcrypt.DefaultCost)
@@ -46,13 +46,46 @@ func TestInitSystemUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.
 	if got.Avatar != DefaultBuiltinUserAvatar {
 		t.Fatalf("system user avatar = %q, want %q", got.Avatar, DefaultBuiltinUserAvatar)
 	}
+	if err := bcrypt.CompareHashAndPassword([]byte(got.PasswordHash), []byte("old-password")); err != nil {
+		t.Fatalf("system password was unexpectedly overwritten: %v", err)
+	}
+}
+
+func TestInitSystemUserWithPasswordUpdatesExistingPasswordWhenExplicitlyEnabled(t *testing.T) {
+	t.Setenv("KAGEOS_SYNC_SYSTEM_USER_PASSWORD", "1")
+
+	db := openSystemUserTestDB(t)
+	oldHash, err := bcrypt.GenerateFromPassword([]byte("old-password"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userRepo := hrrepository.NewUserRepository(db)
+	if err := userRepo.CreateUser(&hrmodel.User{
+		Username:     SystemUsername,
+		Email:        SystemUserEmail,
+		PasswordHash: string(oldHash),
+		Status:       "active",
+		RegisterType: "system",
+		Type:         hrmodel.UserTypeSystem,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := initSystemUserWithPassword(context.Background(), db, "new-password", false); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := userRepo.GetUserByUsername(SystemUsername)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := bcrypt.CompareHashAndPassword([]byte(got.PasswordHash), []byte("new-password")); err != nil {
-		t.Fatalf("system password was not updated: %v", err)
+		t.Fatalf("system password was not explicitly synchronized: %v", err)
 	}
 }
 
 func TestInitTestUserWithPasswordUpdatesExistingMismatchedPassword(t *testing.T) {
-	t.Parallel()
+	t.Setenv("KAGEOS_SYNC_SYSTEM_USER_PASSWORD", "1")
 
 	db := openSystemUserTestDB(t)
 	oldHash, err := bcrypt.GenerateFromPassword([]byte("old-password"), bcrypt.DefaultCost)

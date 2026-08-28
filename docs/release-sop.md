@@ -207,6 +207,17 @@ sudo bash -lc 'source /etc/kageos-helper.env; $KAGEOS_ENGINE exec "$KAGEOS_CONTA
 
 `sudo kageos update` 的 helper 来自 `kageos-website/public/install-prod.sh`，不是 `kageos` 主仓。
 
+服务器生产用户只使用系统级 `kageos` 管理实例；`kagectl` 保留给源码工作区开发和源码部署。发布 `kageos-manager.sh` 时必须同时发布内容匹配的 `kageos-manager.sh.sha256`，安装和 `self-update` 会在替换 root 级 manager 前校验 SHA-256。执行发布前应验证：
+
+```bash
+cd ../kageos-website/public
+shasum -a 256 -c kageos-manager.sh.sha256
+cd ..
+npm run test:install
+```
+
+`sudo kageos version` 用于核对 manager 版本和实例配置 schema。`sudo kageos initial-password` 只读取安装时生成的初始密码；system 用户修改密码后，它不代表当前密码。旧的 `kageos password` 暂时保留为带警告的兼容别名。
+
 helper 的主入口现在应使用 `https://kageos.com/install-prod.sh`。`kageos update` 默认从 `https://downloads.kageos.com/releases/latest.txt` 解析最新平台版本；指定版本时才固定到指定版本。
 
 release tarball 是可选兜底。只有显式设置：

@@ -26,7 +26,7 @@
 
 说明：
 
-- `hr-server.yaml` 会消费 `${SYSTEM_USER_PASSWORD}` 初始化 `system` / `test_user` 的密码；标准入口由 `kage.yaml` 的 `system_user.password` 渲染。
+- `hr-server.yaml` 会消费 `${SYSTEM_USER_PASSWORD}` 初始化 `system` / `test_user` 的密码；标准入口由 `kage.yaml` 的 `system_user.password` 渲染。已有用户修改密码后，普通重启不会再用该安装密码覆盖当前密码。只有显式设置 `KAGEOS_SYNC_SYSTEM_USER_PASSWORD=1` 的一次性恢复启动才会重新同步。
 - `hr-server.yaml` 会消费 `${KAGEOS_REGISTRATION_MODE}` 控制自助注册策略，生产默认 `admin_only`。
 - `app-server.yaml` 已不再消费 SMTP 变量；这组变量现在主要供 `hr-server.yaml` 的邮件验证码链路使用。
 - `${KAGEOS_APP_BASE_IMAGE}` 用于渲染 `app-runtime.yaml` 里的 `container.image.base_image`；不传时默认 `kagebase:latest`。`kagectl` 也支持用 `KAGEOS_APP_BASE_IMAGE` 临时覆盖 `images.app_base`。

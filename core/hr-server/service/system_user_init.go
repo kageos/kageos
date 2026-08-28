@@ -82,8 +82,12 @@ func initSystemUserWithPassword(ctx context.Context, db *gorm.DB, password strin
 				logger.Warnf(ctx, "[SystemUser] 设置系统账号密码失败: %v", err)
 			}
 		} else if !generated && bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password)) != nil {
-			if err := setSystemUserPassword(ctx, userRepo, existingUser, password, generated); err != nil {
-				logger.Warnf(ctx, "[SystemUser] 同步系统账号密码失败: %v", err)
+			if shouldSyncConfiguredSystemPassword() {
+				if err := setSystemUserPassword(ctx, userRepo, existingUser, password, generated); err != nil {
+					logger.Warnf(ctx, "[SystemUser] 同步系统账号密码失败: %v", err)
+				}
+			} else {
+				logger.Warnf(ctx, "[SystemUser] 配置中的初始密码与当前密码不同；保留用户修改后的密码。如需恢复为服务器初始密码，显式设置 KAGEOS_SYNC_SYSTEM_USER_PASSWORD=1 后重启一次")
 			}
 		} else {
 			logger.Infof(ctx, "[SystemUser] system 用户已存在，类型正确，密码已对齐")
@@ -155,12 +159,12 @@ func initTestUserWithPassword(ctx context.Context, db *gorm.DB, password string,
 			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
 				logger.Warnf(ctx, "[TestUser] 设置 test_user 密码失败: %v", err)
 			}
-		} else if !generated && bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password)) != nil {
+		} else if !generated && bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(password)) != nil && shouldSyncConfiguredSystemPassword() {
 			if err := setTestUserPassword(userRepo, existingUser, password); err != nil {
 				logger.Warnf(ctx, "[TestUser] 同步 test_user 密码失败: %v", err)
 			}
 		}
-		logger.Infof(ctx, "[TestUser] test_user 已存在，已确保归属 %s，密码已对齐", TestUserDepartmentPath)
+		logger.Infof(ctx, "[TestUser] test_user 已存在，已确保归属 %s", TestUserDepartmentPath)
 		return nil
 	}
 
@@ -252,5 +256,10 @@ func setSystemUserPassword(ctx context.Context, userRepo *hrrepository.UserRepos
 
 func shouldPrintGeneratedSecrets() bool {
 	value := strings.ToLower(strings.TrimSpace(os.Getenv("KAGEOS_PRINT_GENERATED_SECRETS")))
+	return value == "1" || value == "true" || value == "yes"
+}
+
+func shouldSyncConfiguredSystemPassword() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("KAGEOS_SYNC_SYSTEM_USER_PASSWORD")))
 	return value == "1" || value == "true" || value == "yes"
 }

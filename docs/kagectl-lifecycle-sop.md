@@ -1,6 +1,6 @@
 # kageos 生命周期 SOP
 
-kageos 生命周期只有一个官方入口：`kagectl`。
+源码工作区的 kageos 生命周期只有一个官方入口：`kagectl`。通过 `install-prod.sh` 安装到服务器的 AIO 生产实例使用系统级 `kageos` 命令管理；普通生产用户不需要进入源码目录运行 `kagectl`。
 
 当前运行模式记录在：
 

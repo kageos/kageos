@@ -65,6 +65,7 @@ func TestRenderBundledConfig(t *testing.T) {
 		`NATS_SEED_USER: "aos"`,
 		`NATS_SEED_PASSWORD: "`,
 		`SYSTEM_USER_PASSWORD: "` + cfg.SystemUser.Password + `"`,
+		`KAGEOS_SYNC_SYSTEM_USER_PASSWORD: "${KAGEOS_SYNC_SYSTEM_USER_PASSWORD:-}"`,
 		`SMTP_MODE: "smtp"`,
 		`TZ: "Asia/Shanghai"`,
 		`HTTP_PORT: "80"`,

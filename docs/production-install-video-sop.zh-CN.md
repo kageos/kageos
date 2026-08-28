@@ -175,7 +175,7 @@ curl -fsS -o /dev/null -w 'local_http=%{http_code}\n' http://127.0.0.1:10001/
 这一段必须暂停录屏。确认 OBS、系统录屏和终端回滚录制均已停止后执行：
 
 ```bash
-sudo kageos password instance-01
+sudo kageos initial-password instance-01
 ```
 
 把密码临时保存到可信的密码管理器，清空终端画面和剪贴板历史后再恢复录制。不要把密码写进脚本、文档、聊天或命令行参数。
@@ -191,7 +191,7 @@ sudo kageos password instance-01
 
 建议旁白：
 
-> 现在访问的是刚刚部署的自托管实例。初始管理员用户是 system，密码保存在服务器受限的数据目录中，可以通过管理命令在服务器本地读取。
+> 现在访问的是刚刚部署的自托管实例。初始管理员用户是 system，安装密码保存在服务器受限的数据目录中，可以通过管理命令在服务器本地读取。system 修改密码后，该安装密码不再代表当前密码。
 
 ### 步骤 8：展示常用管理命令
 

@@ -110,6 +110,7 @@ services:
       KAGEOS_APP_DB_SECRET_KEY: {{ q .Secrets.AppDBSecret }}
       KAGEOS_APP_DB_CLUSTER_KEY: {{ q .AppDBClusterKey }}
       SYSTEM_USER_PASSWORD: {{ q .SystemUser.Password }}
+      KAGEOS_SYNC_SYSTEM_USER_PASSWORD: {{ q "${KAGEOS_SYNC_SYSTEM_USER_PASSWORD:-}" }}
       SMTP_MODE: {{ q .SMTP.Mode }}
       SMTP_HOST: {{ q .SMTP.Host }}
       SMTP_PORT: {{ q .SMTP.Port }}
