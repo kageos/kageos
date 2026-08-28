@@ -1,0 +1,75 @@
+name: Release Pointer Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to write to releases/latest.txt, for example 0.2.0. A leading v is accepted."
+        required: true
+        default: "0.2.0"
+      verify_image:
+        description: "Require docker.io/qiayanai/kageos:<version> to exist before updating latest.txt."
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish latest release pointer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: release
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          version="${INPUT_VERSION#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "version must look like 0.2.0, got: $version" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Docker image exists
+        if: inputs.verify_image == true
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          docker buildx imagetools inspect "docker.io/qiayanai/kageos:${RELEASE_VERSION}" >/dev/null
+
+      - name: Upload latest.txt to R2
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${R2_ACCOUNT_ID:-}" || -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
+            echo "R2 credentials are not configured." >&2
+            exit 1
+          fi
+
+          if ! command -v aws >/dev/null 2>&1; then
+            python3 -m pip install --user awscli
+            export PATH="${HOME}/.local/bin:${PATH}"
+          fi
+
+          bucket="${R2_BUCKET:-kageos-releases}"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          mkdir -p dist/r2/releases
+          printf '%s\n' "$RELEASE_VERSION" > dist/r2/releases/latest.txt
+          aws --endpoint-url "$endpoint" s3 cp dist/r2/releases/latest.txt "s3://${bucket}/releases/latest.txt" \
+            --cache-control "no-cache, max-age=60"

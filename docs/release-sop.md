@@ -230,6 +230,7 @@ helper 才会把 release tarball 纳入兜底。默认发布流程只保证镜�
 这些 workflow 是补救入口，不是标准发版入口：
 
 - `registry-sync.yml`: Docker Hub 已有版本镜像，但阿里云 ACR 同步失败时使用。
+- `release-pointer-sync.yml`: 镜像已经成功，但 `downloads.kageos.com/releases/latest.txt` 没有更新时使用。
 - `release-archive-sync.yml`: Docker Hub 已有 `kageos:<version>`，且确实需要补发 R2 tarball 或 `latest.txt` 时手动使用。
 - `docker-retag.yml`: 已有版本镜像，需要修正 Docker Hub `latest` 指针时使用。
 - `dev-latest-release.yml`: 临时测试 `latest`，不代表正式版本。
