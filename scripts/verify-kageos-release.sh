@@ -62,13 +62,29 @@ else
   log "Skipping GitHub Actions check because gh is not installed"
 fi
 
-command -v docker >/dev/null 2>&1 || die "docker is required to inspect Docker Hub manifests"
+inspect_manifest() {
+  local image_ref="$1"
+  if command -v docker >/dev/null 2>&1; then
+    docker buildx imagetools inspect "$image_ref"
+    return
+  fi
+  if command -v podman >/dev/null 2>&1; then
+    podman manifest inspect "$image_ref"
+    return
+  fi
+  if command -v skopeo >/dev/null 2>&1; then
+    skopeo inspect --raw "docker://${image_ref}"
+    return
+  fi
+  die "docker, podman, or skopeo is required to inspect image manifests"
+}
+
 for image in kagebase kageos; do
   for ref in "$version" latest; do
     log "Inspecting docker.io/qiayanai/${image}:${ref}"
-    manifest="$(docker buildx imagetools inspect "docker.io/qiayanai/${image}:${ref}")"
-    grep -q 'Platform:.*linux/amd64' <<<"$manifest" || die "${image}:${ref} missing linux/amd64"
-    grep -q 'Platform:.*linux/arm64' <<<"$manifest" || die "${image}:${ref} missing linux/arm64"
+    manifest="$(inspect_manifest "docker.io/qiayanai/${image}:${ref}")"
+    grep -Eq 'linux/amd64|"architecture"[[:space:]]*:[[:space:]]*"amd64"' <<<"$manifest" || die "${image}:${ref} missing linux/amd64"
+    grep -Eq 'linux/arm64|"architecture"[[:space:]]*:[[:space:]]*"arm64"' <<<"$manifest" || die "${image}:${ref} missing linux/arm64"
   done
 done
 
