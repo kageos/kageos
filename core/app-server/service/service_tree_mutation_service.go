@@ -147,7 +147,9 @@ func (m *serviceTreeMutationService) DeleteServiceTree(ctx context.Context, id i
 		}
 	}
 
-	m.cleanupRuntimePackageScaffold(ctx, serviceTree)
+	if err := m.cleanupRuntimePackageScaffold(ctx, serviceTree); err != nil {
+		return err
+	}
 
 	if err := m.serviceTreeRepo.DeleteServiceTree(id); err != nil {
 		return fmt.Errorf("failed to delete service tree: %w", err)
@@ -214,30 +216,32 @@ func (m *serviceTreeMutationService) upsertDocContent(ctx context.Context, servi
 	return nil
 }
 
-func (m *serviceTreeMutationService) cleanupRuntimePackageScaffold(ctx context.Context, serviceTree *model.ServiceTree) {
+func (m *serviceTreeMutationService) cleanupRuntimePackageScaffold(ctx context.Context, serviceTree *model.ServiceTree) error {
 	if serviceTree.Type != model.ServiceTreeTypePackage || serviceTree.IsRoot() || serviceTree.FullCodePath == "" {
-		return
+		return nil
 	}
 
 	appModel, err := m.appRepo.GetAppByID(serviceTree.AppID)
 	if err != nil {
-		logger.Warnf(ctx, "[ServiceTreeService] GetAppByID failed, skip runtime delete: %v", err)
-		return
+		return fmt.Errorf("获取目录所属应用失败: %w", err)
 	}
 
 	prefix := "/" + appModel.User + "/" + appModel.Code + "/"
 	packagePath := strings.TrimPrefix(serviceTree.FullCodePath, prefix)
 	packagePath = strings.Trim(packagePath, "/")
 	if packagePath == "" {
-		return
+		return nil
 	}
 
 	_, resp, err := m.runtimeWorkspace.deleteDirectoryScaffold(ctx, serviceTree.AppID, packagePath)
 	if err != nil {
-		logger.Warnf(ctx, "[ServiceTreeService] DeleteServiceTree runtime failed: %v", err)
-		return
+		return fmt.Errorf("删除目录运行时资源失败: %w", err)
 	}
-	if !resp.Success {
-		logger.Warnf(ctx, "[ServiceTreeService] DeleteServiceTree runtime resp error: %s", resp.Error)
+	if resp == nil || !resp.Success {
+		if resp == nil {
+			return fmt.Errorf("删除目录运行时资源失败: runtime 返回空响应")
+		}
+		return fmt.Errorf("删除目录运行时资源失败: %s", resp.Error)
 	}
+	return nil
 }

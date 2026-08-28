@@ -318,7 +318,7 @@ namespace/<user>/<app>/code/api/<package>/xxx.go
 
 ### 删除目录
 
-删除 package 节点时，`app-server` 先按目录 `full_code_path` 级联删除绑定到该节点及子节点的定时任务；调度服务不可用或任务删除失败时，目录删除会失败并保留 Service Tree，不能静默留下继续触发的孤儿任务。任务清理成功后，`app-server` 找到节点所属 app，再调用 runtime 删除磁盘脚手架。runtime 会删除对应 `code/api/<package>` 目录，并从 `main.go` 移除该 package 的 blank import。
+删除 package 节点时，`app-server` 先按目录 `full_code_path` 级联删除绑定到该节点及子节点的定时任务；调度服务不可用或任务删除失败时，目录删除会失败并保留 Service Tree，不能静默留下继续触发的孤儿任务。任务清理成功后，`app-server` 找到节点所属 app，再调用 runtime 删除目录运行时资源。runtime 会先永久删除该 package 及其子 package 对应的托管 MySQL database、运行账号、迁移账号和 registry 记录，再删除对应 `code/api/<package>` 目录，并从 `main.go` 移除该 package 的 blank import。同一路径再次安装时会创建全新的 database，不会复用已删除目录的数据；任一 runtime 清理步骤失败时，Service Tree 节点会保留并向调用方返回错误。
 
 随后 `app-server` 删除 Service Tree 节点及子树。build/update 对账发现函数已从新版本移除时，也会先删除该函数绑定的定时任务，再删除函数节点。删除源码和删除元数据是两件事：源码被移除后，还需要通过 build/update 让运行中的新版本彻底不再包含这批函数；否则旧版本容器仍可能保留上一版已经编译进去的能力。
 

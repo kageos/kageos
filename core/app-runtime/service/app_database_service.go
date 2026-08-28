@@ -47,6 +47,8 @@ type AppDatabaseService struct {
 	cfg    appconfig.AppDatabaseConfig
 	secret []byte
 
+	openAdminDBFunc func() (*gorm.DB, error)
+
 	mu       sync.Mutex
 	keyLocks map[string]*sync.Mutex
 }
@@ -190,6 +192,92 @@ func (s *AppDatabaseService) EnsureDatabaseForPackage(ctx context.Context, user,
 	}
 	_, _, err := s.ensurePackageDatabase(ctx, user, app, packagePath)
 	return err
+}
+
+// DeleteDatabasesForPackage permanently removes the runtime-managed database
+// for packagePath and every nested package. Reinstalling the same path must
+// provision a fresh database instead of reconnecting to deleted directory data.
+func (s *AppDatabaseService) DeleteDatabasesForPackage(ctx context.Context, user, app, packagePath string) error {
+	if !s.IsEnabled() {
+		return nil
+	}
+	if s.db == nil {
+		return fmt.Errorf("app database registry is unavailable")
+	}
+	packagePath, err := normalizeAppDBPackagePath(packagePath)
+	if err != nil {
+		return err
+	}
+	if packagePath == appDBRootPackage {
+		return fmt.Errorf("root app database cannot be deleted through package deletion")
+	}
+
+	var records []model.AppDatabase
+	if err := s.db.WithContext(ctx).
+		Where("user = ? AND app = ?", user, app).
+		Find(&records).Error; err != nil {
+		return fmt.Errorf("list app databases for deleted package: %w", err)
+	}
+
+	targets := make([]model.AppDatabase, 0, len(records))
+	childPrefix := packagePath + "/"
+	for _, record := range records {
+		if record.PackagePath == packagePath || strings.HasPrefix(record.PackagePath, childPrefix) {
+			targets = append(targets, record)
+		}
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+
+	adminDB, err := s.openAdminDB()
+	if err != nil {
+		return fmt.Errorf("open app database admin connection: %w", err)
+	}
+	defer closeGORM(adminDB)
+
+	for i := range targets {
+		record := &targets[i]
+		if record.ClusterKey != "" && record.ClusterKey != s.cfg.ClusterKey {
+			return fmt.Errorf("app database package %s belongs to cluster %s, current runtime cluster is %s", record.PackagePath, record.ClusterKey, s.cfg.ClusterKey)
+		}
+		if err := s.dropPackageDatabase(ctx, adminDB, record); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *AppDatabaseService) dropPackageDatabase(ctx context.Context, adminDB *gorm.DB, record *model.AppDatabase) error {
+	if adminDB == nil || record == nil {
+		return fmt.Errorf("app database deletion target is unavailable")
+	}
+	for _, databaseUser := range []string{record.DatabaseUser, record.MigrationDatabaseUser} {
+		if strings.TrimSpace(databaseUser) == "" {
+			continue
+		}
+		principal := quoteMySQLString(databaseUser) + "@" + quoteMySQLString(s.cfg.GrantHost)
+		if err := adminDB.WithContext(ctx).Exec("DROP USER IF EXISTS " + principal).Error; err != nil {
+			return fmt.Errorf("drop app database user %s for package %s: %w", databaseUser, record.PackagePath, err)
+		}
+	}
+	if databaseName := strings.TrimSpace(record.DatabaseName); databaseName != "" {
+		if err := adminDB.WithContext(ctx).Exec("DROP DATABASE IF EXISTS " + quoteMySQLIdentifier(databaseName)).Error; err != nil {
+			return fmt.Errorf("drop app database %s for package %s: %w", databaseName, record.PackagePath, err)
+		}
+	}
+
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Where("app_database_id = ?", record.ID).Delete(&model.AppDatabaseCleanupPolicy{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(&model.AppDatabase{}, record.ID).Error
+	}); err != nil {
+		return fmt.Errorf("delete app database registry for package %s: %w", record.PackagePath, err)
+	}
+
+	logger.Infof(ctx, "[AppDatabase] deleted package DB: %s/%s/%s -> %s", record.User, record.App, record.PackagePath, record.DatabaseName)
+	return nil
 }
 
 func (s *AppDatabaseService) ensurePackageDatabase(ctx context.Context, user, app, packagePath string) (*model.AppDatabase, appDatabasePasswords, error) {
@@ -346,6 +434,9 @@ func (s *AppDatabaseService) provisionMySQLUser(db *gorm.DB, databaseName, datab
 }
 
 func (s *AppDatabaseService) openAdminDB() (*gorm.DB, error) {
+	if s.openAdminDBFunc != nil {
+		return s.openAdminDBFunc()
+	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
 		s.cfg.AdminUser, s.cfg.AdminPassword, s.cfg.Host, s.cfg.Port)
 	return gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})

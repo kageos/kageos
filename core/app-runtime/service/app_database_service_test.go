@@ -323,3 +323,60 @@ func TestAppDatabaseCapabilityRejectsUnsafePackagePath(t *testing.T) {
 		t.Fatal("unsafe package path should be rejected")
 	}
 }
+
+func TestDeleteDatabasesForPackageDeletesExactAndNestedPackages(t *testing.T) {
+	t.Setenv("KAGEOS_APP_DB_CLUSTER_KEY", "default")
+	registryDB, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open app database registry: %v", err)
+	}
+	if err := model.InitTables(registryDB); err != nil {
+		t.Fatalf("migrate app database registry: %v", err)
+	}
+
+	records := []model.AppDatabase{
+		{User: "alice", App: "crm", PackagePath: "sales", FullCodePath: "/alice/crm/sales", ClusterKey: "default", DatabaseName: "app_sales", DatabaseUser: "user_sales", MigrationDatabaseUser: "user_m_sales", Dialect: "mysql", Status: appDBStatusActive},
+		{User: "alice", App: "crm", PackagePath: "sales/leads", FullCodePath: "/alice/crm/sales/leads", ClusterKey: "default", DatabaseName: "app_leads", DatabaseUser: "user_leads", MigrationDatabaseUser: "user_m_leads", Dialect: "mysql", Status: appDBStatusActive},
+		{User: "alice", App: "crm", PackagePath: "salesforce", FullCodePath: "/alice/crm/salesforce", ClusterKey: "default", DatabaseName: "app_salesforce", DatabaseUser: "user_salesforce", MigrationDatabaseUser: "user_m_salesforce", Dialect: "mysql", Status: appDBStatusActive},
+		{User: "bob", App: "crm", PackagePath: "sales", FullCodePath: "/bob/crm/sales", ClusterKey: "default", DatabaseName: "app_bob_sales", DatabaseUser: "user_bob_sales", MigrationDatabaseUser: "user_m_bob_sales", Dialect: "mysql", Status: appDBStatusActive},
+	}
+	for i := range records {
+		if err := registryDB.Create(&records[i]).Error; err != nil {
+			t.Fatalf("create app database record: %v", err)
+		}
+	}
+	if err := registryDB.Create(&model.AppDatabaseCleanupPolicy{
+		AppDatabaseID: records[1].ID, TargetTable: "leads", Mode: "dry_run", RetentionDays: 30,
+	}).Error; err != nil {
+		t.Fatalf("create cleanup policy: %v", err)
+	}
+
+	svc, err := NewAppDatabaseService(registryDB, appconfig.AppDatabaseConfig{
+		Enabled: true, Dialect: "mysql", AdminUser: "root", AdminPassword: "password", SecretKey: "test-secret",
+	})
+	if err != nil {
+		t.Fatalf("NewAppDatabaseService: %v", err)
+	}
+	svc.openAdminDBFunc = func() (*gorm.DB, error) {
+		return gorm.Open(sqlite.Open(":memory:"), &gorm.Config{DryRun: true})
+	}
+
+	if err := svc.DeleteDatabasesForPackage(context.Background(), "alice", "crm", "sales"); err != nil {
+		t.Fatalf("DeleteDatabasesForPackage: %v", err)
+	}
+
+	var remaining []model.AppDatabase
+	if err := registryDB.Unscoped().Order("user, package_path").Find(&remaining).Error; err != nil {
+		t.Fatalf("list remaining app databases: %v", err)
+	}
+	if len(remaining) != 2 || remaining[0].PackagePath != "salesforce" || remaining[1].User != "bob" {
+		t.Fatalf("unexpected remaining app databases: %#v", remaining)
+	}
+	var policyCount int64
+	if err := registryDB.Unscoped().Model(&model.AppDatabaseCleanupPolicy{}).Count(&policyCount).Error; err != nil {
+		t.Fatalf("count cleanup policies: %v", err)
+	}
+	if policyCount != 0 {
+		t.Fatalf("cleanup policy count = %d, want 0", policyCount)
+	}
+}

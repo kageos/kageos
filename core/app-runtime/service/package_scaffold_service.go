@@ -39,6 +39,11 @@ func (s *PackageScaffoldService) DeleteServiceTree(ctx context.Context, user, ap
 	if err := ensurePathWithinBase(appPaths.APIDir(), packageDir); err != nil {
 		return err
 	}
+	if s.appDatabaseService != nil && s.appDatabaseService.IsEnabled() {
+		if err := s.appDatabaseService.DeleteDatabasesForPackage(ctx, user, app, cleanPath); err != nil {
+			return fmt.Errorf("failed to delete package database: %w", err)
+		}
+	}
 	if err := os.RemoveAll(packageDir); err != nil {
 		return fmt.Errorf("failed to delete package directory: %w", err)
 	}

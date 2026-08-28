@@ -280,3 +280,38 @@ func TestRuntimeWorkspaceBridgeDeleteDirectoryScaffoldUsesRuntimeBoundHost(t *te
 		t.Fatalf("runtime delete tree request not forwarded: %#v", client.deleteTreeReq)
 	}
 }
+
+func TestDeletePackageKeepsServiceTreeWhenRuntimeCleanupFails(t *testing.T) {
+	appRepo := newRuntimeWorkspaceBridgeTestRepo(t)
+	app := createRuntimeWorkspaceBridgeTestApp(t, appRepo, 42)
+	db := appRepo.GetDB()
+	if err := db.AutoMigrate(&model.ServiceTree{}); err != nil {
+		t.Fatalf("migrate service tree: %v", err)
+	}
+	node := &model.ServiceTree{
+		AppID: app.ID, Type: model.ServiceTreeTypePackage, Code: "ticket", FullCodePath: "/alice/demo/ticket",
+	}
+	if err := db.Create(node).Error; err != nil {
+		t.Fatalf("create service tree: %v", err)
+	}
+
+	client := &fakeRuntimeWorkspaceClient{
+		deleteTreeResp: &dto.DeleteServiceTreeRuntimeResp{Success: false, Error: "database cleanup failed"},
+	}
+	serviceTreeRepo := repository.NewServiceTreeRepository(db)
+	mutation := newServiceTreeMutationService(
+		serviceTreeRepo,
+		appRepo,
+		newRuntimeWorkspaceBridge(appRepo, client),
+		nil,
+		nil,
+	)
+
+	err := mutation.DeletePackage(context.Background(), node.ID)
+	if err == nil || !strings.Contains(err.Error(), "database cleanup failed") {
+		t.Fatalf("expected runtime cleanup error, got %v", err)
+	}
+	if _, err := serviceTreeRepo.GetServiceTreeByID(node.ID); err != nil {
+		t.Fatalf("service tree should remain after runtime cleanup failure: %v", err)
+	}
+}
