@@ -216,7 +216,7 @@ cd ..
 npm run test:install
 ```
 
-`sudo kageos version` 用于核对 manager 版本和实例配置 schema。`sudo kageos initial-password` 只读取安装时生成的初始密码；system 用户修改密码后，它不代表当前密码。旧的 `kageos password` 暂时保留为带警告的兼容别名。
+`sudo kageos version` 用于核对 manager 版本和实例配置 schema。`sudo kageos password` 读取安装时生成的密码；system 用户修改密码后，它不代表当前密码。
 
 helper 的主入口现在应使用 `https://kageos.com/install-prod.sh`。`kageos update` 默认从 `https://downloads.kageos.com/releases/latest.txt` 解析最新平台版本；指定版本时才固定到指定版本。
 

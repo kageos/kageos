@@ -175,7 +175,7 @@ curl -fsS -o /dev/null -w 'local_http=%{http_code}\n' http://127.0.0.1:10001/
 这一段必须暂停录屏。确认 OBS、系统录屏和终端回滚录制均已停止后执行：
 
 ```bash
-sudo kageos initial-password instance-01
+sudo kageos password instance-01
 ```
 
 把密码临时保存到可信的密码管理器，清空终端画面和剪贴板历史后再恢复录制。不要把密码写进脚本、文档、聊天或命令行参数。
