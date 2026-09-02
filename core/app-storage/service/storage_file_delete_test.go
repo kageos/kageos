@@ -10,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/app-storage/model"
 	"github.com/kageos/kageos/core/app-storage/repository"
 	storagepkg "github.com/kageos/kageos/core/app-storage/storage"
+	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/contextx"
 	"gorm.io/driver/sqlite"
@@ -52,7 +53,7 @@ func newDeleteTestService(t *testing.T) (*StorageService, *repository.FileReposi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&model.FileUpload{}); err != nil {
+	if err := db.AutoMigrate(&model.FileUpload{}, &model.FileDownload{}); err != nil {
 		t.Fatal(err)
 	}
 	repo := repository.NewFileRepository(db)
@@ -60,7 +61,70 @@ func newDeleteTestService(t *testing.T) (*StorageService, *repository.FileReposi
 	cfg := &config.AppStorageConfig{}
 	cfg.Storage.MinIO.DefaultBucket = "kageos"
 	cfg.Audit.UploadTracking.Enabled = true
+	cfg.Audit.DownloadTracking.Enabled = true
 	return NewStorageService(backend, cfg, repo), repo, backend
+}
+
+func TestGetSystemStorageAssetsFiltersByServicePathAndIncludesAuditSummary(t *testing.T) {
+	service, repo, _ := newDeleteTestService(t)
+	alice := "alice"
+	bob := "bob"
+	createDeleteTestRecord(t, repo, &model.FileUpload{
+		Bucket: "kageos", FileKey: "alice/app/orders/a.csv", Router: "alice/app/orders/export.table",
+		FileName: "a.csv", FileSize: 2048, Username: "alice", Tenant: "alice", Status: "completed",
+	})
+	createDeleteTestRecord(t, repo, &model.FileUpload{
+		Bucket: "kageos", FileKey: "alice/app/report/b.pdf", Router: "alice/app/report/build.form",
+		FileName: "b.pdf", FileSize: 4096, Username: "alice", Tenant: "alice", Status: "deleted",
+	})
+	if err := service.RecordDownload(context.Background(), &model.FileDownload{FileKey: "alice/app/orders/a.csv", Action: "download", Username: &alice}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordDownload(context.Background(), &model.FileDownload{FileKey: "alice/app/orders/a.csv", Action: "preview", Username: &bob}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.GetSystemStorageAssets(context.Background(), dto.SystemStorageAssetsReq{
+		Page: 1, PageSize: 20, RouterPrefix: "alice/app/orders", Status: "completed", Keyword: "a.csv",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 1 || len(result.List) != 1 || result.List[0].DownloadCount != 1 || result.List[0].PreviewCount != 1 {
+		t.Fatalf("unexpected asset result: %#v", result)
+	}
+	if result.Summary.ActiveFiles != 1 || result.Summary.ActiveBytes != 2048 || result.Summary.DeletedFiles != 1 {
+		t.Fatalf("unexpected summary: %#v", result.Summary)
+	}
+	if len(result.Directories) != 1 || result.Directories[0].Router != "alice/app/orders/export.table" {
+		t.Fatalf("unexpected directories: %#v", result.Directories)
+	}
+	if len(result.Workspaces) != 1 || result.Workspaces[0].Path != "alice/app" || result.Workspaces[0].FileCount != 1 || result.Workspaces[0].SizeBytes != 2048 {
+		t.Fatalf("unexpected workspaces: %#v", result.Workspaces)
+	}
+	audits, err := service.GetSystemAssetAudits(context.Background(), "kageos/alice/app/orders/a.csv", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(audits) != 2 || audits[0].Action != "preview" || audits[1].Action != "download" {
+		t.Fatalf("unexpected access audits: %#v", audits)
+	}
+}
+
+func TestGetSystemStorageAssetsBuildsImageThumbnailAndPreviewMetadata(t *testing.T) {
+	service, repo, _ := newDeleteTestService(t)
+	createDeleteTestRecord(t, repo, &model.FileUpload{
+		Bucket: "kageos", FileKey: "alice/app/gallery/cover.png", Router: "alice/app/gallery/list.table",
+		FileName: "cover.png", FileSize: 1024, ContentType: "image/png", Username: "alice", Status: "completed",
+	})
+
+	result, err := service.GetSystemStorageAssets(context.Background(), dto.SystemStorageAssetsReq{Page: 1, PageSize: 20, Status: "completed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.List) != 1 || !result.List[0].Previewable || result.List[0].PreviewKind != "image" || result.List[0].ThumbnailURL != "/download" {
+		t.Fatalf("unexpected preview metadata: %#v", result.List)
+	}
 }
 
 func createDeleteTestRecord(t *testing.T, repo *repository.FileRepository, record *model.FileUpload) {

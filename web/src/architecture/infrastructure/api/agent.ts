@@ -18,6 +18,10 @@ export interface LLMInfo {
   headers: string
   timeout: number
   max_tokens: number
+  detected_max_output_tokens: number
+  detected_max_output_token_source: string
+  effective_max_output_tokens: number
+  max_output_token_source: string
   context_window: number
   detected_context_window: number
   detected_context_window_source: string
@@ -65,6 +69,10 @@ export interface LLMGetResp {
   headers: string
   timeout: number
   max_tokens: number
+  detected_max_output_tokens: number
+  detected_max_output_token_source: string
+  effective_max_output_tokens: number
+  max_output_token_source: string
   context_window: number
   detected_context_window: number
   detected_context_window_source: string
@@ -96,6 +104,10 @@ export interface LLMGetDefaultResp {
   headers: string
   timeout: number
   max_tokens: number
+  detected_max_output_tokens: number
+  detected_max_output_token_source: string
+  effective_max_output_tokens: number
+  max_output_token_source: string
   context_window: number
   detected_context_window: number
   detected_context_window_source: string
@@ -124,6 +136,8 @@ export interface LLMCreateReq {
   headers?: string
   timeout?: number
   max_tokens?: number
+  detected_max_output_tokens?: number
+  detected_max_output_token_source?: string
   context_window?: number
   detected_context_window?: number
   detected_context_window_source?: string
@@ -152,6 +166,8 @@ export interface LLMUpdateReq {
   headers?: string
   timeout?: number
   max_tokens?: number
+  detected_max_output_tokens?: number
+  detected_max_output_token_source?: string
   context_window?: number
   detected_context_window?: number
   detected_context_window_source?: string
@@ -212,6 +228,8 @@ export interface LLMProbeResp {
   capabilities?: Record<string, boolean>
   context_window?: number
   context_window_source?: string
+  max_output_tokens?: number
+  max_output_token_source?: string
   attempts?: LLMProbeAttempt[]
 }
 

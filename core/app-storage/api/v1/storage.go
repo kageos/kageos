@@ -1014,6 +1014,86 @@ func (s *Storage) GetStorageStats(c *gin.Context) {
 	response.OkWithData(c, resp)
 }
 
+// ListSystemStorageAssets 返回系统管理员可审计的平台注册文件资产。
+func (s *Storage) ListSystemStorageAssets(c *gin.Context) {
+	if contextx.GetRequestUser(c) != "system" {
+		response.FailWithMessage(c, "文件资产管理仅允许系统管理员访问")
+		return
+	}
+	var req dto.SystemStorageAssetsReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	result, err := s.storageService.GetSystemStorageAssets(contextx.ToContext(c), req)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+// GetSystemStorageAssetDownloadURL 生成短期下载地址，同时写入下载审计记录。
+func (s *Storage) GetSystemStorageAssetDownloadURL(c *gin.Context) {
+	if contextx.GetRequestUser(c) != "system" {
+		response.FailWithMessage(c, "文件资产管理仅允许系统管理员访问")
+		return
+	}
+	var req dto.SystemStorageAssetDownloadReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	action := strings.ToLower(strings.TrimSpace(req.Action))
+	if action == "" {
+		action = "download"
+	}
+	if action != "download" && action != "preview" {
+		response.FailWithMessage(c, "不支持的文件访问动作")
+		return
+	}
+	ctx := contextx.ToContext(c)
+	url, err := s.storageService.GetSystemAssetDownloadURL(ctx, req.Ref)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	_, key, err := s.storageService.ParseFileRef(req.Ref)
+	if err == nil {
+		actor := contextx.GetRequestUser(c)
+		ipAddress := normalizeIP(c.ClientIP())
+		userAgent := c.GetHeader("User-Agent")
+		go func(parent context.Context) {
+			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+			defer cancel()
+			if recordErr := s.storageService.RecordDownload(writeCtx, &model.FileDownload{
+				FileKey: key, Action: action, Username: &actor, IPAddress: ipAddress, UserAgent: userAgent,
+			}); recordErr != nil {
+				logger.Errorf(writeCtx, "Failed to record system asset download: %v", recordErr)
+			}
+		}(ctx)
+	}
+	response.OkWithData(c, dto.SystemStorageAssetDownloadResp{URL: url})
+}
+
+func (s *Storage) ListSystemStorageAssetAudits(c *gin.Context) {
+	if contextx.GetRequestUser(c) != "system" {
+		response.FailWithMessage(c, "文件资产管理仅允许系统管理员访问")
+		return
+	}
+	var req dto.SystemStorageAssetAuditsReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	items, err := s.storageService.GetSystemAssetAudits(contextx.ToContext(c), req.Ref, req.PageSize)
+	if err != nil {
+		response.FailWithMessage(c, err.Error())
+		return
+	}
+	response.OkWithData(c, dto.SystemStorageAssetAuditsResp{List: items})
+}
+
 // ListFiles 列举文件
 // @Summary 列举文件
 // @Description 列举某个函数路径下的所有文件

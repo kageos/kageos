@@ -24,6 +24,13 @@ func TestResolveLLMContextWindowPrecedence(t *testing.T) {
 	}
 }
 
+func TestResolveLLMContextWindowUsesKnownModelRegistry(t *testing.T) {
+	cfg := &model.LLMConfig{Model: "gpt-5.6-sol"}
+	if got, source := ResolveLLMContextWindow(cfg); got != 1050000 || source != "model_registry" {
+		t.Fatalf("context window = %d/%s, want 1050000/model_registry", got, source)
+	}
+}
+
 func TestGetLLMContextWindowMetadataSelectsRequestedModel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

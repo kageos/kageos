@@ -26,10 +26,32 @@
           <div class="default-panel-label">{{ t('llmManagement.currentDefault') }}</div>
           <template v-if="defaultConfig">
             <div class="default-panel-main">
-              <div>
-                <div class="default-name">{{ defaultConfig.name }}</div>
-                <div class="default-meta">
-                  {{ defaultConfig.model }} · {{ protocolLabel(defaultConfig.protocol) }}
+              <div class="default-config">
+                <div
+                  class="provider-logo provider-logo--large"
+                  :style="providerBrandStyle(defaultConfig)"
+                >
+                  <img
+                    v-if="providerBrand(defaultConfig).logo"
+                    :src="providerBrand(defaultConfig).logo"
+                    :alt="`${providerBrand(defaultConfig).name} logo`"
+                  />
+                  <el-icon v-else><Cpu /></el-icon>
+                </div>
+                <div>
+                  <div class="default-name">{{ defaultConfig.name }}</div>
+                  <div class="default-meta">
+                    <span class="provider-name">{{ providerBrand(defaultConfig).name }}</span>
+                    <span class="meta-divider">·</span>
+                    <span>{{ defaultConfig.model }}</span>
+                  </div>
+                  <div class="default-source">
+                    {{ providerLabel(defaultConfig.provider) }} / {{ protocolLabel(defaultConfig.protocol) }}
+                    <template v-if="endpointHost(defaultConfig.api_base)">
+                      <span class="meta-divider">·</span>
+                      {{ endpointHost(defaultConfig.api_base) }}
+                    </template>
+                  </div>
                 </div>
               </div>
               <div class="default-tags">
@@ -71,19 +93,45 @@
           v-loading="loading"
           :data="filteredConfigs"
           stripe
+          class="desktop-config-table"
           style="width: 100%"
           :empty-text="t('llmManagement.empty')"
         >
-          <el-table-column :label="t('llmManagement.config')" min-width="240">
+          <el-table-column :label="t('llmManagement.config')" min-width="350">
             <template #default="{ row }">
               <div class="name-cell">
-                <div class="name-line">
-                  <span class="config-name">{{ row.name }}</span>
-                  <el-tag size="small">{{ providerLabel(row.provider) }}</el-tag>
-                  <el-tag v-if="row.is_default" type="warning" size="small">{{ t('llmManagement.defaultTag') }}</el-tag>
-                  <el-tag v-if="row.is_admin" type="primary" size="small">{{ t('llmManagement.manageable') }}</el-tag>
+                <div class="provider-logo" :style="providerBrandStyle(row)">
+                  <img
+                    v-if="providerBrand(row).logo"
+                    :src="providerBrand(row).logo"
+                    :alt="`${providerBrand(row).name} logo`"
+                  />
+                  <el-icon v-else><Cpu /></el-icon>
                 </div>
-                <div class="meta-line">{{ row.model }} · {{ protocolLabel(row.protocol) }}</div>
+                <div class="config-details">
+                  <div class="name-line">
+                    <span class="config-name">{{ row.name }}</span>
+                    <el-tag v-if="row.is_default" type="warning" size="small" effect="light">{{ t('llmManagement.defaultTag') }}</el-tag>
+                    <el-tag v-if="row.is_admin" type="primary" size="small" effect="plain">{{ t('llmManagement.manageable') }}</el-tag>
+                  </div>
+                  <div class="model-line">{{ row.model }}</div>
+                  <div class="provider-line">
+                    <span class="provider-name">{{ providerBrand(row).name }}</span>
+                    <template v-if="endpointHost(row.api_base)">
+                      <span class="meta-divider">·</span>
+                      <span class="endpoint-host">{{ endpointHost(row.api_base) }}</span>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('llmManagement.protocol')" width="170">
+            <template #default="{ row }">
+              <div class="protocol-cell">
+                <span>{{ providerLabel(row.provider) }}</span>
+                <span class="muted-line">{{ protocolLabel(row.protocol) }}</span>
               </div>
             </template>
           </el-table-column>
@@ -96,17 +144,18 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="API Key" width="110" align="center">
+          <el-table-column :label="t('llmManagement.connection')" width="120" align="center">
             <template #default="{ row }">
-              <el-tag :type="row.has_api_key ? 'success' : 'info'">
+              <div :class="['connection-state', { 'is-ready': row.has_api_key }]">
+                <span class="connection-dot" />
                 {{ row.has_api_key ? t('llmManagement.configured') : t('llmManagement.notConfigured') }}
-              </el-tag>
+              </div>
             </template>
           </el-table-column>
 
           <el-table-column :label="t('llmManagement.timeoutToken')" width="150" align="center">
             <template #default="{ row }">
-              <div>out {{ row.max_tokens }}</div>
+              <div>out {{ row.max_tokens > 0 ? row.max_tokens : `${t('llmManagement.auto')} ${row.effective_max_output_tokens}` }}</div>
               <div class="muted-line">ctx {{ row.effective_context_window }}</div>
             </template>
           </el-table-column>
@@ -143,6 +192,78 @@
             </template>
           </el-table-column>
         </el-table>
+
+        <div v-loading="loading" class="mobile-config-list">
+          <el-empty v-if="!filteredConfigs.length" :description="t('llmManagement.empty')" />
+          <article v-for="row in filteredConfigs" :key="row.id" class="mobile-config-card">
+            <div class="mobile-config-header">
+              <div class="provider-logo" :style="providerBrandStyle(row)">
+                <img
+                  v-if="providerBrand(row).logo"
+                  :src="providerBrand(row).logo"
+                  :alt="`${providerBrand(row).name} logo`"
+                />
+                <el-icon v-else><Cpu /></el-icon>
+              </div>
+              <div class="config-details">
+                <div class="name-line">
+                  <span class="config-name">{{ row.name }}</span>
+                  <el-tag v-if="row.is_default" type="warning" size="small" effect="light">{{ t('llmManagement.defaultTag') }}</el-tag>
+                </div>
+                <div class="model-line">{{ row.model }}</div>
+                <div class="provider-line">
+                  <span class="provider-name">{{ providerBrand(row).name }}</span>
+                  <template v-if="endpointHost(row.api_base)">
+                    <span class="meta-divider">·</span>
+                    <span class="endpoint-host">{{ endpointHost(row.api_base) }}</span>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <div class="mobile-config-meta">
+              <div>
+                <span class="mobile-meta-label">{{ t('llmManagement.protocol') }}</span>
+                <strong>{{ providerLabel(row.provider) }}</strong>
+                <span>{{ protocolLabel(row.protocol) }}</span>
+              </div>
+              <div>
+                <span class="mobile-meta-label">{{ t('llmManagement.timeoutToken') }}</span>
+                <strong>out {{ row.max_tokens }}</strong>
+                <span>ctx {{ row.effective_context_window }}</span>
+              </div>
+            </div>
+
+            <div class="mobile-config-footer">
+              <div class="mobile-statuses">
+                <el-tag :type="row.visibility === 0 ? 'success' : 'info'" size="small">
+                  {{ visibilityLabel(row.visibility) }}
+                </el-tag>
+                <div :class="['connection-state', { 'is-ready': row.has_api_key }]">
+                  <span class="connection-dot" />
+                  {{ row.has_api_key ? t('llmManagement.configured') : t('llmManagement.notConfigured') }}
+                </div>
+              </div>
+              <div v-if="row.is_admin" class="mobile-actions">
+                <el-button
+                  v-if="!row.is_default"
+                  link
+                  type="warning"
+                  size="small"
+                  @click="handleSetDefault(row)"
+                >
+                  {{ t('llmManagement.setDefault') }}
+                </el-button>
+                <el-button link type="primary" size="small" @click="handleEdit(row)">
+                  {{ t('llmManagement.edit') }}
+                </el-button>
+                <el-button link type="danger" size="small" @click="handleDelete(row)">
+                  {{ t('common.delete') }}
+                </el-button>
+              </div>
+            </div>
+          </article>
+        </div>
       </div>
     </el-card>
 
@@ -255,8 +376,8 @@
 
               <el-form-item :label="t('llmManagement.maxToken')">
                 <div class="form-control-stack">
-                  <el-input-number v-model="form.max_tokens" :min="1" :max="1048576" style="width: 180px" />
-                  <p class="form-tip">{{ t('llmManagement.maxTokenHint') }}</p>
+                  <el-input-number v-model="form.max_tokens" :min="0" :max="1048576" style="width: 180px" />
+                  <p class="form-tip">{{ maxOutputTokenHint }}</p>
                 </div>
               </el-form-item>
 
@@ -307,7 +428,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Connection, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Connection, Cpu, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import {
   createLLM,
   deleteLLM,
@@ -321,6 +442,11 @@ import {
   type LLMInfo,
   type LLMUpdateReq
 } from '@/architecture/presentation/context/api/agent'
+import {
+  getLLMEndpointHost,
+  resolveLLMProviderBrand,
+  type LLMProviderBrandSource
+} from '@/architecture/shared/assets/llmProviderBrands'
 
 type Scope = 'mine' | 'market'
 type DialogMode = 'create' | 'edit'
@@ -339,6 +465,8 @@ interface LLMFormState {
   headers: string
   timeout: number
   max_tokens: number
+  detected_max_output_tokens: number
+  detected_max_output_token_source: string
   context_window: number
   detected_context_window: number
   detected_context_window_source: string
@@ -350,7 +478,8 @@ interface LLMFormState {
 }
 
 const DEFAULT_TIMEOUT = 300
-const DEFAULT_MAX_TOKENS = 8196
+const DEFAULT_MAX_TOKENS = 0
+const DEFAULT_AUTO_MAX_TOKENS = 32768
 const DEFAULT_CONTEXT_WINDOW = 128000
 const DEFAULT_PROVIDER = 'openai'
 const DEFAULT_PROTOCOL = 'openai_chat_completions'
@@ -430,6 +559,15 @@ const contextWindowHint = computed(() => {
   }
   return t('llmManagement.contextWindowDefaultHint', { count: DEFAULT_CONTEXT_WINDOW })
 })
+const maxOutputTokenHint = computed(() => {
+  if (form.max_tokens > 0) {
+    return t('llmManagement.maxTokenManualHint', { count: form.max_tokens })
+  }
+  if (form.detected_max_output_tokens > 0) {
+    return t('llmManagement.maxTokenDetectedHint', { count: form.detected_max_output_tokens })
+  }
+  return t('llmManagement.maxTokenAutoHint', { count: DEFAULT_AUTO_MAX_TOKENS })
+})
 
 const filteredConfigs = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -505,6 +643,8 @@ function createDefaultForm(): LLMFormState {
     headers: '',
     timeout: DEFAULT_TIMEOUT,
     max_tokens: DEFAULT_MAX_TOKENS,
+    detected_max_output_tokens: 0,
+    detected_max_output_token_source: '',
     context_window: 0,
     detected_context_window: 0,
     detected_context_window_source: '',
@@ -535,7 +675,9 @@ function applyForm(info: Partial<LLMInfo>) {
   form.auth_scheme = info.auth_scheme || ''
   form.headers = info.headers || ''
   form.timeout = info.timeout || DEFAULT_TIMEOUT
-  form.max_tokens = info.max_tokens || DEFAULT_MAX_TOKENS
+  form.max_tokens = info.max_tokens ?? DEFAULT_MAX_TOKENS
+  form.detected_max_output_tokens = info.detected_max_output_tokens || 0
+  form.detected_max_output_token_source = info.detected_max_output_token_source || ''
   form.context_window = info.context_window || 0
   form.detected_context_window = info.detected_context_window || 0
   form.detected_context_window_source = info.detected_context_window_source || ''
@@ -612,6 +754,22 @@ function providerLabel(provider: string) {
   return provider === 'anthropic'
     ? t('llmManagement.providerAnthropic')
     : t('llmManagement.providerOpenAICompatible')
+}
+
+function providerBrand(config: LLMProviderBrandSource) {
+  return resolveLLMProviderBrand(config)
+}
+
+function providerBrandStyle(config: LLMProviderBrandSource) {
+  const brand = providerBrand(config)
+  return {
+    '--provider-accent': brand.accent,
+    '--provider-surface': brand.surface
+  }
+}
+
+function endpointHost(apiBase?: string) {
+  return getLLMEndpointHost(apiBase)
 }
 
 function protocolLabel(protocol: string) {
@@ -705,6 +863,8 @@ function buildCreatePayload(): LLMCreateReq {
     headers: form.headers.trim(),
     timeout: form.timeout,
     max_tokens: form.max_tokens,
+    detected_max_output_tokens: form.detected_max_output_tokens || 0,
+    detected_max_output_token_source: form.detected_max_output_token_source,
     context_window: form.context_window || 0,
     detected_context_window: form.detected_context_window || 0,
     detected_context_window_source: form.detected_context_window_source,
@@ -775,12 +935,19 @@ async function handleProbe() {
     if (resp.capabilities) {
       form.capabilities = JSON.stringify(resp.capabilities, null, 2)
     }
-    if (resp.context_window && resp.context_window_source === 'provider_metadata') {
+    if (resp.context_window && resp.context_window_source !== 'default') {
       form.detected_context_window = resp.context_window
-      form.detected_context_window_source = resp.context_window_source
+      form.detected_context_window_source = resp.context_window_source || ''
     } else {
       form.detected_context_window = 0
       form.detected_context_window_source = ''
+    }
+    if (resp.max_output_tokens && resp.max_output_token_source !== 'default') {
+      form.detected_max_output_tokens = resp.max_output_tokens
+      form.detected_max_output_token_source = resp.max_output_token_source || ''
+    } else {
+      form.detected_max_output_tokens = 0
+      form.detected_max_output_token_source = ''
     }
     const label = protocolLabel(form.protocol)
     ElMessage.success(t('llmManagement.probeSuccess', { protocol: label }))
@@ -898,10 +1065,11 @@ onMounted(async () => {
   }
 
   .default-panel {
-    padding: 18px 20px;
+    padding: 20px 22px;
     border-radius: 14px;
     background:
-      linear-gradient(135deg, rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.08), rgba(14, 165, 233, 0.04)),
+      radial-gradient(circle at 88% 12%, rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.12), transparent 32%),
+      linear-gradient(135deg, rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.07), rgba(14, 165, 233, 0.03)),
       var(--el-fill-color-blank);
     border: 1px solid var(--el-border-color);
     box-shadow: var(--box-shadow-sm);
@@ -923,6 +1091,13 @@ onMounted(async () => {
     gap: 12px;
   }
 
+  .default-config {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+  }
+
   .default-name {
     font-size: 20px;
     font-weight: 700;
@@ -930,8 +1105,18 @@ onMounted(async () => {
   }
 
   .default-meta {
-    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 5px;
     color: var(--el-text-color-regular);
+  }
+
+  .default-source {
+    margin-top: 5px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
   }
 
   .default-tags {
@@ -1008,10 +1193,71 @@ onMounted(async () => {
     font-size: 14px;
   }
 
+  :deep(.el-table) {
+    --el-table-row-hover-bg-color: rgba(var(--el-color-primary-rgb, 69, 88, 200), 0.045);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  :deep(.el-table th.el-table__cell) {
+    height: 46px;
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  :deep(.el-table td.el-table__cell) {
+    padding: 13px 0;
+  }
+
   .name-cell {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .provider-logo {
+    --provider-accent: #64748b;
+    --provider-surface: #f1f5f9;
+    display: inline-flex;
+    flex: 0 0 42px;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid color-mix(in srgb, var(--provider-accent) 16%, transparent);
+    border-radius: 12px;
+    background: var(--provider-surface);
+    color: var(--provider-accent);
+
+    img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+    }
+
+    .el-icon {
+      font-size: 21px;
+    }
+  }
+
+  .provider-logo--large {
+    flex-basis: 50px;
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+
+    img {
+      width: 28px;
+      height: 28px;
+    }
+  }
+
+  .config-details {
+    min-width: 0;
   }
 
   .name-line {
@@ -1022,14 +1268,92 @@ onMounted(async () => {
   }
 
   .config-name {
-    font-weight: 600;
+    overflow: hidden;
+    max-width: 240px;
     color: var(--el-text-color-primary);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .meta-line,
+  .model-line {
+    overflow: hidden;
+    max-width: 290px;
+    margin-top: 4px;
+    color: var(--el-text-color-primary);
+    font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .provider-line {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    margin-top: 4px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+  }
+
+  .provider-name {
+    color: var(--el-text-color-regular);
+    font-weight: 650;
+  }
+
+  .meta-divider {
+    color: var(--el-border-color-darker);
+  }
+
+  .endpoint-host {
+    overflow: hidden;
+    max-width: 180px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .protocol-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--el-text-color-regular);
+    font-size: 13px;
+  }
+
   .muted-line {
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: 12px;
+  }
+
+  .connection-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .connection-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--el-text-color-placeholder);
+    box-shadow: 0 0 0 3px var(--el-fill-color-darker);
+  }
+
+  .connection-state.is-ready {
+    color: var(--el-color-success);
+
+    .connection-dot {
+      background: var(--el-color-success);
+      box-shadow: 0 0 0 3px var(--el-color-success-light-9);
+    }
+  }
+
+  .mobile-config-list {
+    display: none;
   }
 
   .form-suffix {
@@ -1102,6 +1426,110 @@ onMounted(async () => {
 
     .toolbar-search {
       width: 100%;
+    }
+
+    .default-tags {
+      margin-left: 64px;
+    }
+
+    .desktop-config-table {
+      display: none;
+    }
+
+    .mobile-config-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mobile-config-card {
+      overflow: hidden;
+      border: 1px solid var(--el-border-color-lighter);
+      border-radius: 14px;
+      background: var(--el-fill-color-blank);
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+
+    .mobile-config-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .mobile-config-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      border-top: 1px solid var(--el-border-color-lighter);
+      border-bottom: 1px solid var(--el-border-color-lighter);
+      background: var(--el-border-color-lighter);
+
+      > div {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 11px 16px;
+        background: var(--el-fill-color-light);
+        color: var(--el-text-color-secondary);
+        font-size: 11px;
+      }
+
+      strong {
+        color: var(--el-text-color-primary);
+        font-size: 12px;
+        font-weight: 650;
+      }
+    }
+
+    .mobile-meta-label {
+      margin-bottom: 2px;
+      color: var(--el-text-color-placeholder);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .mobile-config-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+    }
+
+    .mobile-statuses,
+    .mobile-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mobile-actions {
+      gap: 2px;
+    }
+
+    .mobile-actions .el-button + .el-button {
+      margin-left: 4px;
+    }
+  }
+}
+
+@media (max-width: 520px) {
+  .llm-management-page {
+    .default-tags {
+      margin-left: 0;
+    }
+
+    .mobile-config-footer {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .mobile-actions {
+      width: 100%;
+      justify-content: flex-end;
     }
   }
 }

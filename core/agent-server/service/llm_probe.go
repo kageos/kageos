@@ -167,20 +167,23 @@ func (s *LLMService) ProbeLLMConfig(ctx context.Context, req dto.LLMProbeReq) (*
 		attempt.OK = true
 		attempts = append(attempts, attempt)
 		contextWindow, contextWindowSource := probeLLMContextWindow(ctx, clientConfig)
+		maxOutputTokens, maxOutputTokenSource := probeLLMMaxOutputTokens(ctx, clientConfig)
 		return &dto.LLMProbeResp{
-			OK:                  true,
-			Provider:            provider,
-			Protocol:            protocol,
-			APIBase:             baseURL,
-			EndpointPath:        endpointPath,
-			APIVersion:          apiVersion,
-			AuthScheme:          authScheme,
-			Model:               client.GetModelName(),
-			Message:             strings.TrimSpace(resp.Content),
-			Capabilities:        llmProbeCapabilities(protocol),
-			ContextWindow:       contextWindow,
-			ContextWindowSource: contextWindowSource,
-			Attempts:            attempts,
+			OK:                   true,
+			Provider:             provider,
+			Protocol:             protocol,
+			APIBase:              baseURL,
+			EndpointPath:         endpointPath,
+			APIVersion:           apiVersion,
+			AuthScheme:           authScheme,
+			Model:                client.GetModelName(),
+			Message:              strings.TrimSpace(resp.Content),
+			Capabilities:         llmProbeCapabilities(protocol),
+			ContextWindow:        contextWindow,
+			ContextWindowSource:  contextWindowSource,
+			MaxOutputTokens:      maxOutputTokens,
+			MaxOutputTokenSource: maxOutputTokenSource,
+			Attempts:             attempts,
 		}, nil
 	}
 

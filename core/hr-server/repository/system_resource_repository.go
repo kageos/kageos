@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/kageos/kageos/core/hr-server/model"
@@ -35,10 +36,17 @@ func (r *SystemResourceRepository) History(since time.Time, limit int) ([]model.
 	return samples, err
 }
 
-func (r *SystemResourceRepository) DeleteBefore(cutoff time.Time) error {
+func (r *SystemResourceRepository) PruneHistory(runtimeCutoff, platformCutoff, capacityCutoff time.Time) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		for _, value := range []any{&model.SystemResourceSample{}, &model.SystemCapacitySnapshot{}, &model.SystemPlatformSnapshot{}} {
-			if err := tx.Unscoped().Where("collected_at < ?", cutoff).Delete(value).Error; err != nil {
+		for _, item := range []struct {
+			value  any
+			cutoff time.Time
+		}{
+			{value: &model.SystemResourceSample{}, cutoff: runtimeCutoff},
+			{value: &model.SystemPlatformSnapshot{}, cutoff: platformCutoff},
+			{value: &model.SystemCapacitySnapshot{}, cutoff: capacityCutoff},
+		} {
+			if err := tx.Unscoped().Where("collected_at < ?", item.cutoff).Delete(item.value).Error; err != nil {
 				return err
 			}
 		}
@@ -51,7 +59,13 @@ func (r *SystemResourceRepository) CreateCapacity(snapshot dto.SystemResourceSna
 	if err != nil {
 		return err
 	}
-	return r.db.Create(&model.SystemCapacitySnapshot{CollectedAt: snapshot.CollectedAt, PayloadJSON: string(payload)}).Error
+	start, end := localDayBounds(snapshot.CollectedAt)
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Where("collected_at >= ? AND collected_at < ?", start, end).Delete(&model.SystemCapacitySnapshot{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.SystemCapacitySnapshot{CollectedAt: snapshot.CollectedAt, PayloadJSON: string(payload)}).Error
+	})
 }
 
 func (r *SystemResourceRepository) LatestCapacity() (*dto.SystemResourceSnapshot, error) {
@@ -66,12 +80,40 @@ func (r *SystemResourceRepository) LatestCapacity() (*dto.SystemResourceSnapshot
 	return &snapshot, nil
 }
 
+func (r *SystemResourceRepository) CapacityHistory(since time.Time, limit int) ([]dto.SystemResourceSnapshot, error) {
+	if limit <= 0 || limit > 400 {
+		limit = 400
+	}
+	var rows []model.SystemCapacitySnapshot
+	if err := r.db.Where("collected_at >= ?", since).
+		Order("collected_at ASC, id ASC").
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make([]dto.SystemResourceSnapshot, 0, len(rows))
+	for _, row := range rows {
+		var snapshot dto.SystemResourceSnapshot
+		if err := json.Unmarshal([]byte(row.PayloadJSON), &snapshot); err != nil {
+			return nil, fmt.Errorf("decode capacity snapshot %d: %w", row.ID, err)
+		}
+		result = append(result, snapshot)
+	}
+	return result, nil
+}
+
 func (r *SystemResourceRepository) CreatePlatform(metrics dto.SystemPlatformMetrics) error {
 	payload, err := json.Marshal(metrics)
 	if err != nil {
 		return err
 	}
-	return r.db.Create(&model.SystemPlatformSnapshot{CollectedAt: metrics.CollectedAt, PayloadJSON: string(payload)}).Error
+	start, end := localDayBounds(metrics.CollectedAt)
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Where("collected_at >= ? AND collected_at < ?", start, end).Delete(&model.SystemPlatformSnapshot{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.SystemPlatformSnapshot{CollectedAt: metrics.CollectedAt, PayloadJSON: string(payload)}).Error
+	})
 }
 
 func (r *SystemResourceRepository) LatestPlatform() (*dto.SystemPlatformMetrics, error) {
@@ -84,6 +126,32 @@ func (r *SystemResourceRepository) LatestPlatform() (*dto.SystemPlatformMetrics,
 		return nil, err
 	}
 	return &metrics, nil
+}
+
+func (r *SystemResourceRepository) PlatformHistory(since time.Time, limit int) ([]dto.SystemPlatformMetrics, error) {
+	if limit <= 0 || limit > 400 {
+		limit = 400
+	}
+	var rows []model.SystemPlatformSnapshot
+	if err := r.db.Where("collected_at >= ?", since).
+		Order("collected_at ASC, id ASC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make([]dto.SystemPlatformMetrics, 0, len(rows))
+	for _, row := range rows {
+		var metrics dto.SystemPlatformMetrics
+		if err := json.Unmarshal([]byte(row.PayloadJSON), &metrics); err != nil {
+			return nil, fmt.Errorf("decode platform snapshot %d: %w", row.ID, err)
+		}
+		result = append(result, metrics)
+	}
+	return result, nil
+}
+
+func localDayBounds(value time.Time) (time.Time, time.Time) {
+	local := value.In(time.Local)
+	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.Local)
+	return start.UTC(), start.AddDate(0, 0, 1).UTC()
 }
 
 func (r *SystemResourceRepository) CollectPlatformMetrics(now time.Time) (dto.SystemPlatformMetrics, error) {
@@ -109,15 +177,62 @@ func (r *SystemResourceRepository) CollectPlatformMetrics(now time.Time) (dto.Sy
 }
 
 func (r *SystemResourceRepository) CollectDatabaseSizes(ctx context.Context) (uint64, []dto.SystemDatabaseSize, bool) {
-	databases := []dto.SystemDatabaseSize{}
-	query := "SELECT table_schema AS name, COALESCE(SUM(data_length + index_length), 0) AS used_bytes FROM information_schema.tables WHERE table_schema = DATABASE()"
-	query += " GROUP BY table_schema ORDER BY used_bytes DESC LIMIT 10"
-	if err := r.db.WithContext(ctx).Raw(query).Scan(&databases).Error; err == nil {
-		var total uint64
-		for _, database := range databases {
-			total += database.UsedBytes
-		}
-		return total, databases, true
+	definitions := platformDatabaseDefinitions()
+	names := make([]string, 0, len(definitions))
+	for name := range definitions {
+		names = append(names, name)
 	}
-	return 0, databases, false
+	sort.Strings(names)
+
+	type databaseUsage struct {
+		Name      string `gorm:"column:name"`
+		UsedBytes uint64 `gorm:"column:used_bytes"`
+	}
+	var usage []databaseUsage
+	query := `SELECT s.schema_name AS name, COALESCE(SUM(t.data_length + t.index_length), 0) AS used_bytes
+		FROM information_schema.schemata s
+		LEFT JOIN information_schema.tables t ON t.table_schema = s.schema_name
+		WHERE s.schema_name IN ?
+		GROUP BY s.schema_name`
+	if err := r.db.WithContext(ctx).Raw(query, names).Scan(&usage).Error; err != nil {
+		return 0, []dto.SystemDatabaseSize{}, false
+	}
+
+	usageByName := make(map[string]uint64, len(usage))
+	for _, item := range usage {
+		usageByName[item.Name] = item.UsedBytes
+	}
+	databases := make([]dto.SystemDatabaseSize, 0, len(names))
+	var total uint64
+	for _, name := range names {
+		definition := definitions[name]
+		usedBytes, exists := usageByName[name]
+		status := "active"
+		if !exists {
+			status = "missing"
+		}
+		total += usedBytes
+		databases = append(databases, dto.SystemDatabaseSize{
+			Name: name, Kind: "platform", Owner: definition.service,
+			Directory: "platform", Purpose: definition.purpose, Status: status, UsedBytes: usedBytes,
+		})
+	}
+	return total, databases, true
+}
+
+type platformDatabaseDefinition struct {
+	service string
+	purpose string
+}
+
+func platformDatabaseDefinitions() map[string]platformDatabaseDefinition {
+	return map[string]platformDatabaseDefinition{
+		"agent-server":     {service: "agent-server", purpose: "agent_state"},
+		"app-server":       {service: "app-server / app-runtime", purpose: "workspace_metadata"},
+		"app-storage":      {service: "app-storage", purpose: "storage_metadata"},
+		"connector-server": {service: "connector-server", purpose: "connector_state"},
+		"hr-server":        {service: "hr-server", purpose: "identity_and_monitoring"},
+		"message-server":   {service: "message-server", purpose: "message_state"},
+		"timer-scheduler":  {service: "timer-scheduler", purpose: "scheduler_state"},
+	}
 }

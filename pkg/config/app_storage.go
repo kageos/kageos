@@ -35,6 +35,7 @@ type AppStorageConfig struct {
 		MinIO struct {
 			Endpoint       string `mapstructure:"endpoint"`        // 浏览器上传用的 endpoint（宿主机访问）
 			ServerEndpoint string `mapstructure:"server_endpoint"` // ✨ 服务端上传用的 endpoint（容器内访问）
+			ConsoleURL     string `mapstructure:"console_url"`     // 可选：仅供系统管理员跳转的 MinIO 控制台地址
 			AccessKey      string `mapstructure:"access_key"`
 			SecretKey      string `mapstructure:"secret_key"`
 			UseSSL         bool   `mapstructure:"use_ssl"`
@@ -106,6 +107,29 @@ func (c *AppStorageConfig) GetStorageType() string {
 		return v
 	}
 	return "minio"
+}
+
+// GetMinIOConsoleURL 返回显式配置的控制台地址。开发环境的本机 9000 端点会安全推导为 9001；
+// 生产环境不猜测或暴露控制台地址。
+func (c *AppStorageConfig) GetMinIOConsoleURL() string {
+	if c == nil || c.GetStorageType() != "minio" {
+		return ""
+	}
+	if value := strings.TrimSpace(c.Storage.MinIO.ConsoleURL); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(os.Getenv("MINIO_CONSOLE_URL")); value != "" {
+		return value
+	}
+	endpoint := strings.TrimSpace(c.Storage.MinIO.Endpoint)
+	if endpoint == "127.0.0.1:9000" || endpoint == "localhost:9000" {
+		scheme := "http"
+		if c.Storage.MinIO.UseSSL {
+			scheme = "https"
+		}
+		return scheme + "://" + strings.TrimSuffix(endpoint, ":9000") + ":9001"
+	}
+	return ""
 }
 
 // GetPort 获取端口

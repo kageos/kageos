@@ -300,6 +300,59 @@ if [[ -n "$TIMEZONE" ]]; then
   deploy_env+=(KAGEOS_TIMEZONE="$TIMEZONE")
 fi
 run_in_repo env "${deploy_env[@]}" ./prod-up.sh "${UP_ARGS[@]}"
+
+# The consistent backup command stops the production Compose stack, so its
+# scheduler must live on the host instead of inside core-server. A small
+# rootless systemd timer wakes every five minutes; the command itself only runs
+# a backup when the user-enabled daily schedule is due.
+if command -v systemctl >/dev/null 2>&1; then
+  DEPLOY_UID="$(id -u "$DEPLOY_USER")"
+  BACKUP_BIN="$ROOT_DIR/.kageos/prod/bin/kagectl"
+  echo "Installing host backup scheduler..."
+  run_as_deploy mkdir -p "$ROOT_DIR/.kageos/prod/bin"
+  run_in_repo go build -o "$BACKUP_BIN" ./cmd/kagectl
+  run_as_deploy bash -lc '
+    set -Eeuo pipefail
+    unit_dir="$HOME/.config/systemd/user"
+    mkdir -p "$unit_dir"
+    root_dir="$1"
+    backup_bin="$2"
+    config_abs="$3"
+    root_dir="${root_dir//\\/\\\\}"; root_dir="${root_dir//\"/\\\"}"
+    backup_bin="${backup_bin//\\/\\\\}"; backup_bin="${backup_bin//\"/\\\"}"
+    config_abs="${config_abs//\\/\\\\}"; config_abs="${config_abs//\"/\\\"}"
+    printf "%s\n" \
+      "[Unit]" \
+      "Description=kageos scheduled S3 backup" \
+      "" \
+      "[Service]" \
+      "Type=oneshot" \
+      "WorkingDirectory=\"$root_dir\"" \
+      "ExecStart=\"$backup_bin\" backup --config \"$config_abs\" scheduled-run" \
+      "Nice=10" \
+      > "$unit_dir/kageos-backup.service"
+    printf "%s\n" \
+      "[Unit]" \
+      "Description=Check the kageos backup schedule every five minutes" \
+      "" \
+      "[Timer]" \
+      "OnBootSec=3min" \
+      "OnUnitActiveSec=5min" \
+      "Persistent=true" \
+      "" \
+      "[Install]" \
+      "WantedBy=timers.target" \
+      > "$unit_dir/kageos-backup.timer"
+  ' _ "$ROOT_DIR" "$BACKUP_BIN" "$CONFIG_ABS"
+  if run_as_deploy env "XDG_RUNTIME_DIR=/run/user/$DEPLOY_UID" systemctl --user daemon-reload \
+    && run_as_deploy env "XDG_RUNTIME_DIR=/run/user/$DEPLOY_UID" systemctl --user enable --now kageos-backup.timer; then
+    echo "backup timer: enabled (configuration remains off until enabled in System Settings)"
+  else
+    echo "WARN: could not enable the host backup timer; run 'kagectl backup scheduled-run' from cron every five minutes." >&2
+  fi
+else
+  echo "WARN: systemd not found; configure cron to run 'kagectl backup scheduled-run' every five minutes." >&2
+fi
 echo
 echo "Follow logs:"
 echo "  tail -f .kageos/prod/kagectl-up.log"

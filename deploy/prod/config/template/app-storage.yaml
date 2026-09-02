@@ -17,6 +17,7 @@ storage:
   type: "minio"
   minio:
     endpoint: "${MINIO_HOST}:${MINIO_PORT}"
+    console_url: "${MINIO_CONSOLE_URL}"
     access_key: "${MINIO_ROOT_USER}"
     secret_key: "${MINIO_ROOT_PASSWORD}"
     use_ssl: false

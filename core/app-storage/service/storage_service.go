@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -383,6 +385,199 @@ func (s *StorageService) GetBucketName() string {
 // GetCDNDomain 获取 CDN 域名
 func (s *StorageService) GetCDNDomain() string {
 	return s.storage.GetCDNDomain()
+}
+
+func (s *StorageService) GetSystemStorageAssets(ctx context.Context, req dto.SystemStorageAssetsReq) (*dto.SystemStorageAssetsResp, error) {
+	if s.fileRepo == nil {
+		return &dto.SystemStorageAssetsResp{
+			List:              []dto.SystemStorageAsset{},
+			Directories:       []dto.SystemStorageAssetDirectory{},
+			MetadataAvailable: false,
+			ConsoleURL:        s.cfg.GetMinIOConsoleURL(),
+			Coverage:          "tracked_uploads",
+		}, nil
+	}
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := req.PageSize
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	allowedStatuses := map[string]bool{
+		"": true, "all": true, "completed": true, "pending": true, "failed": true,
+		"deleting": true, "delete_failed": true, "failed_all": true, "deleted": true,
+	}
+	if !allowedStatuses[strings.TrimSpace(req.Status)] {
+		return nil, fmt.Errorf("不支持的文件状态")
+	}
+
+	filter := repository.SystemFileAssetFilter{
+		RouterPrefix: req.RouterPrefix,
+		Status:       req.Status,
+		Keyword:      req.Keyword,
+	}
+	rows, total, err := s.fileRepo.ListSystemFileAssets(ctx, filter, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, err
+	}
+	summaryRow, err := s.fileRepo.GetSystemFileAssetSummary(ctx)
+	if err != nil {
+		return nil, err
+	}
+	directoryRows, err := s.fileRepo.ListSystemFileAssetDirectories(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]dto.SystemStorageAsset, 0, len(rows))
+	for _, row := range rows {
+		var lastAccessedAt *time.Time
+		if row.LastAccessedAt.Valid {
+			value := row.LastAccessedAt.Time
+			lastAccessedAt = &value
+		}
+		previewKind, previewable := systemAssetPreviewKind(row.ContentType, row.FileName, row.PreviewKind)
+		thumbnailURL := ""
+		if row.Status == "completed" && strings.TrimSpace(row.ThumbnailRef) != "" {
+			if thumbnailBucket, thumbnailKey, parseErr := s.ParseFileRef(row.ThumbnailRef); parseErr == nil {
+				thumbnailURL, _, _, _ = s.GetFileURLsInBucket(ctx, thumbnailBucket, thumbnailKey)
+			}
+		} else if row.Status == "completed" && previewKind == "image" {
+			thumbnailURL, _, _, _ = s.GetFileURLsInBucket(ctx, row.Bucket, row.FileKey)
+		}
+		items = append(items, dto.SystemStorageAsset{
+			ID: row.ID, Bucket: row.Bucket, Ref: s.BuildFileRef(row.Bucket, row.FileKey), FileKey: row.FileKey,
+			Router: row.Router, FileName: row.FileName, Description: row.Description, FileSize: row.FileSize,
+			ContentType: row.ContentType, ThumbnailRef: row.ThumbnailRef, ThumbnailURL: thumbnailURL,
+			PreviewKind: previewKind, Previewable: previewable, Username: row.Username, Tenant: row.Tenant, Status: row.Status,
+			UploadedAt: row.UploadedAt, DeletedAt: row.DeletedAt, DeletedBy: row.DeletedBy,
+			DeleteError: row.DeleteError, DownloadCount: row.DownloadCount, PreviewCount: row.PreviewCount, LastAccessedAt: lastAccessedAt,
+		})
+	}
+	directories := make([]dto.SystemStorageAssetDirectory, 0, len(directoryRows))
+	workspaceMap := make(map[string]*dto.SystemStorageAssetWorkspace)
+	for _, row := range directoryRows {
+		if len(directories) < 200 {
+			directories = append(directories, dto.SystemStorageAssetDirectory{Router: row.Router, FileCount: row.FileCount, SizeBytes: row.SizeBytes})
+		}
+		workspacePath := storageWorkspacePath(row.Router)
+		if workspacePath == "" {
+			continue
+		}
+		workspace := workspaceMap[workspacePath]
+		if workspace == nil {
+			workspace = &dto.SystemStorageAssetWorkspace{Path: workspacePath}
+			workspaceMap[workspacePath] = workspace
+		}
+		workspace.FileCount += row.FileCount
+		workspace.SizeBytes += row.SizeBytes
+	}
+	workspaces := make([]dto.SystemStorageAssetWorkspace, 0, len(workspaceMap))
+	for _, workspace := range workspaceMap {
+		workspaces = append(workspaces, *workspace)
+	}
+	sort.SliceStable(workspaces, func(i, j int) bool {
+		if workspaces[i].SizeBytes != workspaces[j].SizeBytes {
+			return workspaces[i].SizeBytes > workspaces[j].SizeBytes
+		}
+		return workspaces[i].Path < workspaces[j].Path
+	})
+
+	return &dto.SystemStorageAssetsResp{
+		List: items, Total: total, Page: page, PageSize: pageSize,
+		Summary: dto.SystemStorageAssetSummary{
+			ActiveFiles: summaryRow.ActiveFiles, ActiveBytes: summaryRow.ActiveBytes,
+			DeletedFiles: summaryRow.DeletedFiles, FailedFiles: summaryRow.FailedFiles,
+		},
+		Directories: directories, Workspaces: workspaces, MetadataAvailable: true,
+		ConsoleURL: s.cfg.GetMinIOConsoleURL(), Coverage: "tracked_uploads",
+	}, nil
+}
+
+func storageWorkspacePath(router string) string {
+	parts := strings.Split(strings.Trim(strings.TrimSpace(router), "/"), "/")
+	if len(parts) < 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return ""
+	}
+	return parts[0] + "/" + parts[1]
+}
+
+func systemAssetPreviewKind(contentType string, fileName string, recorded string) (string, bool) {
+	if value := strings.ToLower(strings.TrimSpace(recorded)); value == "image" || value == "video" {
+		return value, true
+	}
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	ext := strings.ToLower(filepath.Ext(fileName))
+	if strings.HasPrefix(contentType, "image/") || slices.Contains([]string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"}, ext) {
+		return "image", true
+	}
+	if strings.HasPrefix(contentType, "video/") || slices.Contains([]string{".mp4", ".webm", ".mov", ".m4v"}, ext) {
+		return "video", true
+	}
+	if contentType == "application/pdf" || ext == ".pdf" {
+		return "pdf", true
+	}
+	return "", false
+}
+
+func (s *StorageService) GetSystemAssetDownloadURL(ctx context.Context, ref string) (string, error) {
+	if s.fileRepo == nil {
+		return "", fmt.Errorf("文件元数据服务未初始化")
+	}
+	bucket, key, err := s.ParseFileRef(ref)
+	if err != nil {
+		return "", err
+	}
+	record, err := s.fileRepo.GetUploadRecordByBucketKey(ctx, bucket, key)
+	if err != nil || record == nil || record.Status != "completed" {
+		return "", fmt.Errorf("文件不存在或当前不可下载")
+	}
+	externalURL, _, _, err := s.GetFileURLsInBucket(ctx, bucket, key)
+	if err != nil || externalURL == "" {
+		return "", fmt.Errorf("生成下载链接失败")
+	}
+	return externalURL, nil
+}
+
+func (s *StorageService) GetSystemAssetAudits(ctx context.Context, ref string, limit int) ([]dto.SystemStorageAssetAudit, error) {
+	if s.fileRepo == nil {
+		return nil, fmt.Errorf("文件元数据服务未初始化")
+	}
+	_, key, err := s.ParseFileRef(ref)
+	if err != nil {
+		return nil, err
+	}
+	if limit < 1 {
+		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	rows, err := s.fileRepo.ListFileAccessAudits(ctx, key, limit)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]dto.SystemStorageAssetAudit, 0, len(rows))
+	for _, row := range rows {
+		username := ""
+		if row.Username != nil {
+			username = *row.Username
+		}
+		action := strings.TrimSpace(row.Action)
+		if action == "" {
+			action = "download"
+		}
+		items = append(items, dto.SystemStorageAssetAudit{
+			ID: row.ID, Action: action, Username: username, IPAddress: row.IPAddress,
+			UserAgent: row.UserAgent, AccessedAt: row.DownloadedAt,
+		})
+	}
+	return items, nil
 }
 
 // GetStorage 获取存储接口（用于直接访问存储方法）

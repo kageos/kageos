@@ -451,6 +451,7 @@ storage:
   minio:
     endpoint: {{ q .MinIOEndpoint }}
     server_endpoint: {{ q .SDKMinIOEndpoint }}
+    console_url: {{ q .MinIOConsoleURL }}
     access_key: {{ q .MinIO.AccessKey }}
     secret_key: {{ q .MinIO.SecretKey }}
     use_ssl: {{ .MinIO.UseSSL }}

@@ -13,6 +13,7 @@ export type KageosDocSlug =
   | 'api'
 
 const kageosDocsBaseURL = 'https://kageos.ai'
+const kageosWebsiteURL = 'https://kageos.com'
 const kageosHubBaseURL = 'https://hub.kageos.com'
 
 export function getKageosDocsURL(slug: KageosDocSlug = 'docs', locale?: SupportedLocale | string): string {
@@ -23,6 +24,10 @@ export function getKageosDocsURL(slug: KageosDocSlug = 'docs', locale?: Supporte
 
 export function getKageosHubURL(): string {
   return kageosHubBaseURL
+}
+
+export function getKageosWebsiteURL(): string {
+  return kageosWebsiteURL
 }
 
 export function openExternalURL(url: string): void {

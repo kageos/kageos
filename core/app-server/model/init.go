@@ -303,6 +303,10 @@ func ensureOperateLogQueryIndexes(db *gorm.DB) error {
 
 	indexes := []operateLogIndexSpec{
 		{name: "idx_oplog_created_id", columns: []string{"created_at", "id"}},
+		// 调用量概览会按未删除记录、时间范围和执行状态做条件聚合。
+		// 缺少覆盖索引时 MySQL 容易只走 deleted_at 单列索引并回表扫描全部历史日志，
+		// 数据量增大后会超过平台统计 NATS 请求的超时时间。
+		{name: "idx_oplog_deleted_created_status", columns: []string{"deleted_at", "created_at", "status"}},
 		{name: "idx_oplog_scope_created_id", columns: []string{"tenant_user", "app", "created_at", "id"}},
 		{name: "idx_oplog_path_created", columns: []string{"resource_path", "created_at", "id"}},
 		{name: "idx_oplog_path_target_created", columns: []string{"resource_path", "target_id", "created_at", "id"}},

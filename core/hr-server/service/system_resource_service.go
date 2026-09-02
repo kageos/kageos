@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,9 +21,12 @@ import (
 const (
 	runtimeSampleInterval     = 30 * time.Second
 	runtimePersistInterval    = 10 * time.Minute
-	platformSampleInterval    = time.Hour
 	platformRetryInterval     = time.Minute
-	resourceRetention         = 30 * 24 * time.Hour
+	runtimeRetention          = 30 * 24 * time.Hour
+	platformRetention         = 90 * 24 * time.Hour
+	capacityRetention         = 365 * 24 * time.Hour
+	platformRunHour           = 2
+	platformRunMinute         = 0
 	capacityRunHour           = 2
 	capacityRunMinute         = 30
 	capacityCollectionTimeout = 30 * time.Minute
@@ -96,52 +100,49 @@ func (s *SystemResourceService) runtimeLoop(ctx context.Context) {
 
 func (s *SystemResourceService) platformLoop(ctx context.Context) {
 	defer s.wg.Done()
-	nextInterval := platformRetryInterval
-	if s.collectPlatform(ctx) {
-		nextInterval = platformSampleInterval
+	if stored, err := s.repo.LatestPlatform(); err == nil {
+		s.mu.Lock()
+		s.lastPlatform = stored
+		s.mu.Unlock()
+		s.restoreTask("platform", stored.CollectedAt)
 	}
 	for {
-		next := time.Now().Add(nextInterval)
-		s.setTaskNextRun("platform", next)
-		timer := time.NewTimer(nextInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.C:
-			if s.collectPlatform(ctx) {
-				nextInterval = platformSampleInterval
-			} else {
-				nextInterval = platformRetryInterval
+		now := time.Now()
+		if shouldRunScheduledDaily(s.platformCollectedAt(), now, platformRunHour, platformRunMinute) {
+			if !s.collectPlatform(ctx) {
+				if !waitFor(ctx, platformRetryInterval) {
+					return
+				}
+				s.collectPlatform(ctx)
 			}
+		}
+		next := nextDailyRun(time.Now(), platformRunHour, platformRunMinute)
+		s.setTaskNextRun("platform", next)
+		if !waitUntil(ctx, next) {
+			return
 		}
 	}
 }
 
 func (s *SystemResourceService) capacityLoop(ctx context.Context) {
 	defer s.wg.Done()
-	if !s.collectCapacity(ctx) {
-		retry := time.Now().Add(capacityRetryInterval)
-		s.setTaskNextRun("capacity", retry)
-		timer := time.NewTimer(capacityRetryInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.C:
-			s.collectCapacity(ctx)
-		}
+	if stored, err := s.repo.LatestCapacity(); err == nil {
+		s.mu.Lock()
+		s.lastCapacity = stored
+		s.mu.Unlock()
+		s.restoreTask("capacity", stored.CollectedAt)
 	}
 	for {
+		now := time.Now()
+		if s.capacityCollectionDue(now) {
+			if !s.collectCapacity(ctx) && waitFor(ctx, capacityRetryInterval) {
+				s.collectCapacity(ctx)
+			}
+		}
 		next := nextDailyRun(time.Now(), capacityRunHour, capacityRunMinute)
 		s.setTaskNextRun("capacity", next)
-		timer := time.NewTimer(time.Until(next))
-		select {
-		case <-ctx.Done():
-			timer.Stop()
+		if !waitUntil(ctx, next) {
 			return
-		case <-timer.C:
-			s.collectCapacity(ctx)
 		}
 	}
 }
@@ -187,6 +188,7 @@ func (s *SystemResourceService) collectPlatform(ctx context.Context) bool {
 		if stats, ok := s.requestPlatformStats(subjects.PlatformAppStatsQuerySubject); ok {
 			metrics.WorkspacesTotal, metrics.WorkspacesEnabled = stats.WorkspacesTotal, stats.WorkspacesEnabled
 			metrics.ServiceDirectories, metrics.FunctionsTotal, metrics.AppStatsAvailable = stats.ServiceDirectories, stats.FunctionsTotal, true
+			metrics.Usage = stats.Usage
 		}
 		if stats, ok := s.requestPlatformStats(subjects.PlatformRuntimeStatsQuerySubject); ok {
 			metrics.AppDatabasesTotal, metrics.RuntimeStatsAvailable = stats.AppDatabasesTotal, true
@@ -210,7 +212,7 @@ func (s *SystemResourceService) collectPlatform(ctx context.Context) bool {
 		s.markTaskPartial("platform", started, "one or more platform metric sources are unavailable", started.Add(platformRetryInterval))
 		return false
 	}
-	s.markTaskFinished("platform", started, nil, started.Add(platformSampleInterval))
+	s.markTaskFinished("platform", started, nil, nextDailyRun(time.Now(), platformRunHour, platformRunMinute))
 	return true
 }
 
@@ -224,26 +226,33 @@ func (s *SystemResourceService) collectCapacity(ctx context.Context) bool {
 	snapshot, err := s.collector.CollectCapacity(capacityCtx)
 	remoteDatabaseAvailable := false
 	if err == nil {
-		snapshot.DatabaseLogicalBytes, snapshot.LargestDatabases, snapshot.DatabaseSizeAvailable = s.repo.CollectDatabaseSizes(capacityCtx)
+		platformDatabaseAvailable := false
+		snapshot.DatabaseLogicalBytes, snapshot.Databases, platformDatabaseAvailable = s.repo.CollectDatabaseSizes(capacityCtx)
+		snapshot.DatabaseSizeAvailable = platformDatabaseAvailable
 		if remote, ok := s.requestDatabaseStats(subjects.PlatformDatabaseStatsQuerySubject); ok {
 			remoteDatabaseAvailable = true
 			if remote.Available {
 				snapshot.DatabaseSizeAvailable = true
 				snapshot.DatabaseLogicalBytes += remote.TotalBytes
-				snapshot.LargestDatabases = append(snapshot.LargestDatabases, remote.Databases...)
-				sort.Slice(snapshot.LargestDatabases, func(i, j int) bool {
-					return snapshot.LargestDatabases[i].UsedBytes > snapshot.LargestDatabases[j].UsedBytes
+				snapshot.Databases = append(snapshot.Databases, remote.Databases...)
+				sort.SliceStable(snapshot.Databases, func(i, j int) bool {
+					if snapshot.Databases[i].Kind != snapshot.Databases[j].Kind {
+						return snapshot.Databases[i].Kind == "platform"
+					}
+					if snapshot.Databases[i].UsedBytes != snapshot.Databases[j].UsedBytes {
+						return snapshot.Databases[i].UsedBytes > snapshot.Databases[j].UsedBytes
+					}
+					return snapshot.Databases[i].Name < snapshot.Databases[j].Name
 				})
-				if len(snapshot.LargestDatabases) > 10 {
-					snapshot.LargestDatabases = snapshot.LargestDatabases[:10]
-				}
 			}
 		}
+		snapshot.DatabaseInventoryComplete = platformDatabaseAvailable && remoteDatabaseAvailable
 	}
 	if err == nil {
 		err = s.repo.CreateCapacity(snapshot)
 	}
-	cleanupErr := s.repo.DeleteBefore(time.Now().Add(-resourceRetention))
+	now := time.Now()
+	cleanupErr := s.repo.PruneHistory(now.Add(-runtimeRetention), now.Add(-platformRetention), now.Add(-capacityRetention))
 	if err == nil {
 		err = cleanupErr
 	}
@@ -276,6 +285,7 @@ func (s *SystemResourceService) Overview(historyHours int, includeHistory bool) 
 		return nil, err
 	}
 	history := []dto.SystemResourceHistoryPoint{}
+	capacityHistory := []dto.SystemCapacityDailyPoint{}
 	if includeHistory {
 		samples, historyErr := s.repo.History(time.Now().Add(-time.Duration(historyHours)*time.Hour), historyHours*6+12)
 		if historyErr != nil {
@@ -288,8 +298,389 @@ func (s *SystemResourceService) Overview(historyHours int, includeHistory bool) 
 		if len(history) == 0 || current.CollectedAt.Sub(history[len(history)-1].CollectedAt) > runtimePersistInterval {
 			history = append(history, dto.SystemResourceHistoryPoint{CollectedAt: current.CollectedAt, DiskUsedBytes: current.DiskUsedBytes, DiskUsedPercent: current.DiskUsedPercent, MemoryUsedPercent: current.MemoryUsedPercent, CPUUsedPercent: current.CPUUsedPercent, CPUMaxPercent: current.CPUUsedPercent, NetworkRxBytesPS: current.NetworkRxBytesPS, NetworkTxBytesPS: current.NetworkTxBytesPS, DiskReadBytesPS: current.DiskReadBytesPS, DiskWriteBytesPS: current.DiskWriteBytesPS, Load1: current.Load1})
 		}
+		capacitySnapshots, capacityErr := s.repo.CapacityHistory(time.Now().Add(-31*24*time.Hour), 40)
+		if capacityErr != nil {
+			return nil, fmt.Errorf("load capacity history: %w", capacityErr)
+		}
+		capacityHistory = buildCapacityDailyHistory(capacitySnapshots)
 	}
-	return &dto.SystemResourceOverviewResp{Current: *current, History: history, HistoryHours: historyHours, SampleIntervalMinutes: int(runtimePersistInterval / time.Minute), RuntimeIntervalSeconds: int(runtimeSampleInterval / time.Second), Forecast: buildStorageForecast(*current, history), Platform: platform, CollectionTasks: tasks}, nil
+	return &dto.SystemResourceOverviewResp{
+		Current: *current, History: history, CapacityHistory: capacityHistory, HistoryHours: historyHours,
+		SampleIntervalMinutes: int(runtimePersistInterval / time.Minute), RuntimeIntervalSeconds: int(runtimeSampleInterval / time.Second),
+		RuntimeRetentionDays: int(runtimeRetention / (24 * time.Hour)), PlatformRetentionDays: int(platformRetention / (24 * time.Hour)),
+		CapacityRetentionDays: int(capacityRetention / (24 * time.Hour)), PlatformIntervalHours: 24, CapacityIntervalHours: 24,
+		PlatformScheduleLocal: fmt.Sprintf("%02d:%02d", platformRunHour, platformRunMinute), CapacityScheduleLocal: fmt.Sprintf("%02d:%02d", capacityRunHour, capacityRunMinute),
+		CapacityCollectedAt: s.capacityCollectedAt(), Forecast: buildStorageForecast(*current, history), Platform: platform, CollectionTasks: tasks,
+	}, nil
+}
+
+func (s *SystemResourceService) Summary() (*dto.SystemResourceSummaryResp, error) {
+	current, platform, _, err := s.currentState()
+	if err != nil {
+		return nil, err
+	}
+	// Keep the live response deliberately small. These daily capacity fields are
+	// available from the storage and database endpoints when their tabs open.
+	current.StoragePools = nil
+	current.Components = nil
+	current.Databases = nil
+	current.LargestDatabases = nil
+	return &dto.SystemResourceSummaryResp{
+		Current:                *current,
+		Platform:               platform,
+		Forecast:               buildStorageForecast(*current, nil),
+		SampleIntervalMinutes:  int(runtimePersistInterval / time.Minute),
+		RuntimeRetentionDays:   int(runtimeRetention / (24 * time.Hour)),
+		RuntimeIntervalSeconds: int(runtimeSampleInterval / time.Second),
+	}, nil
+}
+
+func (s *SystemResourceService) Trends(historyHours int) (*dto.SystemResourceTrendsResp, error) {
+	historyHours = normalizedHistoryHours(historyHours)
+	current, _, _, err := s.currentState()
+	if err != nil {
+		return nil, err
+	}
+	history, err := s.loadRuntimeHistory(current, historyHours)
+	if err != nil {
+		return nil, err
+	}
+	return &dto.SystemResourceTrendsResp{
+		History:               history,
+		HistoryHours:          historyHours,
+		SampleIntervalMinutes: int(runtimePersistInterval / time.Minute),
+		RuntimeRetentionDays:  int(runtimeRetention / (24 * time.Hour)),
+	}, nil
+}
+
+func (s *SystemResourceService) Storage() (*dto.SystemResourceStorageResp, error) {
+	current, _, _, err := s.currentState()
+	if err != nil {
+		return nil, err
+	}
+	capacitySnapshots, err := s.repo.CapacityHistory(time.Now().Add(-31*24*time.Hour), 40)
+	if err != nil {
+		return nil, fmt.Errorf("load capacity history: %w", err)
+	}
+	forecastHistory := make([]dto.SystemResourceHistoryPoint, 0, len(capacitySnapshots))
+	for _, snapshot := range capacitySnapshots {
+		forecastHistory = append(forecastHistory, dto.SystemResourceHistoryPoint{
+			CollectedAt:     snapshot.CollectedAt,
+			DiskUsedBytes:   snapshot.DiskUsedBytes,
+			DiskUsedPercent: snapshot.DiskUsedPercent,
+		})
+	}
+	return &dto.SystemResourceStorageResp{
+		CollectedAt:           s.capacityCollectedAt(),
+		Environment:           current.Environment,
+		StoragePools:          current.StoragePools,
+		Components:            current.Components,
+		Forecast:              buildStorageForecast(*current, forecastHistory),
+		CapacityRetentionDays: int(capacityRetention / (24 * time.Hour)),
+		CapacityScheduleLocal: fmt.Sprintf("%02d:%02d", capacityRunHour, capacityRunMinute),
+	}, nil
+}
+
+func (s *SystemResourceService) Databases(page, pageSize int, scope, keyword string, includeHistory bool) (*dto.SystemResourceDatabaseListResp, error) {
+	current, _, _, err := s.currentState()
+	if err != nil {
+		return nil, err
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	scope = strings.ToLower(strings.TrimSpace(scope))
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+	if scope != "platform" && scope != "workspace" {
+		scope = "all"
+	}
+	databases := current.Databases
+	if len(databases) == 0 {
+		databases = current.LargestDatabases
+	}
+	items, total, platformCount, workspaceCount := filterAndPaginateDatabases(databases, page, pageSize, scope, keyword)
+	capacityHistory := []dto.SystemCapacityDailyPoint(nil)
+	if includeHistory {
+		capacitySnapshots, historyErr := s.repo.CapacityHistory(time.Now().Add(-31*24*time.Hour), 40)
+		if historyErr != nil {
+			return nil, fmt.Errorf("load capacity history: %w", historyErr)
+		}
+		capacityHistory = tailCapacityDailyHistory(buildCapacityDailyHistory(capacitySnapshots), 7)
+	}
+	return &dto.SystemResourceDatabaseListResp{
+		Items:                     items,
+		Total:                     total,
+		Page:                      page,
+		PageSize:                  pageSize,
+		PlatformCount:             platformCount,
+		WorkspaceCount:            workspaceCount,
+		DatabaseLogicalBytes:      current.DatabaseLogicalBytes,
+		DatabaseSizeAvailable:     current.DatabaseSizeAvailable,
+		DatabaseInventoryComplete: current.DatabaseInventoryComplete,
+		CollectedAt:               s.capacityCollectedAt(),
+		CapacityHistory:           capacityHistory,
+		CapacityRetentionDays:     int(capacityRetention / (24 * time.Hour)),
+		CapacityScheduleLocal:     fmt.Sprintf("%02d:%02d", capacityRunHour, capacityRunMinute),
+	}, nil
+}
+
+func (s *SystemResourceService) Diagnostics() (*dto.SystemResourceDiagnosticsResp, error) {
+	current, _, tasks, err := s.currentState()
+	if err != nil {
+		return nil, err
+	}
+	return &dto.SystemResourceDiagnosticsResp{
+		CollectedAt:            current.CollectedAt,
+		Environment:            current.Environment,
+		CollectionTasks:        tasks,
+		PlatformRetentionDays:  int(platformRetention / (24 * time.Hour)),
+		CapacityRetentionDays:  int(capacityRetention / (24 * time.Hour)),
+		PlatformScheduleLocal:  fmt.Sprintf("%02d:%02d", platformRunHour, platformRunMinute),
+		CapacityScheduleLocal:  fmt.Sprintf("%02d:%02d", capacityRunHour, capacityRunMinute),
+		SampleIntervalMinutes:  int(runtimePersistInterval / time.Minute),
+		RuntimeRetentionDays:   int(runtimeRetention / (24 * time.Hour)),
+		RuntimeIntervalSeconds: int(runtimeSampleInterval / time.Second),
+	}, nil
+}
+
+func (s *SystemResourceService) Usage(periodDays, rankingPage, rankingPageSize int) (*dto.SystemUsageOverviewResp, error) {
+	if periodDays != 30 {
+		periodDays = 7
+	}
+	rankingPage, rankingPageSize = normalizeUsageRankingPage(rankingPage, rankingPageSize)
+	current := dto.SystemUsageSnapshot{}
+	if stats, ok := s.requestPlatformStats(subjects.PlatformAppStatsQuerySubject); ok && stats.Usage.Available {
+		current = stats.Usage
+	} else {
+		_, platform, _, err := s.currentState()
+		if err != nil {
+			return nil, err
+		}
+		current = platform.Usage
+	}
+	if !current.Available {
+		return &dto.SystemUsageOverviewResp{PeriodDays: periodDays, RankingBasis: "cumulative", RankingPage: rankingPage, RankingPageSize: rankingPageSize, SnapshotScheduleLocal: fmt.Sprintf("%02d:%02d", platformRunHour, platformRunMinute)}, nil
+	}
+
+	now := time.Now()
+	cutoff := now.AddDate(0, 0, -periodDays)
+	history, err := s.repo.PlatformHistory(cutoff.AddDate(0, 0, -2), periodDays+5)
+	if err != nil {
+		return nil, fmt.Errorf("load usage history: %w", err)
+	}
+	baseline, hasBaseline := usageBaseline(history, cutoff)
+	baselineCalls := make(map[string]int64, len(baseline.Functions))
+	if hasBaseline {
+		for _, function := range baseline.Functions {
+			baselineCalls[function.Path] = function.TotalCalls
+		}
+	}
+
+	functions := make([]dto.SystemFunctionUsageItem, 0, len(current.Functions))
+	directoryMap := make(map[string]*dto.SystemDirectoryUsageItem)
+	var successfulCalls int64
+	for _, function := range current.Functions {
+		periodCalls := function.TotalCalls
+		if hasBaseline {
+			periodCalls = max(int64(0), function.TotalCalls-baselineCalls[function.Path])
+		}
+		item := dto.SystemFunctionUsageItem{SystemFunctionUsageSnapshot: function, PeriodCalls: periodCalls}
+		functions = append(functions, item)
+		successfulCalls += periodCalls
+		directory := directoryMap[function.DirectoryPath]
+		if directory == nil {
+			name := function.DirectoryName
+			if strings.TrimSpace(name) == "" {
+				name = pathDisplayName(function.DirectoryPath)
+			}
+			directory = &dto.SystemDirectoryUsageItem{Path: function.DirectoryPath, Name: name}
+			directoryMap[function.DirectoryPath] = directory
+		}
+		directory.FunctionCount++
+		directory.TotalCalls += function.TotalCalls
+		directory.PeriodCalls += periodCalls
+	}
+	sort.SliceStable(functions, func(i, j int) bool {
+		if functions[i].PeriodCalls != functions[j].PeriodCalls {
+			return functions[i].PeriodCalls > functions[j].PeriodCalls
+		}
+		if functions[i].TotalCalls != functions[j].TotalCalls {
+			return functions[i].TotalCalls > functions[j].TotalCalls
+		}
+		return functions[i].Path < functions[j].Path
+	})
+	directories := make([]dto.SystemDirectoryUsageItem, 0, len(directoryMap))
+	for _, item := range directoryMap {
+		directories = append(directories, *item)
+	}
+	sort.SliceStable(directories, func(i, j int) bool {
+		if directories[i].PeriodCalls != directories[j].PeriodCalls {
+			return directories[i].PeriodCalls > directories[j].PeriodCalls
+		}
+		if directories[i].TotalCalls != directories[j].TotalCalls {
+			return directories[i].TotalCalls > directories[j].TotalCalls
+		}
+		return directories[i].Path < directories[j].Path
+	})
+
+	operationsPeriod, failedOperations := current.OperationsLast7Days, current.FailedOperationsLast7Days
+	if periodDays == 30 {
+		operationsPeriod, failedOperations = current.OperationsLast30Days, current.FailedOperationsLast30Days
+	}
+	return &dto.SystemUsageOverviewResp{
+		Available: true, CollectedAt: current.CollectedAt, PeriodDays: periodDays,
+		RankingBasis:    map[bool]string{true: "period", false: "cumulative"}[hasBaseline],
+		OperationsToday: current.OperationsToday, OperationsPeriod: operationsPeriod, FailedOperations: failedOperations,
+		SuccessfulCalls: successfulCalls,
+		TopDirectories:  paginateDirectories(directories, rankingPage, rankingPageSize),
+		TopFunctions:    paginateFunctions(functions, rankingPage, rankingPageSize),
+		DirectoryTotal:  len(directories), FunctionTotal: len(functions), RankingPage: rankingPage, RankingPageSize: rankingPageSize,
+		DailyHistory: buildUsageDailyHistory(history, current), SnapshotScheduleLocal: fmt.Sprintf("%02d:%02d", platformRunHour, platformRunMinute),
+	}, nil
+}
+
+func usageBaseline(history []dto.SystemPlatformMetrics, cutoff time.Time) (dto.SystemUsageSnapshot, bool) {
+	var result dto.SystemUsageSnapshot
+	found := false
+	for _, metrics := range history {
+		if !metrics.Usage.Available || metrics.CollectedAt.After(cutoff) {
+			continue
+		}
+		if !found || metrics.CollectedAt.After(result.CollectedAt) {
+			result, found = metrics.Usage, true
+		}
+	}
+	return result, found
+}
+
+func buildUsageDailyHistory(history []dto.SystemPlatformMetrics, current dto.SystemUsageSnapshot) []dto.SystemUsageDailyPoint {
+	byDate := make(map[string]dto.SystemUsageDailyPoint)
+	for _, metrics := range history {
+		usage := metrics.Usage
+		if !usage.Available || usage.OperationDay == "" {
+			continue
+		}
+		byDate[usage.OperationDay] = dto.SystemUsageDailyPoint{Date: usage.OperationDay, Operations: usage.OperationsYesterday, Failed: usage.FailedOperationsYesterday}
+	}
+	today := current.CollectedAt.In(time.Local).Format("2006-01-02")
+	byDate[today] = dto.SystemUsageDailyPoint{Date: today, Operations: current.OperationsToday, Failed: current.FailedOperationsToday}
+	result := make([]dto.SystemUsageDailyPoint, 0, len(byDate))
+	for _, point := range byDate {
+		result = append(result, point)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Date < result[j].Date })
+	if len(result) > 30 {
+		result = result[len(result)-30:]
+	}
+	return result
+}
+
+func pathDisplayName(path string) string {
+	path = strings.TrimRight(path, "/")
+	if index := strings.LastIndex(path, "/"); index >= 0 && index+1 < len(path) {
+		return path[index+1:]
+	}
+	return path
+}
+
+func normalizeUsageRankingPage(page, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 5 {
+		pageSize = 10
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	return page, pageSize
+}
+
+func paginateDirectories(items []dto.SystemDirectoryUsageItem, page, pageSize int) []dto.SystemDirectoryUsageItem {
+	start := (page - 1) * pageSize
+	if start >= len(items) {
+		return []dto.SystemDirectoryUsageItem{}
+	}
+	end := min(len(items), start+pageSize)
+	return items[start:end]
+}
+
+func paginateFunctions(items []dto.SystemFunctionUsageItem, page, pageSize int) []dto.SystemFunctionUsageItem {
+	start := (page - 1) * pageSize
+	if start >= len(items) {
+		return []dto.SystemFunctionUsageItem{}
+	}
+	end := min(len(items), start+pageSize)
+	return items[start:end]
+}
+
+func normalizedHistoryHours(historyHours int) int {
+	if historyHours < 24 {
+		return 24
+	}
+	if historyHours > 24*30 {
+		return 24 * 30
+	}
+	return historyHours
+}
+
+func (s *SystemResourceService) loadRuntimeHistory(current *dto.SystemResourceSnapshot, historyHours int) ([]dto.SystemResourceHistoryPoint, error) {
+	samples, err := s.repo.History(time.Now().Add(-time.Duration(historyHours)*time.Hour), historyHours*6+12)
+	if err != nil {
+		return nil, fmt.Errorf("load resource history: %w", err)
+	}
+	history := make([]dto.SystemResourceHistoryPoint, 0, len(samples)+1)
+	for _, sample := range samples {
+		history = append(history, historyPoint(sample))
+	}
+	if len(history) == 0 || current.CollectedAt.Sub(history[len(history)-1].CollectedAt) > runtimePersistInterval {
+		history = append(history, dto.SystemResourceHistoryPoint{CollectedAt: current.CollectedAt, DiskUsedBytes: current.DiskUsedBytes, DiskUsedPercent: current.DiskUsedPercent, MemoryUsedPercent: current.MemoryUsedPercent, CPUUsedPercent: current.CPUUsedPercent, CPUMaxPercent: current.CPUUsedPercent, NetworkRxBytesPS: current.NetworkRxBytesPS, NetworkTxBytesPS: current.NetworkTxBytesPS, DiskReadBytesPS: current.DiskReadBytesPS, DiskWriteBytesPS: current.DiskWriteBytesPS, Load1: current.Load1})
+	}
+	return history, nil
+}
+
+func databaseMatchesKeyword(database dto.SystemDatabaseSize, keyword string) bool {
+	return strings.Contains(strings.ToLower(database.Name), keyword) ||
+		strings.Contains(strings.ToLower(database.Owner), keyword) ||
+		strings.Contains(strings.ToLower(database.Directory), keyword) ||
+		strings.Contains(strings.ToLower(database.Purpose), keyword) ||
+		strings.Contains(strings.ToLower(database.Status), keyword)
+}
+
+func filterAndPaginateDatabases(databases []dto.SystemDatabaseSize, page, pageSize int, scope, keyword string) ([]dto.SystemDatabaseSize, int, int, int) {
+	filtered := make([]dto.SystemDatabaseSize, 0, len(databases))
+	platformCount, workspaceCount := 0, 0
+	for _, database := range databases {
+		switch database.Kind {
+		case "platform":
+			platformCount++
+		case "workspace":
+			workspaceCount++
+		}
+		if scope != "all" && database.Kind != scope {
+			continue
+		}
+		if keyword != "" && !databaseMatchesKeyword(database, keyword) {
+			continue
+		}
+		filtered = append(filtered, database)
+	}
+	start := min((page-1)*pageSize, len(filtered))
+	end := min(start+pageSize, len(filtered))
+	return append([]dto.SystemDatabaseSize(nil), filtered[start:end]...), len(filtered), platformCount, workspaceCount
+}
+
+func tailCapacityDailyHistory(history []dto.SystemCapacityDailyPoint, limit int) []dto.SystemCapacityDailyPoint {
+	if limit <= 0 || len(history) <= limit {
+		return history
+	}
+	return append([]dto.SystemCapacityDailyPoint(nil), history[len(history)-limit:]...)
 }
 
 func (s *SystemResourceService) currentState() (*dto.SystemResourceSnapshot, dto.SystemPlatformMetrics, []dto.SystemCollectionTaskStatus, error) {
@@ -306,6 +697,11 @@ func (s *SystemResourceService) currentState() (*dto.SystemResourceSnapshot, dto
 	if capacitySnapshot == nil {
 		if stored, err := s.repo.LatestCapacity(); err == nil {
 			capacitySnapshot = stored
+			s.mu.Lock()
+			if s.lastCapacity == nil {
+				s.lastCapacity = stored
+			}
+			s.mu.Unlock()
 		} else {
 			// Capacity scanning can recursively walk large directories. Never make
 			// an HTTP request wait for it; the background task will replace this
@@ -316,6 +712,11 @@ func (s *SystemResourceService) currentState() (*dto.SystemResourceSnapshot, dto
 	if platform == nil {
 		if stored, err := s.repo.LatestPlatform(); err == nil {
 			platform = stored
+			s.mu.Lock()
+			if s.lastPlatform == nil {
+				s.lastPlatform = stored
+			}
+			s.mu.Unlock()
 		} else if value, collectErr := s.repo.CollectPlatformMetrics(time.Now()); collectErr == nil {
 			platform = &value
 		} else {
@@ -418,6 +819,39 @@ func (s *SystemResourceService) setTaskNextRun(key string, next time.Time) {
 	status.NextRunAt = timePointer(next)
 	s.tasks[key] = status
 }
+func (s *SystemResourceService) restoreTask(key string, collectedAt time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	status := s.tasks[key]
+	status.Status, status.LastSucceededAt = "success", timePointer(collectedAt)
+	s.tasks[key] = status
+}
+func (s *SystemResourceService) platformCollectedAt() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lastPlatform == nil {
+		return time.Time{}
+	}
+	return s.lastPlatform.CollectedAt
+}
+func (s *SystemResourceService) capacityCollectedAt() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lastCapacity == nil {
+		return time.Time{}
+	}
+	return s.lastCapacity.CollectedAt
+}
+func (s *SystemResourceService) capacityCollectionDue(now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lastCapacity == nil ||
+		s.lastCapacity.CapacitySchemaVersion < systemCapacitySchemaVersion ||
+		!s.lastCapacity.DatabaseInventoryComplete {
+		return true
+	}
+	return shouldRunScheduledDaily(s.lastCapacity.CollectedAt, now, capacityRunHour, capacityRunMinute)
+}
 func (s *SystemResourceService) taskStatuses() []dto.SystemCollectionTaskStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -434,6 +868,29 @@ func nextDailyRun(now time.Time, hour, minute int) time.Time {
 		next = next.AddDate(0, 0, 1)
 	}
 	return next
+}
+func scheduledRunAtOrBefore(now time.Time, hour, minute int) time.Time {
+	scheduled := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+	if scheduled.After(now) {
+		scheduled = scheduled.AddDate(0, 0, -1)
+	}
+	return scheduled
+}
+func shouldRunScheduledDaily(last, now time.Time, hour, minute int) bool {
+	return last.IsZero() || last.Before(scheduledRunAtOrBefore(now, hour, minute))
+}
+func waitUntil(ctx context.Context, at time.Time) bool {
+	timer := time.NewTimer(time.Until(at))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+func waitFor(ctx context.Context, duration time.Duration) bool {
+	return waitUntil(ctx, time.Now().Add(duration))
 }
 
 type runtimeAccumulator struct {
@@ -465,6 +922,53 @@ func (a *runtimeAccumulator) Reset() { *a = runtimeAccumulator{} }
 
 func historyPoint(sample model.SystemResourceSample) dto.SystemResourceHistoryPoint {
 	return dto.SystemResourceHistoryPoint{CollectedAt: sample.CollectedAt, DiskUsedBytes: sample.DiskUsedBytes, DiskUsedPercent: sample.DiskUsedPercent, MemoryUsedPercent: sample.MemoryUsedPercent, CPUUsedPercent: sample.CPUUsedPercent, CPUMaxPercent: sample.CPUMaxPercent, NetworkRxBytesPS: sample.NetworkRxBytesPS, NetworkTxBytesPS: sample.NetworkTxBytesPS, DiskReadBytesPS: sample.DiskReadBytesPS, DiskWriteBytesPS: sample.DiskWriteBytesPS, Load1: sample.Load1}
+}
+
+func buildCapacityDailyHistory(snapshots []dto.SystemResourceSnapshot) []dto.SystemCapacityDailyPoint {
+	result := make([]dto.SystemCapacityDailyPoint, 0, len(snapshots))
+	indexByDay := make(map[string]int, len(snapshots))
+	for _, snapshot := range snapshots {
+		day := snapshot.CollectedAt.In(time.Local).Format("2006-01-02")
+		platformCount, workspaceCount := 0, 0
+		for _, database := range snapshot.Databases {
+			if database.Kind == "platform" {
+				platformCount++
+			} else if database.Kind == "workspace" {
+				workspaceCount++
+			}
+		}
+		point := dto.SystemCapacityDailyPoint{
+			CollectedAt: snapshot.CollectedAt, DatabaseLogicalBytes: snapshot.DatabaseLogicalBytes,
+			DatabaseCount: len(snapshot.Databases), PlatformDatabaseCount: platformCount, WorkspaceDatabaseCount: workspaceCount,
+			DatabaseSizeAvailable:  snapshot.DatabaseSizeAvailable && snapshot.DatabaseInventoryComplete,
+			DatabaseCountAvailable: snapshot.DatabaseInventoryComplete,
+		}
+		if index, exists := indexByDay[day]; exists {
+			result[index] = point
+			continue
+		}
+		indexByDay[day] = len(result)
+		result = append(result, point)
+	}
+	for index := 1; index < len(result); index++ {
+		current, previous := &result[index], result[index-1]
+		if current.DatabaseSizeAvailable && previous.DatabaseSizeAvailable {
+			current.DatabaseLogicalDelta = signedByteDelta(current.DatabaseLogicalBytes, previous.DatabaseLogicalBytes)
+			current.DatabaseLogicalDeltaAvailable = true
+		}
+		if current.DatabaseCountAvailable && previous.DatabaseCountAvailable {
+			current.DatabaseCountDelta = current.DatabaseCount - previous.DatabaseCount
+			current.DatabaseCountDeltaAvailable = true
+		}
+	}
+	return result
+}
+
+func signedByteDelta(current, previous uint64) int64 {
+	if current >= previous {
+		return int64(current - previous)
+	}
+	return -int64(previous - current)
 }
 
 func buildStorageForecast(current dto.SystemResourceSnapshot, history []dto.SystemResourceHistoryPoint) dto.StorageExpansionForecast {

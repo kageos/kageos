@@ -32,6 +32,7 @@ flowchart TB
       runtimeData["data runtime app-runtime SQLite"]
       platformLogs["platform logs"]
       podmanStore["podman image and container storage"]
+	  backupState["system backup config status and history"]
     end
 
     subgraph mainRuntime ["Production main container or dev host process"]
@@ -89,6 +90,7 @@ flowchart TB
   end
 
   operator -->|"init render up verify"| coreServer
+  operator -->|"scheduled consistent backup and S3 upload"| backupState
   operator -->|"ensure or rebuild"| appBaseImage
   browser -->|"SPA and API over HTTP or HTTPS"| nginx
   publicUser -->|"public share pages and submit"| nginx

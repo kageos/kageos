@@ -175,7 +175,7 @@ func normalizeLLMSeed(seed config.AgentServerLLMSeedConfig) (normalizedLLMSeed, 
 		timeout = defaultLLMTimeout
 	}
 	maxTokens := seed.MaxTokens
-	if maxTokens <= 0 {
+	if maxTokens < 0 {
 		maxTokens = defaultLLMMaxTokens
 	}
 	admin := strings.TrimSpace(seed.Admin)

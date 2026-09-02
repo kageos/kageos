@@ -130,6 +130,8 @@ export function useOperateLogSection({
           { label: t('operateLog.resourceCreate'), value: 'service_tree.node.created' },
           { label: t('operateLog.resourceUpdate'), value: 'service_tree.node.updated' },
           { label: t('operateLog.resourceDelete'), value: 'service_tree.node.deleted' },
+          { label: t('operateLog.workspaceUpdate'), value: 'workspace.updated' },
+          { label: t('operateLog.workspaceSettingsUpdate'), value: 'workspace.settings.updated' },
           { label: t('operateLog.permissionRequestCreated'), value: 'permission.request.created' },
           { label: t('operateLog.permissionRequestApproved'), value: 'permission.request.approved' },
           { label: t('operateLog.permissionRequestRejected'), value: 'permission.request.rejected' },
@@ -529,6 +531,8 @@ export function useOperateLogSection({
         return 'success'
       case 'OnTableUpdateRow':
       case 'service_tree.node.updated':
+      case 'workspace.updated':
+      case 'workspace.settings.updated':
       case 'permission.request.cancelled':
       case 'permission.role.revoked':
         return 'warning'
@@ -566,6 +570,10 @@ export function useOperateLogSection({
         return t('operateLog.update')
       case 'service_tree.node.deleted':
         return t('operateLog.delete')
+      case 'workspace.updated':
+        return t('operateLog.workspaceUpdate')
+      case 'workspace.settings.updated':
+        return t('operateLog.workspaceSettingsUpdate')
       case 'permission.request.created':
         return t('operateLog.permissionRequestCreated')
       case 'permission.request.approved':
@@ -831,6 +839,12 @@ export function useOperateLogSection({
   }
 
   const getLogTitle = (log: OperateLogEntry): string => {
+    if (log.action === 'workspace.updated') {
+      return log.status === 'failed' ? t('operateLog.workspaceUpdateFailed') : t('operateLog.workspaceUpdated')
+    }
+    if (log.action === 'workspace.settings.updated') {
+      return log.status === 'failed' ? t('operateLog.workspaceSettingsUpdateFailed') : t('operateLog.workspaceSettingsUpdated')
+    }
     if (isFormSubmitAction(log.action)) {
       if (log.action === 'public_form_submit' || log.source === 'public_share') {
         return log.status === 'failed' ? t('operateLog.publicFormSubmitFailed') : t('operateLog.publicFormSubmitted')

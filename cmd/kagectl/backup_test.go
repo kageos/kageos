@@ -134,6 +134,10 @@ func TestParseBackupAndRestoreFlags(t *testing.T) {
 	if backup.Action != "create" || backup.OutputPath != "/backup" {
 		t.Fatalf("unexpected backup options: %#v", backup)
 	}
+	scheduled, err := parseBackupFlags([]string{"scheduled-run"})
+	if err != nil || scheduled.Action != "scheduled-run" {
+		t.Fatalf("unexpected scheduled backup options: %#v err=%v", scheduled, err)
+	}
 	verify, err := parseBackupFlags([]string{"verify", "/backup/a.tar.gz"})
 	if err != nil || verify.Archive == "" {
 		t.Fatalf("unexpected verify options: %#v err=%v", verify, err)

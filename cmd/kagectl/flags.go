@@ -242,7 +242,7 @@ func parseCleanFlags(args []string) (cleanOptions, error) {
 
 func parseBackupFlags(args []string) (backupOptions, error) {
 	opts := backupOptions{Action: "create"}
-	if len(args) > 0 && (args[0] == "create" || args[0] == "list" || args[0] == "verify") {
+	if len(args) > 0 && (args[0] == "create" || args[0] == "list" || args[0] == "verify" || args[0] == "scheduled-run") {
 		opts.Action = args[0]
 		args = args[1:]
 	}
@@ -603,6 +603,7 @@ Usage:
   kagectl backup [create] [--output PATH]
   kagectl backup list
   kagectl backup verify ARCHIVE
+  kagectl backup scheduled-run
   kagectl restore ARCHIVE --dry-run
   kagectl restore ARCHIVE --force [--keep-rollback]
   kagectl clean runtime [--namespace PATH] [--keep N] [--dry-run|--execute]

@@ -27,6 +27,13 @@ var contextWindowMetadataKeys = map[string]struct{}{
 	"maximumcontextlength": {},
 }
 
+var maxOutputTokenMetadataKeys = map[string]struct{}{
+	"maxoutputtokens":     {},
+	"outputtokenlimit":    {},
+	"maximumoutputtokens": {},
+	"maxtokens":           {},
+}
+
 // probeLLMContextWindow performs a best-effort metadata lookup. Failure is
 // deliberately non-fatal because many OpenAI-compatible providers do not
 // expose capacity through /models even though inference works normally.
@@ -51,7 +58,39 @@ func probeLLMContextWindow(ctx context.Context, clientConfig llms.ClientConfig) 
 			return value, "provider_metadata"
 		}
 	}
+	if value := knownModelSpecForName(modelName).ContextWindow; value > 0 {
+		return value, "model_registry"
+	}
 	return DefaultLLMContextWindow, "default"
+}
+
+// probeLLMMaxOutputTokens reads provider model metadata when available and
+// falls back to the bundled model registry. Unknown models keep a conservative
+// automatic default instead of pretending that an exact provider limit was detected.
+func probeLLMMaxOutputTokens(ctx context.Context, clientConfig llms.ClientConfig) (int, string) {
+	base := llmMetadataBaseURL(clientConfig.BaseURL, clientConfig.EndpointPath, clientConfig.Protocol)
+	modelName := strings.TrimSpace(clientConfig.Model)
+	if base != "" && modelName != "" {
+		headers := llmMetadataHeaders(clientConfig)
+		httpClient := &http.Client{Timeout: clientConfig.Timeout}
+		if httpClient.Timeout <= 0 || httpClient.Timeout > 10*time.Second {
+			httpClient.Timeout = 10 * time.Second
+		}
+		URLs := []string{
+			strings.TrimRight(base, "/") + "/models/" + url.PathEscape(modelName),
+			strings.TrimRight(base, "/") + "/models",
+		}
+		for _, endpoint := range URLs {
+			value, err := getLLMMaxOutputTokensMetadata(ctx, httpClient, endpoint, headers, modelName)
+			if err == nil && value > 0 {
+				return value, "provider_metadata"
+			}
+		}
+	}
+	if value := knownModelSpecForName(modelName).MaxOutputTokens; value > 0 {
+		return value, "model_registry"
+	}
+	return DefaultLLMMaxOutputTokens, "default"
 }
 
 func llmMetadataBaseURL(baseURL, endpointPath, protocol string) string {
@@ -109,27 +148,8 @@ func llmMetadataHeaders(cfg llms.ClientConfig) map[string]string {
 }
 
 func getLLMContextWindowMetadata(ctx context.Context, client *http.Client, endpoint string, headers map[string]string, modelName string) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	payload, err := getLLMModelMetadataPayload(ctx, client, endpoint, headers)
 	if err != nil {
-		return 0, err
-	}
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, fmt.Errorf("metadata HTTP %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxLLMMetadataBodyBytes))
-	if err != nil {
-		return 0, err
-	}
-	var payload interface{}
-	if err := json.Unmarshal(body, &payload); err != nil {
 		return 0, err
 	}
 	if matched := findLLMModelMetadata(payload, modelName); matched != nil {
@@ -141,6 +161,49 @@ func getLLMContextWindowMetadata(ctx context.Context, client *http.Client, endpo
 		return value, nil
 	}
 	return 0, fmt.Errorf("context capacity not present in model metadata")
+}
+
+func getLLMMaxOutputTokensMetadata(ctx context.Context, client *http.Client, endpoint string, headers map[string]string, modelName string) (int, error) {
+	payload, err := getLLMModelMetadataPayload(ctx, client, endpoint, headers)
+	if err != nil {
+		return 0, err
+	}
+	if matched := findLLMModelMetadata(payload, modelName); matched != nil {
+		if value := findMaxOutputTokenValue(matched); value > 0 {
+			return value, nil
+		}
+	}
+	if value := findMaxOutputTokenValue(payload); value > 0 {
+		return value, nil
+	}
+	return 0, fmt.Errorf("maximum output capacity not present in model metadata")
+}
+
+func getLLMModelMetadataPayload(ctx context.Context, client *http.Client, endpoint string, headers map[string]string) (interface{}, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("metadata HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxLLMMetadataBodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	var payload interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
 }
 
 func findLLMModelMetadata(value interface{}, modelName string) interface{} {
@@ -168,24 +231,32 @@ func findLLMModelMetadata(value interface{}, modelName string) interface{} {
 }
 
 func findContextWindowValue(value interface{}) int {
+	return findMetadataTokenValue(value, contextWindowMetadataKeys)
+}
+
+func findMaxOutputTokenValue(value interface{}) int {
+	return findMetadataTokenValue(value, maxOutputTokenMetadataKeys)
+}
+
+func findMetadataTokenValue(value interface{}, keys map[string]struct{}) int {
 	switch typed := value.(type) {
 	case map[string]interface{}:
 		for key, raw := range typed {
 			normalizedKey := strings.NewReplacer("_", "", "-", "", ".", "", " ", "").Replace(strings.ToLower(key))
-			if _, ok := contextWindowMetadataKeys[normalizedKey]; ok {
+			if _, ok := keys[normalizedKey]; ok {
 				if parsed := positiveMetadataInt(raw); parsed >= 1024 && parsed <= 10000000 {
 					return parsed
 				}
 			}
 		}
 		for _, nested := range typed {
-			if parsed := findContextWindowValue(nested); parsed > 0 {
+			if parsed := findMetadataTokenValue(nested, keys); parsed > 0 {
 				return parsed
 			}
 		}
 	case []interface{}:
 		for _, nested := range typed {
-			if parsed := findContextWindowValue(nested); parsed > 0 {
+			if parsed := findMetadataTokenValue(nested, keys); parsed > 0 {
 				return parsed
 			}
 		}

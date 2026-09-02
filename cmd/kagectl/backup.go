@@ -3,6 +3,7 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kageos/kageos/pkg/systembackup"
 	"gopkg.in/yaml.v3"
 )
 
@@ -85,9 +87,132 @@ func cmdBackup(paths Paths, args []string) error {
 		fmt.Printf("created: %s\n", manifest.CreatedAt.Format(time.RFC3339))
 		fmt.Printf("entries: %d\n", len(manifest.Entries))
 		return nil
+	case "scheduled-run":
+		return runScheduledProductionBackup(paths, time.Now())
 	default:
 		return fmt.Errorf("unsupported backup action %q", opts.Action)
 	}
+}
+
+func runScheduledProductionBackup(paths Paths, now time.Time) error {
+	rt, err := loadRuntimeConfig(paths)
+	if err != nil {
+		return err
+	}
+	location, err := time.LoadLocation(rt.Timezone)
+	if err != nil {
+		return fmt.Errorf("load backup timezone %q: %w", rt.Timezone, err)
+	}
+	now = now.In(location)
+	dir := filepath.Join(rt.Storage.Root, "data", "system-backup")
+	state, err := systembackup.LoadState(dir)
+	if err != nil {
+		return err
+	}
+	state.AgentLastSeenAt = now.UTC().Format(time.RFC3339)
+	if err := systembackup.SaveState(dir, state); err != nil {
+		return err
+	}
+	cfg, err := systembackup.LoadConfig(dir, rt.Secrets.JWTSecret)
+	if err != nil {
+		return err
+	}
+	due, trigger := systembackup.Due(cfg, state, now)
+	if !due {
+		return nil
+	}
+
+	lockPath := filepath.Join(dir, "agent.lock")
+	if info, statErr := os.Stat(lockPath); statErr == nil && now.Sub(info.ModTime()) > 12*time.Hour {
+		_ = os.Remove(lockPath)
+	}
+	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if os.IsExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("acquire backup agent lock: %w", err)
+	}
+	_ = lock.Close()
+	defer os.Remove(lockPath)
+
+	if trigger == "manual" {
+		cfg.LastRunNowProcessedAt = cfg.RunNowRequestedAt
+		if err := systembackup.SaveConfig(dir, rt.Secrets.JWTSecret, cfg); err != nil {
+			return err
+		}
+	}
+	record := systembackup.Record{ID: now.UTC().Format("20060102T150405.000000000Z"), TriggeredBy: trigger, Status: "running", StartedAt: now.UTC().Format(time.RFC3339)}
+	state.Running = true
+	state.Records = append([]systembackup.Record{record}, state.Records...)
+	if err := systembackup.SaveState(dir, state); err != nil {
+		return err
+	}
+
+	finish := func(runErr error) error {
+		latest, loadErr := systembackup.LoadState(dir)
+		if loadErr != nil {
+			return loadErr
+		}
+		latest.Running = false
+		latest.AgentLastSeenAt = time.Now().UTC().Format(time.RFC3339)
+		for i := range latest.Records {
+			if latest.Records[i].ID != record.ID {
+				continue
+			}
+			latest.Records[i].FinishedAt = time.Now().UTC().Format(time.RFC3339)
+			if runErr != nil {
+				latest.Records[i].Status = "failed"
+				latest.Records[i].ErrorMessage = runErr.Error()
+			} else {
+				latest.Records[i].Status = "succeeded"
+			}
+			break
+		}
+		if saveErr := systembackup.SaveState(dir, latest); saveErr != nil {
+			return saveErr
+		}
+		return runErr
+	}
+
+	archivePath, err := resolveBackupOutputPath(paths, "", now)
+	if err != nil {
+		return finish(err)
+	}
+	if err := createProductionBackup(paths, backupOptions{Action: "create", OutputPath: archivePath}); err != nil {
+		return finish(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+	defer cancel()
+	objectKey, etag, size, checksum, err := systembackup.Upload(ctx, cfg, archivePath)
+	if err != nil {
+		return finish(err)
+	}
+	latest, err := systembackup.LoadState(dir)
+	if err != nil {
+		return finish(err)
+	}
+	for i := range latest.Records {
+		if latest.Records[i].ID == record.ID {
+			latest.Records[i].ArchiveName = filepath.Base(archivePath)
+			latest.Records[i].SizeBytes = size
+			latest.Records[i].SHA256 = checksum
+			latest.Records[i].Bucket = cfg.Bucket
+			latest.Records[i].ObjectKey = objectKey
+			latest.Records[i].ETag = etag
+			break
+		}
+	}
+	if err := systembackup.SaveState(dir, latest); err != nil {
+		return finish(err)
+	}
+	if err := systembackup.PruneLocal(filepath.Dir(archivePath), cfg.KeepLocal); err != nil {
+		return finish(fmt.Errorf("backup uploaded but local cleanup failed: %w", err))
+	}
+	if err := systembackup.PruneRemote(ctx, cfg, time.Now()); err != nil {
+		return finish(fmt.Errorf("backup uploaded but remote cleanup failed: %w", err))
+	}
+	return finish(nil)
 }
 
 func createProductionBackup(paths Paths, opts backupOptions) error {

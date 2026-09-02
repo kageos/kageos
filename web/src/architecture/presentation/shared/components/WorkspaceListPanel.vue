@@ -56,38 +56,45 @@
 
       <div class="current-workspace-actions">
         <el-tooltip
-          :disabled="canConfigureWorkspace(currentApp)"
-          :content="t('access.requiresPermission', { permission: 'Admin' })"
+          :content="workspaceActionTooltip(currentApp, 'admin', t('workspace.editWorkspaceTooltip'))"
           placement="bottom"
+          :show-after="180"
         >
-          <span>
-            <el-button
-              plain
-              :icon="Setting"
+          <span class="current-workspace-action-wrap">
+            <button
+              type="button"
+              class="current-workspace-action current-workspace-action--settings"
               :disabled="!canConfigureWorkspace(currentApp)"
+              :aria-label="t('workspace.editWorkspace')"
               data-testid="workspace-current-settings"
               @click.stop="handleEditWorkspace(currentApp)"
             >
-              {{ t('workspace.editWorkspace') }}
-            </el-button>
+              <span class="current-workspace-action-icon">
+                <el-icon><Setting /></el-icon>
+              </span>
+              <span class="current-workspace-action-label">{{ t('workspace.editWorkspace') }}</span>
+            </button>
           </span>
         </el-tooltip>
         <el-tooltip
-          :disabled="canConfigureWorkspace(currentApp)"
-          :content="t('access.requiresPermission', { permission: 'Admin' })"
+          :content="workspaceActionTooltip(currentApp, 'admin', t('workspace.updateWorkspaceTooltip'))"
           placement="bottom"
+          :show-after="180"
         >
-          <span>
-            <el-button
-              type="primary"
-              plain
-              :icon="RefreshRight"
+          <span class="current-workspace-action-wrap">
+            <button
+              type="button"
+              class="current-workspace-action current-workspace-action--update"
               :disabled="!canConfigureWorkspace(currentApp)"
+              :aria-label="t('workspace.updateCurrentWorkspace')"
               data-testid="workspace-current-update"
               @click.stop="handleUpdateCurrentWorkspace"
             >
-              {{ t('workspace.updateCurrentWorkspace') }}
-            </el-button>
+              <span class="current-workspace-action-icon">
+                <el-icon><RefreshRight /></el-icon>
+              </span>
+              <span class="current-workspace-action-label">{{ t('workspace.updateCurrentWorkspace') }}</span>
+            </button>
           </span>
         </el-tooltip>
       </div>
@@ -224,16 +231,16 @@
                 <el-tag v-else type="info" size="small">{{ t('workspace.private') }}</el-tag>
                 <div class="card-actions">
                   <el-tooltip
-                    :disabled="canConfigureWorkspace(app)"
-                    :content="workspaceActionTitle(app, 'admin', t('workspace.editWorkspace'))"
+                    :content="workspaceActionTooltip(app, 'admin', t('workspace.editWorkspaceTooltip'))"
                     placement="top"
+                    :show-after="180"
                   >
                     <span>
                       <el-button
                         link
                         size="small"
                         :disabled="!canConfigureWorkspace(app)"
-                        :title="workspaceActionTitle(app, 'admin', t('workspace.editWorkspace'))"
+                        :aria-label="t('workspace.editWorkspace')"
                         :data-testid="`workspace-card-settings-${app.id}`"
                         @click.stop="handleEditWorkspace(app)"
                       >
@@ -242,16 +249,16 @@
                     </span>
                   </el-tooltip>
                   <el-tooltip
-                    :disabled="canConfigureWorkspace(app)"
-                    :content="workspaceActionTitle(app, 'admin', t('workspace.recompile'))"
+                    :content="workspaceActionTooltip(app, 'admin', t('workspace.updateWorkspaceTooltip'))"
                     placement="top"
+                    :show-after="180"
                   >
                     <span>
                       <el-button
                         link
                         size="small"
                         :disabled="!canConfigureWorkspace(app)"
-                        :title="workspaceActionTitle(app, 'admin', t('workspace.recompile'))"
+                        :aria-label="t('workspace.recompile')"
                         :data-testid="`workspace-card-refresh-${app.id}`"
                         @click.stop="handleUpdateApp(app)"
                       >
@@ -445,29 +452,51 @@
       destroy-on-close
       data-testid="workspace-settings-dialog"
     >
-      <el-form label-position="top" @submit.prevent="saveWorkspaceSettings">
-        <el-form-item :label="t('workspace.createName')" required>
-          <el-input
-            v-model="workspaceSettingsForm.name"
-            :placeholder="t('workspace.renameWorkspacePlaceholder')"
-            maxlength="100"
-          />
-        </el-form-item>
+      <template #header>
+        <div class="workspace-settings-dialog-header">
+          <span class="workspace-settings-dialog-icon">
+            <el-icon><Setting /></el-icon>
+          </span>
+          <span class="workspace-settings-dialog-heading">
+            <strong>{{ t('workspace.editWorkspaceTitle') }}</strong>
+            <small>{{ t('workspace.editWorkspaceTooltip') }}</small>
+          </span>
+        </div>
+      </template>
 
-        <div class="workspace-setting-row">
-          <div class="workspace-setting-copy">
-            <div class="workspace-setting-label">{{ t('workspace.createPublicLabel') }}</div>
-            <div class="workspace-setting-tip">{{ t('workspace.editPublicTip') }}</div>
-          </div>
-          <el-switch v-model="workspaceSettingsForm.is_public" />
+      <el-form label-position="top" @submit.prevent="saveWorkspaceSettings">
+        <div class="workspace-settings-name-card">
+          <el-form-item :label="t('workspace.createName')" required>
+            <el-input
+              v-model="workspaceSettingsForm.name"
+              :placeholder="t('workspace.renameWorkspacePlaceholder')"
+              maxlength="100"
+            />
+          </el-form-item>
         </div>
 
-        <div class="workspace-setting-row">
-          <div class="workspace-setting-copy">
-            <div class="workspace-setting-label">{{ t('workspace.hideUnauthorizedNodes') }}</div>
-            <div class="workspace-setting-tip">{{ t('workspace.editHideUnauthorizedNodesTip') }}</div>
+        <div class="workspace-settings-option-list">
+          <div class="workspace-setting-row">
+            <span class="workspace-setting-row-icon workspace-setting-row-icon--public">
+              <el-icon><Unlock /></el-icon>
+            </span>
+            <div class="workspace-setting-copy">
+              <div class="workspace-setting-label">{{ t('workspace.createPublicLabel') }}</div>
+              <div class="workspace-setting-tip">{{ t('workspace.editPublicTip') }}</div>
+            </div>
+            <el-switch v-model="workspaceSettingsForm.is_public" />
           </div>
-          <el-switch v-model="workspaceSettingsForm.hide_unauthorized_nodes" />
+
+          <div class="workspace-setting-row">
+            <span class="workspace-setting-row-icon">
+              <el-icon><Lock /></el-icon>
+            </span>
+            <div class="workspace-setting-copy">
+              <div class="workspace-setting-label">{{ t('workspace.hideUnauthorizedNodes') }}</div>
+              <div class="workspace-setting-tip">{{ t('workspace.editHideUnauthorizedNodesTip') }}</div>
+            </div>
+            <el-switch v-model="workspaceSettingsForm.hide_unauthorized_nodes" />
+          </div>
         </div>
       </el-form>
 
@@ -744,6 +773,10 @@ function workspaceActionTitle(app: App, action: 'admin' | 'delete', fallback: st
   return t('access.requiresPermission', { permission })
 }
 
+function workspaceActionTooltip(app: App, action: 'admin' | 'delete', description: string): string {
+  return workspaceActionTitle(app, action, description)
+}
+
 const handleEditWorkspace = (app: App) => {
   if (!canConfigureWorkspace(app)) return
   workspaceSettingsTarget.value = app
@@ -983,7 +1016,76 @@ onBeforeUnmount(() => {
   z-index: 1;
   display: flex;
   justify-content: flex-end;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.current-workspace-action-wrap {
+  display: inline-flex;
+}
+
+.current-workspace-action {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--workspace-color, var(--el-color-primary)) 28%, var(--app-auth-input-border));
+  border-radius: 10px;
+  color: var(--el-text-color-primary);
+  background: var(--app-auth-input-bg);
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.08);
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: color-mix(in srgb, var(--workspace-color, var(--el-color-primary)) 48%, var(--app-auth-input-border));
+    background: color-mix(in srgb, var(--workspace-color, var(--el-color-primary)) 9%, var(--app-auth-input-bg));
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--workspace-color, var(--el-color-primary)) 14%, transparent);
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.current-workspace-action--update {
+  border-color: var(--el-color-primary);
+  color: #fff;
+  background: var(--el-color-primary);
+  box-shadow: 0 7px 16px rgba(var(--el-color-primary-rgb), 0.24);
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: color-mix(in srgb, var(--el-color-primary) 86%, #fff);
+    color: #fff;
+    background: color-mix(in srgb, var(--el-color-primary) 86%, #fff);
+    box-shadow: 0 9px 20px rgba(var(--el-color-primary-rgb), 0.32);
+  }
+}
+
+.current-workspace-action-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--workspace-color, var(--el-color-primary));
+  font-size: 15px;
+}
+
+.current-workspace-action--update .current-workspace-action-icon {
+  color: inherit;
+}
+
+.current-workspace-action-label {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .current-workspace-meta-grid {
@@ -1364,16 +1466,114 @@ onBeforeUnmount(() => {
   box-shadow: var(--app-auth-primary-shadow-hover);
 }
 
+.workspace-settings-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 32px;
+}
+
+.workspace-settings-dialog-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--el-color-primary);
+  background: rgba(var(--el-color-primary-rgb), 0.12);
+  font-size: 18px;
+}
+
+.workspace-settings-dialog-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+
+  strong {
+    color: var(--el-text-color-primary);
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  small {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
+
+.workspace-settings-name-card {
+  margin-bottom: 14px;
+  padding: 14px 16px 4px;
+  border: 1px solid var(--app-auth-input-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--app-auth-input-bg) 94%, transparent);
+}
+
+.workspace-settings-name-card :deep(.el-form-item__label) {
+  color: var(--el-text-color-primary);
+  font-weight: 650;
+}
+
+.workspace-settings-name-card :deep(.el-input__wrapper) {
+  background: var(--app-shell-panel-bg);
+  border: 1px solid var(--app-auth-input-border);
+  box-shadow: none;
+}
+
+.workspace-settings-name-card :deep(.el-input__wrapper:hover) {
+  border-color: rgba(var(--el-color-primary-rgb), 0.42);
+}
+
+.workspace-settings-name-card :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--el-color-primary);
+  box-shadow: var(--app-auth-input-shadow-focus);
+}
+
+.workspace-settings-name-card :deep(.el-input__inner) {
+  color: var(--el-text-color-primary);
+}
+
+.workspace-settings-option-list {
+  overflow: hidden;
+  border: 1px solid var(--app-auth-input-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--app-auth-input-bg) 94%, transparent);
+}
+
 .workspace-setting-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 16px 0;
-  border-top: 1px solid var(--el-border-color-lighter);
+  gap: 12px;
+  padding: 15px 16px;
+
+  & + & {
+    border-top: 1px solid var(--app-auth-input-border);
+  }
+}
+
+.workspace-setting-row-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  color: var(--el-color-primary);
+  background: rgba(var(--el-color-primary-rgb), 0.11);
+}
+
+.workspace-setting-row-icon--public {
+  color: var(--el-color-success);
+  background: color-mix(in srgb, var(--el-color-success) 12%, transparent);
 }
 
 .workspace-setting-copy {
+  flex: 1;
   min-width: 0;
 }
 
@@ -1423,6 +1623,16 @@ onBeforeUnmount(() => {
 
   .current-workspace-meta-grid {
     grid-template-columns: 1fr;
+  }
+
+  .current-workspace-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .current-workspace-action-wrap,
+  .current-workspace-action {
+    width: 100%;
   }
 }
 </style>

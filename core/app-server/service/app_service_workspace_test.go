@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/repository"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/access"
+	"github.com/kageos/kageos/pkg/contextx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -18,7 +20,7 @@ func TestUpdateWorkspaceRenamesAppAndRootTogether(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&model.App{}, &model.ServiceTree{}); err != nil {
+	if err := db.AutoMigrate(&model.App{}, &model.ServiceTree{}, &model.OperateLog{}); err != nil {
 		t.Fatal(err)
 	}
 	repo := repository.NewAppRepository(db)
@@ -41,8 +43,10 @@ func TestUpdateWorkspaceRenamesAppAndRootTogether(t *testing.T) {
 		AppRuntimeClient:      &fakeAppRuntimeClient{},
 		AppRepository:         repo,
 		ServiceTreeRepository: repository.NewServiceTreeRepository(db),
+		OperateLogRepository:  repository.NewOperateLogRepository(db),
 	})
-	resp, err := service.UpdateWorkspace(context.Background(), &dto.UpdateWorkspaceReq{
+	ctx := contextx.WithRequestUser(context.Background(), "bob")
+	resp, err := service.UpdateWorkspace(ctx, &dto.UpdateWorkspaceReq{
 		ResourcePath:          "/alice/home",
 		Name:                  &name,
 		IsPublic:              &isPublic,
@@ -63,6 +67,21 @@ func TestUpdateWorkspaceRenamesAppAndRootTogether(t *testing.T) {
 	_ = db.First(&updatedRoot, root.ID).Error
 	if updatedApp.Name != name || updatedApp.Code != "home" || updatedApp.IsPublic || !updatedApp.HideUnauthorizedNodes || updatedRoot.Name != name || updatedRoot.FullCodePath != "/alice/home" {
 		t.Fatalf("rename changed identity or missed root: app=%#v root=%#v", updatedApp, updatedRoot)
+	}
+
+	log := waitOperateLog(t, db, workspaceSettingsUpdatedAction)
+	if log.ActorUser != "bob" || log.Status != "success" || log.ResourcePath != "/alice/home" {
+		t.Fatalf("unexpected workspace settings log: %#v", log)
+	}
+	var oldValues, newValues workspaceOperateLogValues
+	if err := json.Unmarshal(log.OldValuesJSON, &oldValues); err != nil {
+		t.Fatalf("unmarshal old settings: %v", err)
+	}
+	if err := json.Unmarshal(log.NewValuesJSON, &newValues); err != nil {
+		t.Fatalf("unmarshal new settings: %v", err)
+	}
+	if oldValues.Name != "我的空间" || !oldValues.IsPublic || newValues.Name != name || newValues.IsPublic || !newValues.HideUnauthorizedNodes {
+		t.Fatalf("unexpected workspace settings change: old=%#v new=%#v", oldValues, newValues)
 	}
 }
 

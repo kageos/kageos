@@ -91,10 +91,8 @@ func (s *WorkspaceChatService) prepareLLMRequest(ctx context.Context, llmConfigI
 	}
 	if maxTokens, ok := extraConfig["max_tokens"].(float64); ok && maxTokens > 0 {
 		chatReq.MaxTokens = int(maxTokens)
-	} else if llmConfig.MaxTokens > 0 {
-		chatReq.MaxTokens = llmConfig.MaxTokens
 	} else {
-		chatReq.MaxTokens = 4096
+		chatReq.MaxTokens, _ = ResolveLLMMaxOutputTokens(llmConfig)
 	}
 	if temperature, ok := extraConfig["temperature"].(float64); ok {
 		chatReq.Temperature = temperature
@@ -126,10 +124,8 @@ func workspaceConfiguredMaxTokens(cfg *model.LLMConfig) int {
 			}
 		}
 	}
-	if cfg.MaxTokens > 0 {
-		return cfg.MaxTokens
-	}
-	return workspaceContextDefaultOutputReserve
+	value, _ := ResolveLLMMaxOutputTokens(cfg)
+	return value
 }
 
 func (s *WorkspaceChatService) resolveWorkspaceLLMConfig(ctx context.Context, llmConfigID int64) (*model.LLMConfig, error) {

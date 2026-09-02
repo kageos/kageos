@@ -211,7 +211,7 @@ import { ElMessageBox } from 'element-plus'
 import { useAuthStore, useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 const WorkspaceInbox = defineAsyncComponent(() => import('./WorkspaceInbox.vue'))
 import { featureFlags } from '@/architecture/shared/config/features'
-import { getKageosDocsURL, getKageosHubURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
+import { getKageosHubURL, getKageosWebsiteURL, openExternalURL } from '@/architecture/shared/config/externalLinks'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
 import UserAvatar from '@/architecture/presentation/shared/components/UserAvatar.vue'
 
@@ -267,7 +267,7 @@ const handleUserCommand = (command: string) => {
       router.push({ path: '/system/settings', query: { tab: 'connectors' } })
       break
     case 'help-docs':
-      openExternalURL(getKageosDocsURL('docs', localeStore.currentLocale))
+      openExternalURL(getKageosWebsiteURL())
       break
     default:
       break

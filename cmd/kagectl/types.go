@@ -250,6 +250,7 @@ type RuntimeConfig struct {
 	SDKGatewayURL           string
 	MinIOEndpoint           string
 	SDKMinIOEndpoint        string
+	MinIOConsoleURL         string
 	TLSCertsHostDir         string
 	IncludeMySQL            bool
 	IncludeNATS             bool

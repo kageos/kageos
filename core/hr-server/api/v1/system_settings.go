@@ -38,6 +38,97 @@ func (s *SystemSettings) GetResources(c *gin.Context) {
 	response.OkWithData(c, overview)
 }
 
+func (s *SystemSettings) GetResourceSummary(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	result, err := s.resourceService.Summary()
+	if err != nil {
+		response.FailWithMessage(c, "获取系统资源概览失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+func (s *SystemSettings) GetResourceTrends(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	hours := queryPositiveInt(c, "hours", 24*7)
+	result, err := s.resourceService.Trends(hours)
+	if err != nil {
+		response.FailWithMessage(c, "获取系统资源趋势失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+func (s *SystemSettings) GetResourceStorage(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	result, err := s.resourceService.Storage()
+	if err != nil {
+		response.FailWithMessage(c, "获取系统存储状态失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+func (s *SystemSettings) GetResourceDatabases(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	result, err := s.resourceService.Databases(
+		queryPositiveInt(c, "page", 1),
+		queryPositiveInt(c, "page_size", 20),
+		c.Query("scope"),
+		c.Query("keyword"),
+		c.DefaultQuery("include_history", "true") != "false",
+	)
+	if err != nil {
+		response.FailWithMessage(c, "获取数据库资产失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+func (s *SystemSettings) GetResourceDiagnostics(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	result, err := s.resourceService.Diagnostics()
+	if err != nil {
+		response.FailWithMessage(c, "获取资源采集诊断失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+func (s *SystemSettings) GetResourceUsage(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	result, err := s.resourceService.Usage(
+		queryPositiveInt(c, "days", 7),
+		queryPositiveInt(c, "page", 1),
+		queryPositiveInt(c, "page_size", 10),
+	)
+	if err != nil {
+		response.FailWithMessage(c, "获取调用量概览失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, result)
+}
+
+func queryPositiveInt(c *gin.Context, key string, fallback int) int {
+	value, err := strconv.Atoi(c.Query(key))
+	if err != nil || value < 1 {
+		return fallback
+	}
+	return value
+}
+
 func (s *SystemSettings) Get(c *gin.Context) {
 	if !requireSystemUser(c) {
 		return
@@ -81,6 +172,63 @@ func (s *SystemSettings) TestEmail(c *gin.Context) {
 		return
 	}
 	response.OkWithMessage(c, "测试邮件已发送")
+}
+
+func (s *SystemSettings) GetBackup(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	overview, err := s.settingsService.GetBackupOverview()
+	if err != nil {
+		response.FailWithMessage(c, "获取数据备份配置失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, overview)
+}
+
+func (s *SystemSettings) UpdateBackup(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	var req dto.SystemBackupConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	overview, err := s.settingsService.UpdateBackupConfig(req)
+	if err != nil {
+		response.FailWithMessage(c, "保存数据备份配置失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, overview)
+}
+
+func (s *SystemSettings) TestBackup(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	var req dto.SystemBackupConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.FailWithMessage(c, "请求参数错误: "+err.Error())
+		return
+	}
+	if err := s.settingsService.TestBackupS3(c.Request.Context(), req); err != nil {
+		response.FailWithMessage(c, "S3 连接测试失败: "+err.Error())
+		return
+	}
+	response.OkWithMessage(c, "S3 连接正常")
+}
+
+func (s *SystemSettings) RunBackupNow(c *gin.Context) {
+	if !requireSystemUser(c) {
+		return
+	}
+	overview, err := s.settingsService.RequestBackupRunNow()
+	if err != nil {
+		response.FailWithMessage(c, "创建备份请求失败: "+err.Error())
+		return
+	}
+	response.OkWithData(c, overview)
 }
 
 func (s *SystemSettings) GetTLS(c *gin.Context) {

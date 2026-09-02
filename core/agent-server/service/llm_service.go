@@ -116,7 +116,7 @@ type LLMService struct {
 
 const (
 	defaultLLMTimeout          = 300
-	defaultLLMMaxTokens        = 8196
+	defaultLLMMaxTokens        = 0
 	llmAPIKeySecretEnv         = "KAGEOS_LLM_API_KEY_SECRET"
 	llmAPIKeyVaultPurpose      = "kageos-agent-llm-api-key-v1"
 	llmAPIKeyCipherPrefix      = "kgosecret:llm-api-key:v1:"
@@ -225,10 +225,11 @@ func (s *LLMService) CreateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = defaultLLMTimeout
 	}
-	if cfg.MaxTokens <= 0 {
+	if cfg.MaxTokens < 0 {
 		cfg.MaxTokens = defaultLLMMaxTokens
 	}
 	normalizeLLMContextWindow(cfg)
+	normalizeLLMOutputTokens(cfg)
 
 	// 规范化 extra_config 字段
 	normalizedExtraConfig, err := normalizeExtraConfig(func() string {
@@ -304,10 +305,11 @@ func (s *LLMService) UpdateLLMConfig(ctx context.Context, cfg *model.LLMConfig) 
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = defaultLLMTimeout
 	}
-	if cfg.MaxTokens <= 0 {
+	if cfg.MaxTokens < 0 {
 		cfg.MaxTokens = defaultLLMMaxTokens
 	}
 	normalizeLLMContextWindow(cfg)
+	normalizeLLMOutputTokens(cfg)
 
 	// 规范化 extra_config 字段
 	normalizedExtraConfig, err := normalizeExtraConfig(func() string {

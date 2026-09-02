@@ -11,20 +11,56 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
+      context_window:
+        example: 0
+        type: integer
+      detected_context_window:
+        example: 0
+        type: integer
+      detected_context_window_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_token_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_tokens:
+        example: 0
+        type: integer
+      endpoint_path:
+        example: /v1/chat/completions
+        type: string
       extra_config:
+        example: '{}'
+        type: string
+      headers:
         example: '{}'
         type: string
       is_default:
         example: false
         type: boolean
       max_tokens:
-        example: 8196
+        example: 0
         type: integer
       model:
         example: gpt-4
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -55,11 +91,47 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
       code:
         example: default
         type: string
+      context_window:
+        example: 0
+        type: integer
+      context_window_source:
+        example: detected
+        type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      detected_context_window:
+        example: 128000
+        type: integer
+      detected_context_window_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_token_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_tokens:
+        example: 128000
+        type: integer
+      effective_context_window:
+        example: 128000
+        type: integer
+      effective_max_output_tokens:
+        example: 128000
+        type: integer
+      endpoint_path:
+        example: /v1/chat/completions
         type: string
       extra_config:
         example: '{}'
@@ -67,6 +139,9 @@ definitions:
       has_api_key:
         example: true
         type: boolean
+      headers:
+        example: '{}'
+        type: string
       id:
         example: 1
         type: integer
@@ -77,14 +152,23 @@ definitions:
       is_default:
         example: true
         type: boolean
+      max_output_token_source:
+        example: detected
+        type: string
       max_tokens:
-        example: 8196
+        example: 0
         type: integer
       model:
         example: gpt-4
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -109,11 +193,47 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
       code:
         example: default
         type: string
+      context_window:
+        example: 0
+        type: integer
+      context_window_source:
+        example: detected
+        type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      detected_context_window:
+        example: 128000
+        type: integer
+      detected_context_window_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_token_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_tokens:
+        example: 128000
+        type: integer
+      effective_context_window:
+        example: 128000
+        type: integer
+      effective_max_output_tokens:
+        example: 128000
+        type: integer
+      endpoint_path:
+        example: /v1/chat/completions
         type: string
       extra_config:
         example: '{}'
@@ -121,6 +241,9 @@ definitions:
       has_api_key:
         example: true
         type: boolean
+      headers:
+        example: '{}'
+        type: string
       id:
         example: 1
         type: integer
@@ -131,14 +254,23 @@ definitions:
       is_default:
         example: true
         type: boolean
+      max_output_token_source:
+        example: detected
+        type: string
       max_tokens:
-        example: 8196
+        example: 0
         type: integer
       model:
         example: gpt-4
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -163,11 +295,47 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
       code:
         example: default
         type: string
+      context_window:
+        example: 0
+        type: integer
+      context_window_source:
+        example: detected
+        type: string
       created_at:
         example: "2024-01-01T00:00:00Z"
+        type: string
+      detected_context_window:
+        example: 128000
+        type: integer
+      detected_context_window_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_token_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_tokens:
+        example: 128000
+        type: integer
+      effective_context_window:
+        example: 128000
+        type: integer
+      effective_max_output_tokens:
+        example: 128000
+        type: integer
+      endpoint_path:
+        example: /v1/chat/completions
         type: string
       extra_config:
         example: '{}'
@@ -175,6 +343,9 @@ definitions:
       has_api_key:
         example: true
         type: boolean
+      headers:
+        example: '{}'
+        type: string
       id:
         example: 1
         type: integer
@@ -185,14 +356,23 @@ definitions:
       is_default:
         example: true
         type: boolean
+      max_output_token_source:
+        example: detected
+        type: string
       max_tokens:
-        example: 8196
+        example: 0
         type: integer
       model:
         example: gpt-4
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -215,6 +395,100 @@ definitions:
         example: 100
         type: integer
     type: object
+  dto.LLMProbeAttempt:
+    properties:
+      api_base:
+        type: string
+      error:
+        type: string
+      ok:
+        type: boolean
+      protocol:
+        type: string
+      provider:
+        type: string
+    type: object
+  dto.LLMProbeReq:
+    properties:
+      api_base:
+        example: https://api.openai.com/v1
+        type: string
+      api_key:
+        example: sk-xxx
+        type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      endpoint_path:
+        example: /v1/responses
+        type: string
+      extra_config:
+        example: '{}'
+        type: string
+      headers:
+        example: '{}'
+        type: string
+      id:
+        example: 1
+        type: integer
+      max_tokens:
+        example: 64
+        type: integer
+      model:
+        example: gpt-4.1-mini
+        type: string
+      protocol:
+        example: openai_responses
+        type: string
+      provider:
+        example: openai
+        type: string
+      timeout:
+        example: 30
+        type: integer
+    type: object
+  dto.LLMProbeResp:
+    properties:
+      api_base:
+        type: string
+      api_version:
+        type: string
+      attempts:
+        items:
+          $ref: '#/definitions/dto.LLMProbeAttempt'
+        type: array
+      auth_scheme:
+        type: string
+      capabilities:
+        additionalProperties:
+          type: boolean
+        type: object
+      context_window:
+        type: integer
+      context_window_source:
+        type: string
+      endpoint_path:
+        type: string
+      error:
+        type: string
+      max_output_token_source:
+        type: string
+      max_output_tokens:
+        type: integer
+      message:
+        type: string
+      model:
+        type: string
+      ok:
+        type: boolean
+      protocol:
+        type: string
+      provider:
+        type: string
+    type: object
   dto.LLMUpdateReq:
     properties:
       admin:
@@ -227,7 +501,37 @@ definitions:
       api_key:
         example: sk-xxx
         type: string
+      api_version:
+        example: "2023-06-01"
+        type: string
+      auth_scheme:
+        example: bearer
+        type: string
+      capabilities:
+        example: '{}'
+        type: string
+      context_window:
+        example: 0
+        type: integer
+      detected_context_window:
+        example: 0
+        type: integer
+      detected_context_window_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_token_source:
+        example: provider_metadata
+        type: string
+      detected_max_output_tokens:
+        example: 0
+        type: integer
+      endpoint_path:
+        example: /v1/chat/completions
+        type: string
       extra_config:
+        example: '{}'
+        type: string
+      headers:
         example: '{}'
         type: string
       id:
@@ -237,13 +541,19 @@ definitions:
         example: false
         type: boolean
       max_tokens:
-        example: 8196
+        example: 0
         type: integer
       model:
         example: gpt-4
         type: string
       name:
         example: OpenAI GPT-4
+        type: string
+      protocol:
+        example: openai_chat_completions
+        type: string
+      provider:
+        example: openai
         type: string
       timeout:
         example: 300
@@ -403,6 +713,32 @@ paths:
           schema:
             type: string
       summary: 获取LLM配置列表
+      tags:
+      - LLM管理
+  /agent/api/v1/llm/probe:
+    post:
+      consumes:
+      - application/json
+      description: 根据当前表单内容发起最小请求，自动识别 OpenAI Chat、OpenAI Responses 或 Anthropic Messages
+      parameters:
+      - description: LLM 检测请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LLMProbeReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 检测结果
+          schema:
+            $ref: '#/definitions/dto.LLMProbeResp'
+        "400":
+          description: 请求参数错误
+          schema:
+            type: string
+      summary: 检测 LLM 协议与密钥可用性
       tags:
       - LLM管理
   /agent/api/v1/llm/set_default:

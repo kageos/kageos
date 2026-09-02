@@ -86,6 +86,7 @@ func renderDevConfig(paths Paths, regenSecrets bool) error {
 	rt.SDKGatewayURL = "http://host.containers.internal:9090"
 	rt.SDKNATSURL = devSDKNATSURL(rt.NATSURL)
 	rt.SDKMinIOEndpoint = devSDKMinIOEndpoint(rt.MinIOEndpoint)
+	rt.MinIOConsoleURL = "http://127.0.0.1:9001"
 	rt.AppRuntimeBasePath = filepath.Join(paths.RepoRoot, ".kageos", "dev", "namespace")
 
 	configDir := filepath.Join(paths.RepoRoot, defaultDevConfig)

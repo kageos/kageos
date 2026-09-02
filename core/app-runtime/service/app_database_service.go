@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -58,6 +59,11 @@ type appDatabasePasswords struct {
 	migration string
 }
 
+type databaseCapacityUsage struct {
+	Name      string `gorm:"column:name"`
+	UsedBytes uint64 `gorm:"column:used_bytes"`
+}
+
 func NewAppDatabaseService(db *gorm.DB, cfg appconfig.AppDatabaseConfig) (*AppDatabaseService, error) {
 	cfg = cfg.WithDefaults()
 	s := &AppDatabaseService{
@@ -91,12 +97,8 @@ func (s *AppDatabaseService) CapacityStats(ctx context.Context) dto.SystemDataba
 	if !s.IsEnabled() {
 		return stats
 	}
-	var names []string
-	if err := s.db.WithContext(ctx).Model(&model.AppDatabase{}).Where("status = ?", appDBStatusActive).Pluck("database_name", &names).Error; err != nil {
-		return stats
-	}
-	if len(names) == 0 {
-		stats.Available = true
+	var records []model.AppDatabase
+	if err := s.db.WithContext(ctx).Order("database_name ASC").Find(&records).Error; err != nil {
 		return stats
 	}
 	adminDB, err := s.openAdminDB()
@@ -104,17 +106,61 @@ func (s *AppDatabaseService) CapacityStats(ctx context.Context) dto.SystemDataba
 		return stats
 	}
 	defer closeGORM(adminDB)
-	if err := adminDB.WithContext(ctx).Raw("SELECT table_schema AS name, COALESCE(SUM(data_length + index_length), 0) AS used_bytes FROM information_schema.tables WHERE table_schema IN ? GROUP BY table_schema ORDER BY used_bytes DESC", names).Scan(&stats.Databases).Error; err != nil {
+	var physical []databaseCapacityUsage
+	query := `SELECT s.schema_name AS name, COALESCE(SUM(t.data_length + t.index_length), 0) AS used_bytes
+		FROM information_schema.schemata s
+		LEFT JOIN information_schema.tables t ON t.table_schema = s.schema_name
+		WHERE LEFT(s.schema_name, CHAR_LENGTH(?)) = ?
+		GROUP BY s.schema_name`
+	if err := adminDB.WithContext(ctx).Raw(query, s.cfg.DatabasePrefix, s.cfg.DatabasePrefix).Scan(&physical).Error; err != nil {
 		return stats
 	}
+	stats.Databases = buildWorkspaceDatabaseInventory(records, physical, s.cfg.DatabasePrefix)
 	stats.Available = true
 	for _, database := range stats.Databases {
 		stats.TotalBytes += database.UsedBytes
 	}
-	if len(stats.Databases) > 10 {
-		stats.Databases = stats.Databases[:10]
-	}
 	return stats
+}
+
+func buildWorkspaceDatabaseInventory(records []model.AppDatabase, physical []databaseCapacityUsage, prefix string) []dto.SystemDatabaseSize {
+	byName := make(map[string]model.AppDatabase, len(records))
+	physicalByName := make(map[string]uint64, len(physical))
+	for _, record := range records {
+		byName[record.DatabaseName] = record
+	}
+	for _, database := range physical {
+		if strings.HasPrefix(database.Name, prefix) {
+			physicalByName[database.Name] = database.UsedBytes
+		}
+	}
+
+	result := make([]dto.SystemDatabaseSize, 0, len(byName)+len(physicalByName))
+	for name, record := range byName {
+		usedBytes, exists := physicalByName[name]
+		status := record.Status
+		if !exists {
+			status = "missing"
+		}
+		result = append(result, dto.SystemDatabaseSize{
+			Name: name, Kind: "workspace", Owner: "/" + record.User + "/" + record.App,
+			Directory: record.FullCodePath, Purpose: "workspace_business_data", Status: status, UsedBytes: usedBytes,
+		})
+		delete(physicalByName, name)
+	}
+	for name, usedBytes := range physicalByName {
+		result = append(result, dto.SystemDatabaseSize{
+			Name: name, Kind: "workspace", Owner: "app-runtime", Directory: "-",
+			Purpose: "orphaned_workspace_database", Status: "orphaned", UsedBytes: usedBytes,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].UsedBytes != result[j].UsedBytes {
+			return result[i].UsedBytes > result[j].UsedBytes
+		}
+		return result[i].Name < result[j].Name
+	})
+	return result
 }
 
 func (s *AppDatabaseService) IssueCapability(user, app, version, router string) (*dto.AppDBCapability, error) {

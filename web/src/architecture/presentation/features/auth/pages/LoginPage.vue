@@ -17,6 +17,7 @@ import {
 } from '@/architecture/presentation/context/api/auth'
 import LanguageSwitcher from '@/architecture/presentation/components/LanguageSwitcher.vue'
 import { BRAND_LOGO_192_URL } from '@/architecture/domain/utils/builtinUserAvatar'
+import { authProviderLogo } from '@/architecture/shared/assets/authProviderLogos'
 import LegalConsent from '@/architecture/presentation/features/legal/components/LegalConsent.vue'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 
@@ -107,22 +108,6 @@ const loadLoginAnnouncement = async () => {
   } catch {
     loginAnnouncement.value = null
   }
-}
-
-const providerMark = (provider: string) => {
-  const code = provider.toLowerCase()
-  if (code.includes('google')) return 'G'
-  if (code.includes('github')) return 'GH'
-  if (code.includes('wechat')) return '微'
-  return provider.slice(0, 2).toUpperCase()
-}
-
-const providerButtonClass = (provider: string) => {
-  const code = provider.toLowerCase()
-  if (code.includes('google')) return 'oauth-btn--google'
-  if (code.includes('github')) return 'oauth-btn--github'
-  if (code.includes('wechat')) return 'oauth-btn--wechat'
-  return 'oauth-btn--default'
 }
 
 const redirectAfter = () => typeof route.query.redirect === 'string' ? route.query.redirect : '/workspace'
@@ -396,10 +381,11 @@ onBeforeUnmount(clearWechatPolling)
                 v-for="method in loginMethods"
                 :key="method.provider"
                 class="oauth-btn"
-                :class="providerButtonClass(method.provider)"
                 @click="handleLoginMethod(method)"
               >
-                <span class="oauth-mark">{{ providerMark(method.provider) }}</span>
+                <span class="oauth-mark" aria-hidden="true">
+                  <img :src="authProviderLogo(method.provider)" alt="" />
+                </span>
                 <span class="oauth-label">{{ method.label }}</span>
               </el-button>
             </div>
@@ -1028,10 +1014,15 @@ onBeforeUnmount(clearWechatPolling)
   height: 26px;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
+  border-radius: 7px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.oauth-mark img {
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
 }
 
 .oauth-label {
@@ -1039,27 +1030,6 @@ onBeforeUnmount(clearWechatPolling)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.oauth-btn--google .oauth-mark {
-  background: #fff;
-  color: #1a73e8;
-  border: 1px solid rgba(26, 115, 232, 0.22);
-}
-
-.oauth-btn--github .oauth-mark {
-  background: #111827;
-  color: #fff;
-}
-
-.oauth-btn--wechat .oauth-mark {
-  background: #16a34a;
-  color: #fff;
-}
-
-.oauth-btn--default .oauth-mark {
-  background: var(--auth-accent-soft);
-  color: var(--auth-accent);
 }
 
 .wechat-login-panel {

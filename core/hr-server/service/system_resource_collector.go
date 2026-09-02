@@ -32,6 +32,8 @@ type systemResourceCollector interface {
 	CollectCapacity(context.Context) (dto.SystemResourceSnapshot, error)
 }
 
+const systemCapacitySchemaVersion = 2
+
 type commandOutputRunner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
 type localSystemResourceCollector struct {
@@ -104,7 +106,12 @@ func (c *localSystemResourceCollector) CollectRuntime() (dto.SystemResourceSnaps
 
 func (c *localSystemResourceCollector) CollectCapacity(ctx context.Context) (dto.SystemResourceSnapshot, error) {
 	environment, storageRoot := detectSystemEnvironment()
-	snapshot := dto.SystemResourceSnapshot{CollectedAt: c.now().UTC(), DiskMount: storageRoot, Environment: environment}
+	snapshot := dto.SystemResourceSnapshot{
+		CapacitySchemaVersion: systemCapacitySchemaVersion,
+		CollectedAt:           c.now().UTC(),
+		DiskMount:             storageRoot,
+		Environment:           environment,
+	}
 	primaryPool, err := collectStoragePool("primary", primaryPoolName(environment), storageRoot, true)
 	if err != nil {
 		return dto.SystemResourceSnapshot{}, fmt.Errorf("read storage filesystem %s: %w", storageRoot, err)
@@ -165,12 +172,18 @@ func counterRate(current, previous uint64, seconds float64) float64 {
 }
 
 func mergeCapacitySnapshot(target *dto.SystemResourceSnapshot, capacity dto.SystemResourceSnapshot) {
+	target.CapacitySchemaVersion = capacity.CapacitySchemaVersion
 	if target.DiskMount == "" {
 		target.DiskMount = capacity.DiskMount
 	}
 	target.Environment, target.StoragePools, target.Components = capacity.Environment, capacity.StoragePools, capacity.Components
 	target.DatabaseLogicalBytes, target.DatabaseSizeAvailable = capacity.DatabaseLogicalBytes, capacity.DatabaseSizeAvailable
+	target.DatabaseInventoryComplete = capacity.DatabaseInventoryComplete
+	target.Databases = capacity.Databases
 	target.LargestDatabases = capacity.LargestDatabases
+	if len(target.Databases) == 0 && len(target.LargestDatabases) > 0 {
+		target.Databases = target.LargestDatabases
+	}
 	for index := range target.StoragePools {
 		if target.StoragePools[index].Primary && target.DiskTotalBytes > 0 {
 			target.StoragePools[index].TotalBytes, target.StoragePools[index].UsedBytes = target.DiskTotalBytes, target.DiskUsedBytes
@@ -308,6 +321,7 @@ func collectLocalStorageComponents(ctx context.Context, root, poolKey string) []
 		{key: "workspaces", name: "Workspaces", dirs: []string{"namespace"}},
 		{key: "runtime_data", name: "Runtime data", dirs: []string{"data"}},
 		{key: "logs", name: "Logs", dirs: []string{"logs"}},
+		{key: "tls", name: "TLS certificates", dirs: []string{"tls"}},
 		{key: "container_storage", name: "Container images and layers", dirs: []string{"podman_storage", "containers"}},
 	}
 	components := make([]dto.SystemResourceComponent, 0, len(definitions))
@@ -329,17 +343,19 @@ func collectLocalStorageComponents(ctx context.Context, root, poolKey string) []
 }
 
 type containerEngineStorage struct {
-	available   bool
-	remote      bool
-	pool        dto.SystemStoragePool
-	volumeSizes map[string]uint64
-	imageBytes  uint64
+	available       bool
+	remote          bool
+	pool            dto.SystemStoragePool
+	volumeSizes     map[string]uint64
+	volumeLinks     map[string]int
+	imageBytes      uint64
+	buildCacheBytes uint64
 }
 
 func collectContainerEngineStorage(parent context.Context, engine string, run commandOutputRunner) containerEngineStorage {
 	ctx, cancel := context.WithTimeout(parent, 12*time.Second)
 	defer cancel()
-	result := containerEngineStorage{volumeSizes: map[string]uint64{}}
+	result := containerEngineStorage{volumeSizes: map[string]uint64{}, volumeLinks: map[string]int{}}
 	if engine == "podman" {
 		if output, err := run(ctx, engine, "info", "--format", "json"); err == nil {
 			var info struct {
@@ -363,14 +379,14 @@ func collectContainerEngineStorage(parent context.Context, engine string, run co
 	}
 	if output, err := run(ctx, engine, "system", "df", "-v"); err == nil {
 		result.available = true
-		result.volumeSizes = parseContainerVolumeSizes(string(output))
+		result.volumeSizes, result.volumeLinks = parseContainerVolumeUsage(string(output))
 	}
 	if output, err := run(ctx, engine, "system", "df", "--format", "{{json .}}"); err == nil {
 		result.available = true
-		result.imageBytes = parseContainerImageBytes(output)
+		result.imageBytes, result.buildCacheBytes = parseContainerDiskUsageBytes(output)
 	}
 	if result.available && result.pool.Key == "" {
-		used := result.imageBytes
+		used := result.imageBytes + result.buildCacheBytes
 		for _, size := range result.volumeSizes {
 			used += size
 		}
@@ -392,15 +408,33 @@ func overlayEngineComponents(components *[]dto.SystemResourceComponent, engine c
 				return
 			}
 		}
+		*components = append(*components, dto.SystemResourceComponent{Key: key, Name: name, PoolKey: engine.pool.Key, UsedBytes: size, Available: true})
 	}
-	if size, ok := firstVolumeSize(engine.volumeSizes, "kageos-dev-mysql3318-data", "kageos-infra-mysql-data"); ok {
+	classifiedVolumes := map[string]struct{}{}
+	if name, size, ok := preferredVolumeSize(engine.volumeSizes, engine.volumeLinks,
+		"kageos-dev-mysql3318-data", "kageos-infra-mysql-data", "ai-agent-os-infra-mysql-data"); ok {
 		setComponent("mysql", "MySQL", size)
+		classifiedVolumes[name] = struct{}{}
 	}
-	if size, ok := firstVolumeSize(engine.volumeSizes, "kageos-infra-minio-data"); ok {
-		setComponent("object_storage", "Object storage", size)
+	if name, size, ok := preferredVolumeSize(engine.volumeSizes, engine.volumeLinks,
+		"kageos-dev-minio-data", "kageos-infra-minio-data", "ai-agent-os-infra-minio-data"); ok {
+		setComponent("object_storage", "MinIO object data", size)
+		classifiedVolumes[name] = struct{}{}
 	}
 	if engine.imageBytes > 0 {
 		setComponent("container_storage", "Container images and layers", engine.imageBytes)
+	}
+	if engine.buildCacheBytes > 0 {
+		setComponent("build_cache", "Container build cache", engine.buildCacheBytes)
+	}
+	var otherVolumeBytes uint64
+	for name, size := range engine.volumeSizes {
+		if _, classified := classifiedVolumes[name]; !classified {
+			otherVolumeBytes += size
+		}
+	}
+	if otherVolumeBytes > 0 {
+		setComponent("container_volumes", "Other named volumes", otherVolumeBytes)
 	}
 }
 
@@ -428,7 +462,13 @@ func appendUnclassifiedComponents(snapshot *dto.SystemResourceSnapshot) {
 }
 
 func parseContainerVolumeSizes(output string) map[string]uint64 {
-	result := map[string]uint64{}
+	sizes, _ := parseContainerVolumeUsage(output)
+	return sizes
+}
+
+func parseContainerVolumeUsage(output string) (map[string]uint64, map[string]int) {
+	sizes := map[string]uint64{}
+	links := map[string]int{}
 	inVolumes := false
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
@@ -436,6 +476,9 @@ func parseContainerVolumeSizes(output string) map[string]uint64 {
 		if strings.HasPrefix(line, "Local Volumes space usage:") {
 			inVolumes = true
 			continue
+		}
+		if inVolumes && strings.HasSuffix(line, "usage:") {
+			break
 		}
 		if !inVolumes || line == "" || strings.HasPrefix(line, "VOLUME NAME") {
 			continue
@@ -445,24 +488,33 @@ func parseContainerVolumeSizes(output string) map[string]uint64 {
 			continue
 		}
 		if size, err := parseHumanBytes(fields[len(fields)-1]); err == nil {
-			result[fields[0]] = size
+			sizes[fields[0]] = size
+			if count, err := strconv.Atoi(fields[len(fields)-2]); err == nil {
+				links[fields[0]] = count
+			}
 		}
 	}
-	return result
+	return sizes, links
 }
 
-func parseContainerImageBytes(output []byte) uint64 {
-	var total uint64
+func parseContainerDiskUsageBytes(output []byte) (uint64, uint64) {
+	var imageBytes, buildCacheBytes uint64
 	for _, line := range strings.Split(string(output), "\n") {
 		var row struct {
 			Type    string `json:"Type"`
 			RawSize uint64 `json:"RawSize"`
 		}
-		if json.Unmarshal([]byte(line), &row) == nil && (row.Type == "Images" || row.Type == "Containers") {
-			total += row.RawSize
+		if json.Unmarshal([]byte(line), &row) != nil {
+			continue
+		}
+		switch strings.ToLower(strings.ReplaceAll(row.Type, " ", "")) {
+		case "images", "containers":
+			imageBytes += row.RawSize
+		case "buildcache":
+			buildCacheBytes += row.RawSize
 		}
 	}
-	return total
+	return imageBytes, buildCacheBytes
 }
 
 func parseHumanBytes(value string) (uint64, error) {
@@ -484,13 +536,22 @@ func parseHumanBytes(value string) (uint64, error) {
 	return 0, fmt.Errorf("unsupported byte value %q", value)
 }
 
-func firstVolumeSize(values map[string]uint64, names ...string) (uint64, bool) {
+func preferredVolumeSize(values map[string]uint64, links map[string]int, names ...string) (string, uint64, bool) {
+	selectedName := ""
+	selectedLinks := -1
 	for _, name := range names {
-		if value, ok := values[name]; ok {
-			return value, true
+		_, ok := values[name]
+		if !ok {
+			continue
+		}
+		if selectedName == "" || links[name] > selectedLinks {
+			selectedName, selectedLinks = name, links[name]
 		}
 	}
-	return 0, false
+	if selectedName == "" {
+		return "", 0, false
+	}
+	return selectedName, values[selectedName], true
 }
 
 func runResourceCommand(ctx context.Context, name string, args ...string) ([]byte, error) {

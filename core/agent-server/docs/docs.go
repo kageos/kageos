@@ -213,6 +213,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/agent/api/v1/llm/probe": {
+            "post": {
+                "description": "根据当前表单内容发起最小请求，自动识别 OpenAI Chat、OpenAI Responses 或 Anthropic Messages",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "LLM管理"
+                ],
+                "summary": "检测 LLM 协议与密钥可用性",
+                "parameters": [
+                    {
+                        "description": "LLM 检测请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.LLMProbeReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "检测结果",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LLMProbeResp"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/agent/api/v1/llm/set_default": {
             "post": {
                 "description": "设置默认的LLM配置",
@@ -310,7 +350,47 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "api_version": {
+                    "type": "string",
+                    "example": "2023-06-01"
+                },
+                "auth_scheme": {
+                    "type": "string",
+                    "example": "bearer"
+                },
+                "capabilities": {
+                    "type": "string",
+                    "example": "{}"
+                },
+                "context_window": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "detected_context_window": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "detected_context_window_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_token_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_tokens": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "endpoint_path": {
+                    "type": "string",
+                    "example": "/v1/chat/completions"
+                },
                 "extra_config": {
+                    "type": "string",
+                    "example": "{}"
+                },
+                "headers": {
                     "type": "string",
                     "example": "{}"
                 },
@@ -320,7 +400,7 @@ const docTemplate = `{
                 },
                 "max_tokens": {
                     "type": "integer",
-                    "example": 8196
+                    "example": 0
                 },
                 "model": {
                     "type": "string",
@@ -329,6 +409,14 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "openai_chat_completions"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -366,13 +454,61 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "api_version": {
+                    "type": "string",
+                    "example": "2023-06-01"
+                },
+                "auth_scheme": {
+                    "type": "string",
+                    "example": "bearer"
+                },
+                "capabilities": {
+                    "type": "string",
+                    "example": "{}"
+                },
                 "code": {
                     "type": "string",
                     "example": "default"
                 },
+                "context_window": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "context_window_source": {
+                    "type": "string",
+                    "example": "detected"
+                },
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "detected_context_window": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "detected_context_window_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_token_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_tokens": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "effective_context_window": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "effective_max_output_tokens": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "endpoint_path": {
+                    "type": "string",
+                    "example": "/v1/chat/completions"
                 },
                 "extra_config": {
                     "type": "string",
@@ -381,6 +517,10 @@ const docTemplate = `{
                 "has_api_key": {
                     "type": "boolean",
                     "example": true
+                },
+                "headers": {
+                    "type": "string",
+                    "example": "{}"
                 },
                 "id": {
                     "type": "integer",
@@ -395,9 +535,13 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "max_output_token_source": {
+                    "type": "string",
+                    "example": "detected"
+                },
                 "max_tokens": {
                     "type": "integer",
-                    "example": 8196
+                    "example": 0
                 },
                 "model": {
                     "type": "string",
@@ -406,6 +550,14 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "openai_chat_completions"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -438,13 +590,61 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "api_version": {
+                    "type": "string",
+                    "example": "2023-06-01"
+                },
+                "auth_scheme": {
+                    "type": "string",
+                    "example": "bearer"
+                },
+                "capabilities": {
+                    "type": "string",
+                    "example": "{}"
+                },
                 "code": {
                     "type": "string",
                     "example": "default"
                 },
+                "context_window": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "context_window_source": {
+                    "type": "string",
+                    "example": "detected"
+                },
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "detected_context_window": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "detected_context_window_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_token_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_tokens": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "effective_context_window": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "effective_max_output_tokens": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "endpoint_path": {
+                    "type": "string",
+                    "example": "/v1/chat/completions"
                 },
                 "extra_config": {
                     "type": "string",
@@ -453,6 +653,10 @@ const docTemplate = `{
                 "has_api_key": {
                     "type": "boolean",
                     "example": true
+                },
+                "headers": {
+                    "type": "string",
+                    "example": "{}"
                 },
                 "id": {
                     "type": "integer",
@@ -467,9 +671,13 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "max_output_token_source": {
+                    "type": "string",
+                    "example": "detected"
+                },
                 "max_tokens": {
                     "type": "integer",
-                    "example": 8196
+                    "example": 0
                 },
                 "model": {
                     "type": "string",
@@ -478,6 +686,14 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "openai_chat_completions"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -510,13 +726,61 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "api_version": {
+                    "type": "string",
+                    "example": "2023-06-01"
+                },
+                "auth_scheme": {
+                    "type": "string",
+                    "example": "bearer"
+                },
+                "capabilities": {
+                    "type": "string",
+                    "example": "{}"
+                },
                 "code": {
                     "type": "string",
                     "example": "default"
                 },
+                "context_window": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "context_window_source": {
+                    "type": "string",
+                    "example": "detected"
+                },
                 "created_at": {
                     "type": "string",
                     "example": "2024-01-01T00:00:00Z"
+                },
+                "detected_context_window": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "detected_context_window_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_token_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_tokens": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "effective_context_window": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "effective_max_output_tokens": {
+                    "type": "integer",
+                    "example": 128000
+                },
+                "endpoint_path": {
+                    "type": "string",
+                    "example": "/v1/chat/completions"
                 },
                 "extra_config": {
                     "type": "string",
@@ -525,6 +789,10 @@ const docTemplate = `{
                 "has_api_key": {
                     "type": "boolean",
                     "example": true
+                },
+                "headers": {
+                    "type": "string",
+                    "example": "{}"
                 },
                 "id": {
                     "type": "integer",
@@ -539,9 +807,13 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "max_output_token_source": {
+                    "type": "string",
+                    "example": "detected"
+                },
                 "max_tokens": {
                     "type": "integer",
-                    "example": 8196
+                    "example": 0
                 },
                 "model": {
                     "type": "string",
@@ -550,6 +822,14 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "openai_chat_completions"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",
@@ -581,6 +861,142 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.LLMProbeAttempt": {
+            "type": "object",
+            "properties": {
+                "api_base": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.LLMProbeReq": {
+            "type": "object",
+            "properties": {
+                "api_base": {
+                    "type": "string",
+                    "example": "https://api.openai.com/v1"
+                },
+                "api_key": {
+                    "type": "string",
+                    "example": "sk-xxx"
+                },
+                "api_version": {
+                    "type": "string",
+                    "example": "2023-06-01"
+                },
+                "auth_scheme": {
+                    "type": "string",
+                    "example": "bearer"
+                },
+                "endpoint_path": {
+                    "type": "string",
+                    "example": "/v1/responses"
+                },
+                "extra_config": {
+                    "type": "string",
+                    "example": "{}"
+                },
+                "headers": {
+                    "type": "string",
+                    "example": "{}"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "example": 64
+                },
+                "model": {
+                    "type": "string",
+                    "example": "gpt-4.1-mini"
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "openai_responses"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "openai"
+                },
+                "timeout": {
+                    "type": "integer",
+                    "example": 30
+                }
+            }
+        },
+        "dto.LLMProbeResp": {
+            "type": "object",
+            "properties": {
+                "api_base": {
+                    "type": "string"
+                },
+                "api_version": {
+                    "type": "string"
+                },
+                "attempts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.LLMProbeAttempt"
+                    }
+                },
+                "auth_scheme": {
+                    "type": "string"
+                },
+                "capabilities": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                },
+                "context_window": {
+                    "type": "integer"
+                },
+                "context_window_source": {
+                    "type": "string"
+                },
+                "endpoint_path": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "max_output_token_source": {
+                    "type": "string"
+                },
+                "max_output_tokens": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.LLMUpdateReq": {
             "type": "object",
             "required": [
@@ -602,7 +1018,47 @@ const docTemplate = `{
                     "type": "string",
                     "example": "sk-xxx"
                 },
+                "api_version": {
+                    "type": "string",
+                    "example": "2023-06-01"
+                },
+                "auth_scheme": {
+                    "type": "string",
+                    "example": "bearer"
+                },
+                "capabilities": {
+                    "type": "string",
+                    "example": "{}"
+                },
+                "context_window": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "detected_context_window": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "detected_context_window_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_token_source": {
+                    "type": "string",
+                    "example": "provider_metadata"
+                },
+                "detected_max_output_tokens": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "endpoint_path": {
+                    "type": "string",
+                    "example": "/v1/chat/completions"
+                },
                 "extra_config": {
+                    "type": "string",
+                    "example": "{}"
+                },
+                "headers": {
                     "type": "string",
                     "example": "{}"
                 },
@@ -616,7 +1072,7 @@ const docTemplate = `{
                 },
                 "max_tokens": {
                     "type": "integer",
-                    "example": 8196
+                    "example": 0
                 },
                 "model": {
                     "type": "string",
@@ -625,6 +1081,14 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "OpenAI GPT-4"
+                },
+                "protocol": {
+                    "type": "string",
+                    "example": "openai_chat_completions"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "openai"
                 },
                 "timeout": {
                     "type": "integer",

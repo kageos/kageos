@@ -30,22 +30,32 @@ func TestWorkspaceOutputLimitRecoveryAddsInstructionAndKeepsTokenCeiling(t *test
 	if msgs[1].Content != "完成任务" {
 		t.Fatalf("user message changed: %#v", msgs[1])
 	}
-	if got := workspaceOutputTokenLimit(8196, workspaceContextReductionStrict, deps.outputLimitRecovery, DefaultLLMContextWindow); got != 8196 {
+	if got := workspaceOutputTokenLimit(8196, workspaceContextReductionStrict, deps.outputLimitRecovery, DefaultLLMContextWindow, 12000); got != 8196 {
 		t.Fatalf("max tokens = %d, want configured ceiling 8196 kept during recovery", got)
 	}
 }
 
-func TestLowerWorkspaceRecoveryReasoningEffortOnlyChangesConfiguredHighEffort(t *testing.T) {
-	cases := map[string]string{
-		"xhigh":  "low",
-		"high":   "low",
-		"medium": "low",
-		"low":    "low",
-		"":       "",
+func TestWorkspaceOutputLimitUsesRemainingContextInsteadOfFixedQuarter(t *testing.T) {
+	if got := workspaceOutputTokenLimit(64000, workspaceContextReductionNone, false, 200000, 20000); got != 64000 {
+		t.Fatalf("max tokens = %d, want provider ceiling 64000", got)
 	}
-	for input, want := range cases {
-		if got := lowerWorkspaceRecoveryReasoningEffort(input); got != want {
-			t.Fatalf("lowerWorkspaceRecoveryReasoningEffort(%q) = %q, want %q", input, got, want)
+	if got := workspaceOutputTokenLimit(128000, workspaceContextReductionNone, false, 128000, 100000); got != 8800 {
+		t.Fatalf("max tokens = %d, want remaining soft context 8800", got)
+	}
+}
+
+func TestLowerWorkspaceRecoveryReasoningEffortOnlyChangesConfiguredHighEffort(t *testing.T) {
+	cases := map[string]struct{ value, model, want string }{
+		"xhigh":       {value: "xhigh", model: "gpt-5.6-sol", want: "low"},
+		"high":        {value: "high", model: "gpt-5.6-sol", want: "low"},
+		"medium":      {value: "medium", model: "gpt-5.6-sol", want: "low"},
+		"low":         {value: "low", model: "gpt-5.6-sol", want: "low"},
+		"auto-reason": {value: "", model: "gpt-5.6-sol", want: "low"},
+		"non-reason":  {value: "", model: "gpt-4.1", want: ""},
+	}
+	for name, tc := range cases {
+		if got := lowerWorkspaceRecoveryReasoningEffort(tc.value, tc.model); got != tc.want {
+			t.Fatalf("%s: lowerWorkspaceRecoveryReasoningEffort(%q, %q) = %q, want %q", name, tc.value, tc.model, got, tc.want)
 		}
 	}
 }

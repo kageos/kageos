@@ -41,6 +41,7 @@ func (FileUpload) TableName() string {
 type FileDownload struct {
 	ID      int64  `gorm:"primaryKey;autoIncrement" json:"id"`
 	FileKey string `gorm:"type:varchar(500);not null;index;comment:文件Key" json:"file_key"`
+	Action  string `gorm:"type:varchar(20);not null;default:'download';index;comment:访问动作：download/preview" json:"action"`
 
 	// 下载用户（可能未登录）
 	UserID   *int64  `gorm:"index;comment:下载用户ID" json:"user_id"`

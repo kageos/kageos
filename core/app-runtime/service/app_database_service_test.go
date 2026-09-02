@@ -68,6 +68,39 @@ func TestSoftDeleteCleanupDefaultsAreSafe(t *testing.T) {
 	}
 }
 
+func TestBuildWorkspaceDatabaseInventoryIncludesRegisteredAndOrphanedDatabases(t *testing.T) {
+	records := []model.AppDatabase{
+		{User: "alice", App: "crm", FullCodePath: "/alice/crm/leads", DatabaseName: "kgo_a", Status: appDBStatusActive},
+		{User: "bob", App: "ops", FullCodePath: "/bob/ops/tickets", DatabaseName: "kgo_b", Status: appDBStatusActive},
+	}
+	physical := []databaseCapacityUsage{
+		{Name: "kgo_a", UsedBytes: 1024},
+		{Name: "kgo_orphan", UsedBytes: 512},
+		{Name: "unrelated", UsedBytes: 2048},
+	}
+
+	got := buildWorkspaceDatabaseInventory(records, physical, "kgo_")
+	if len(got) != 3 {
+		t.Fatalf("inventory length = %d, want 3: %#v", len(got), got)
+	}
+	byName := make(map[string]dto.SystemDatabaseSize, len(got))
+	for _, item := range got {
+		byName[item.Name] = item
+	}
+	if item := byName["kgo_a"]; item.Directory != "/alice/crm/leads" || item.Owner != "/alice/crm" || item.Status != appDBStatusActive {
+		t.Fatalf("registered database metadata = %#v", item)
+	}
+	if item := byName["kgo_b"]; item.Status != "missing" || item.UsedBytes != 0 {
+		t.Fatalf("missing database metadata = %#v", item)
+	}
+	if item := byName["kgo_orphan"]; item.Status != "orphaned" || item.Owner != "app-runtime" {
+		t.Fatalf("orphaned database metadata = %#v", item)
+	}
+	if _, exists := byName["unrelated"]; exists {
+		t.Fatal("unrelated database must not be included")
+	}
+}
+
 func TestSoftDeleteCleanupRejectsUnsafeModeAndCapsBatch(t *testing.T) {
 	cfg := (appconfig.AppDatabaseConfig{SoftDeleteCleanup: appconfig.SoftDeleteCleanupConfig{
 		Enabled:   true,

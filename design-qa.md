@@ -1,55 +1,101 @@
-# Design QA — 数字员工二次改版
+# System settings navigation design QA
 
 ## Evidence
 
-- Latest user reference: `/var/folders/r5/6l6chs6x4sn8ky535l_qxsmw0000gn/T/codex-clipboard-0ecfdb5d-239a-48c3-85e8-9eff4762b46a.png`
-- Main implementation screenshot: `/Users/beiluo/Documents/work/code/qiayanai.com/kageos/design-qa-digital-employees-v2.png`
-- Dropdown implementation screenshot: `/Users/beiluo/Documents/work/code/qiayanai.com/kageos/design-qa-digital-employee-dialog-dropdown.png`
-- Combined reference/implementation comparison: `/Users/beiluo/Documents/work/code/qiayanai.com/kageos/design-qa-digital-employee-dialog-comparison.png`
-- Browser viewport: 1584 × 1024 CSS px
-- Screenshot density: 1×
-- Tested state: `/workspace`, `demos` workspace, 数字员工 tab, one selected employee; create dialog opened with model, overlap-policy, and datetime poppers exercised.
+- Source visual truth: `docs/system-settings-option-1.png`
+- Earlier desktop implementation: `docs/system-settings-option-1-implemented.jpg`
+- Latest desktop implementation: `docs/system-settings-theme-aligned.jpg`
+- Theme variants: `docs/system-settings-theme-variants.jpg` (Hub dark and Hub light)
+- Mobile implementation: `docs/system-settings-option-1-mobile.jpg`
+- Local route: `/system/settings?tab=appearance`
+- State: Theme section selected; classic dark is the primary comparison state, with Hub dark and Hub light also rendered and checked
+- Desktop viewport: 1280 × 720 CSS px, device scale factor 1
+- Mobile viewport: 390 × 844 CSS px, device scale factor 1
+- Source pixels: 1487 × 1058
+- Desktop implementation pixels: 1280 × 720
+- Mobile implementation pixels: 390 × 844
+- Density normalization: for desktop full-view comparison, the source was cropped from the top to 1487 × 837 (matching the implementation aspect ratio) and resized to 1280 × 720. The focused navigation comparison used the left 236 × 720 region from both normalized images.
 
-The supplied reference is a portrait crop rather than a full viewport. For the combined comparison, both sides were placed on equal 1584 × 1666 canvases without cropping the dialog. The focused region is the creation dialog because the reported defect was popper occlusion and the requested semantic changes are all visible there.
+## Full-view comparison
 
-## Comparison
+The rendered page preserves the selected direction's dark full-height settings surface, compact left rail, violet active state, quiet content canvas, restrained dividers, and right-aligned utility actions. The implementation intentionally displays the real Theme section because the demo account cannot load populated system resource data; the generated source shows an illustrative Operations state. Main-content data rows were therefore not treated as pixel-comparable evidence for this navigation-focused change.
 
-1. Global shell and service tree: preserved the existing kageos dark theme, spacing, navigation, and hierarchy. The service-tree employee mark is now a generated raster asset and remains recognizable at 24 px.
-2. Employee roster: preserves real task status, schedule, next run, run count, description, and error data. The selected employee uses the generated state GIF matching the real state.
-3. Employee hero and facts: title, status, role type, responsibilities, actions, schedule, next run, run count, work directory, overlap policy, model, and creator are readable without the old right column.
-4. Main content and execution history: the former right-side runtime card is merged into the center facts grid. The center column gains width while responsibilities, work instructions, management actions, and execution records keep their hierarchy.
-5. Creation/editing flow: visible terminology is now “新建数字员工 / 员工名称 / 员工职责 / 工作说明”. Default naming uses “demos 值守员”. Model, overlap-policy, and datetime poppers render above the dialog overlay and remain selectable.
+The desktop implementation uses the existing Inter-based product typography and KageOS color tokens. Heading hierarchy, neutral text contrast, icon stroke family, active violet, and panel/background balance match the source direction. The latest pass derives the page, sidebar, divider, hover, active fill, active marker, and mark colors from shared `--app-shell-*`, `--color-primary`, and text/border tokens. The implementation is slightly denser than the generated image, which is consistent with the stated goal of replacing the oversized card tabs with compact navigation.
 
-## Asset QA
+The 390 × 844 capture shows the sidebar replaced by one labeled native category selector, followed by the selected section and its actions. There is no horizontal overflow, clipped control, or collapsed card content.
 
-- `employee-ready.gif`: emerald/teal, 2 frames, 256 × 256.
-- `employee-working.gif`: blue/cyan, 2 frames, 256 × 256.
-- `employee-paused.gif`: amber, 2 frames, 256 × 256.
-- `employee-failed.gif`: coral/red, 2 frames, 256 × 256.
-- `service-icon.webp`: generated service-directory icon, 256 × 256.
-- All character assets use transparent backgrounds, contain no text or watermark, and are bundled by the production build.
+## Focused region comparison
 
-## Iteration history
+The focused sidebar comparison confirms the same four groups and item order:
 
-- Rejected the first implementation capture because action buttons collapsed the hero title into a vertical column.
-- Moved hero actions to their own row and changed facts to a responsive grid.
-- Replaced the handcrafted SVG mascot with generated state-specific assets.
-- Removed the persistent right aside and merged its real fields into the main column.
-- Added a dialog-specific popper layer above the global overlay and verified all three popup types in the browser.
+1. System operations: Operations, File assets
+2. Accounts & access: Login settings, User management
+3. Integrations: Data backup, Log archives (plus feature-flagged Email, OpenAPI, and Connectors when enabled)
+4. Preferences: Theme, Language
+
+Element Plus outline icons replace the generated mock's illustrative icons with the closest existing product-library equivalents. Active state uses both color and a left marker; text remains readable without relying on color alone.
+
+## Required fidelity surfaces
+
+- Fonts and typography: passed. Existing Inter/fallback stack retained; 11 px group labels, 14 px navigation labels, and 18–20 px headings create the intended hierarchy without wrapping or truncation in the tested Chinese state.
+- Spacing and layout rhythm: passed. The 236 px rail, 40 px navigation rows, grouped vertical rhythm, 34–56 px responsive content padding, and flat full-height surface match the compact direction.
+- Colors and visual tokens: passed. The earlier fixed Slate-800 sidebar was removed. The sidebar now mixes the active theme's shell background with 4% of its primary color; hover uses 6%, and the selected item uses a 14% primary mix. Classic dark, Hub dark, and Hub light all retain coherent surface hierarchy and active contrast.
+- Image quality and asset fidelity: passed. The target contains no photographic or branded raster assets. UI icons use the existing Element Plus vector icon library; no placeholder, emoji, handcrafted SVG, or CSS illustration substitutes were introduced.
+- Copy and content: passed. Existing localized section names and descriptions remain intact; four new group labels have Chinese and English translations.
+- Responsiveness and accessibility: passed. Desktop navigation uses semantic `nav`, buttons, `aria-current`, and a labeled complementary region. Mobile uses a labeled native select with option groups and a visible focus ring. Primary controls remain at least 40–42 px high.
+
+## Findings
+
+No actionable P0, P1, or P2 findings remain.
+
+- [P3] The generated source uses larger sidebar icons and looser rows than the implementation. The implementation keeps smaller existing library icons and denser rows to satisfy the original compact-navigation goal and to fit feature-flagged items without excessive scrolling.
+- [P3] The implementation includes a short settings subtitle beside the sidebar mark. This adds useful context and remains visually subordinate; it does not alter navigation hierarchy.
+
+## Comparison history
+
+### Iteration 1 — blocked
+
+- [P2] Data backup and Log archives were grouped under System operations, while the source grouped them under Integrations. With integration feature flags disabled, this also caused the Integrations heading to disappear.
+- Fix: moved Data backup and Log archives into the Integrations group, before feature-flagged Email, OpenAPI, and Connectors.
+
+### Iteration 2 — passed
+
+- Revised desktop evidence: `docs/system-settings-option-1-implemented.jpg`
+- Revised focused comparison confirms all four group headings, intended ordering, icon/title alignment, and active-state treatment.
+- No actionable P0/P1/P2 differences remain.
+
+### Iteration 3 — blocked after user review
+
+- [P2] The classic-dark sidebar rendered as `#1e293b` while the main surface rendered as `#0f172a`. This full Slate-level jump made the navigation look like a separate theme, and the translucent active violet looked pasted onto it.
+- Fix: introduced settings-local semantic colors derived from the active theme's shell, primary, text, and border tokens. The sidebar is now a subtle primary-tinted version of the page surface instead of a fixed secondary background.
+
+### Iteration 4 — passed
+
+- Latest desktop evidence: `docs/system-settings-theme-aligned.jpg`
+- Additional theme evidence: `docs/system-settings-theme-variants.jpg`
+- Classic dark now uses a subtle deep-blue/indigo surface relationship; Hub dark uses its near-black/brand-indigo palette; Hub light uses its fog-blue/indigo palette.
+- The active fill, left marker, icon, divider, and heading mark change together with the selected theme. No actionable P0/P1/P2 color mismatch remains.
 
 ## Interaction and runtime checks
 
-- Opened and closed the create-digital-employee dialog without creating data.
-- Opened the model selector; all real model options were visible and unobstructed.
-- Opened the overlap-policy selector; all three policies were visible.
-- Opened the datetime picker; calendar panel was present and expanded.
-- Browser console errors after the tested flow: none.
-- `npm run type-check`: passed.
-- Targeted Vitest suite: 2 files, 12 tests passed.
-- `go test ./core/agent-server/service`: passed.
-- `npm run build`: passed.
-- `git diff --check`: passed.
+- Desktop sidebar button switching tested: Theme → Language updated the selected content and URL query to `tab=language`.
+- Mobile category selector tested at 390 × 844: Theme → Language updated the URL query to `tab=language`.
+- Operations route opened and its empty/permission state remained stable for the demo account.
+- Console checked: one existing business-request error is emitted when the demo account reaches a system-super-admin-only resource endpoint, matching the visible permission message. No uncaught JavaScript exception or Vite error overlay was observed.
+- Theme switching tested across classic dark, Hub dark, and Hub light; the original classic-dark selection was restored after verification. The final classic-dark page produced no console errors.
+- ESLint passed for the changed Vue and locale files.
+- Architecture boundary check passed.
+- Production Vite build passed.
+- Full `vue-tsc --build` is currently noisy outside this change because the workspace has duplicate TipTap/ProseMirror type installations; no error referenced the changed settings or locale files.
 
-## Final result
+## Implementation checklist
 
-passed
+- [x] Replace oversized card tabs with grouped compact navigation.
+- [x] Use product icon library and stronger active affordance.
+- [x] Preserve all feature-flagged settings and existing data behavior.
+- [x] Convert Operations card tabs to lightweight underline tabs.
+- [x] Add a mobile grouped category selector.
+- [x] Verify desktop and mobile interactions.
+- [x] Pass lint, architecture, build, and visual QA gates.
+
+final result: passed

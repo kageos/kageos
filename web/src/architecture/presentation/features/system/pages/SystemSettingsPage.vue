@@ -1,50 +1,81 @@
 <template>
   <div class="system-settings-page">
-    <el-card shadow="hover" class="settings-card">
-      <template #header>
-        <div class="card-header">
-          <div>
-            <h2>{{ t('route.systemSettings') }}</h2>
-            <p>{{ t('systemSettings.subtitle') }}</p>
-          </div>
-          <div class="header-actions">
-            <el-button :icon="Refresh" @click="refreshActiveTab">{{ t('common.refresh') }}</el-button>
-            <el-button v-if="activeTab === 'email'" type="primary" :icon="Check" :loading="saving" @click="saveSettings">
-              {{ t('connectorProvider.save') }}
-            </el-button>
-          </div>
-        </div>
-      </template>
-
+    <el-card shadow="never" class="settings-card">
       <div class="settings-layout">
         <aside class="settings-sidebar" :aria-label="t('systemSettings.categoryLabel')">
-          <button
-            v-for="section in settingsSections"
-            :key="section.key"
-            type="button"
-            class="settings-nav-item"
-            :class="{ 'is-active': activeTab === section.key }"
-            @click="selectSettingsSection(section.key)"
-          >
-            <span class="settings-nav-title">{{ section.title }}</span>
-            <span class="settings-nav-desc">{{ section.desc }}</span>
-          </button>
+          <div class="settings-sidebar-heading">
+            <el-icon class="settings-sidebar-mark"><Setting /></el-icon>
+            <div>
+              <h2>{{ t('route.systemSettings') }}</h2>
+              <p>{{ t('systemSettings.subtitle') }}</p>
+            </div>
+          </div>
+
+          <nav v-for="group in settingsNavigationGroups" :key="group.key" class="settings-nav-group" :aria-label="group.title">
+            <p class="settings-nav-group-title">{{ group.title }}</p>
+            <div class="settings-nav-list">
+              <button
+                v-for="section in group.sections"
+                :key="section.key"
+                type="button"
+                class="settings-nav-item"
+                :class="{ 'is-active': activeTab === section.key }"
+                :aria-current="activeTab === section.key ? 'page' : undefined"
+                @click="selectSettingsSection(section.key)"
+              >
+                <el-icon class="settings-nav-icon"><component :is="section.icon" /></el-icon>
+                <span class="settings-nav-title">{{ section.title }}</span>
+              </button>
+            </div>
+          </nav>
         </aside>
 
         <section class="settings-content">
+          <div class="settings-mobile-heading">
+            <div>
+              <h2>{{ t('route.systemSettings') }}</h2>
+              <p>{{ t('systemSettings.subtitle') }}</p>
+            </div>
+            <label class="settings-mobile-select">
+              <span>{{ t('systemSettings.categoryLabel') }}</span>
+              <select :value="activeTab" @change="handleMobileSettingsChange">
+                <optgroup v-for="group in settingsNavigationGroups" :key="group.key" :label="group.title">
+                  <option v-for="section in group.sections" :key="section.key" :value="section.key">
+                    {{ section.title }}
+                  </option>
+                </optgroup>
+              </select>
+            </label>
+          </div>
+
           <div class="section-header">
             <div>
               <h3>{{ currentSection.title }}</h3>
               <p>{{ currentSection.desc }}</p>
             </div>
-            <el-button :icon="QuestionFilled" @click="openCurrentDocs">
-              {{ t('systemSettings.viewDocs') }}
-            </el-button>
+            <div class="header-actions">
+              <el-button :icon="Refresh" @click="refreshActiveTab">{{ t('common.refresh') }}</el-button>
+              <el-button v-if="activeTab === 'email'" type="primary" :icon="Check" :loading="saving" @click="saveSettings">
+                {{ t('connectorProvider.save') }}
+              </el-button>
+              <el-button :icon="QuestionFilled" @click="openCurrentDocs">
+                {{ t('systemSettings.viewDocs') }}
+              </el-button>
+            </div>
           </div>
 
           <div v-if="activeTab === 'operations'" v-loading="resourcesLoading" class="section-pane operations-pane">
             <template v-if="resourceOverview">
+              <el-tabs v-model="operationsTab" class="operations-tabs" @tab-change="handleOperationsTabChange">
+                <el-tab-pane :label="t('systemSettings.resources.tabs.overview')" name="overview" />
+                <el-tab-pane :label="t('systemSettings.resources.tabs.usage')" name="usage" />
+                <el-tab-pane :label="t('systemSettings.resources.tabs.trends')" name="trends" />
+                <el-tab-pane :label="t('systemSettings.resources.tabs.storage')" name="storage" />
+                <el-tab-pane :label="t('systemSettings.resources.tabs.databases')" name="databases" />
+                <el-tab-pane :label="t('systemSettings.resources.tabs.diagnostics')" name="diagnostics" />
+              </el-tabs>
               <el-alert
+                v-if="operationsTab === 'overview' || operationsTab === 'storage'"
                 :title="forecastTitle"
                 :description="forecastDescription"
                 :type="forecastAlertType"
@@ -52,6 +83,7 @@
                 :closable="false"
               />
               <el-alert
+                v-if="operationsTab === 'diagnostics'"
                 :title="environmentTitle"
                 :description="environmentDescription"
                 type="info"
@@ -59,7 +91,7 @@
                 :closable="false"
               />
 
-              <div class="resource-summary-grid">
+              <div v-if="operationsTab === 'overview'" class="resource-summary-grid">
                 <article class="resource-summary-card">
                   <span class="resource-summary-label">{{ t('systemSettings.resources.disk') }}</span>
                   <strong>{{ formatBytes(resourceOverview.current.disk_used_bytes) }} / {{ formatBytes(resourceOverview.current.disk_total_bytes) }}</strong>
@@ -77,11 +109,19 @@
                 </article>
                 <article class="resource-summary-card">
                   <span class="resource-summary-label">{{ t('systemSettings.resources.cpuAndLoad') }}</span>
-                  <strong v-if="resourceOverview.current.cpu_available">
-                    {{ t('systemSettings.resources.cpuUsageValue', { value: roundedPercent(resourceOverview.current.cpu_used_percent) }) }}
-                  </strong>
+                  <div v-if="resourceOverview.current.cpu_available" class="resource-value-row">
+                    <strong>{{ t('systemSettings.resources.cpuUsageValue', { value: roundedPercent(resourceOverview.current.cpu_used_percent) }) }}</strong>
+                    <el-tag v-if="resourceOverview.current.load_available" size="small" effect="plain" :type="loadStatusType">
+                      {{ loadStatusLabel }}
+                    </el-tag>
+                  </div>
                   <strong v-else>{{ t('systemSettings.resources.unavailable') }}</strong>
-                  <small v-if="resourceOverview.current.load_available">{{ t('systemSettings.resources.loadCurrent', { one: resourceOverview.current.load_1.toFixed(2), five: resourceOverview.current.load_5.toFixed(2), fifteen: resourceOverview.current.load_15.toFixed(2) }) }}</small>
+                  <small
+                    v-if="resourceOverview.current.load_available"
+                    :title="t('systemSettings.resources.loadCurrent', { one: resourceOverview.current.load_1.toFixed(2), five: resourceOverview.current.load_5.toFixed(2), fifteen: resourceOverview.current.load_15.toFixed(2) })"
+                  >
+                    {{ t('systemSettings.resources.loadFriendly', { load: resourceOverview.current.load_1.toFixed(1), cores: resourceOverview.current.cpu_cores }) }}
+                  </small>
                   <small v-else>{{ t('systemSettings.resources.cpuUsageHint') }}</small>
                 </article>
                 <article class="resource-summary-card">
@@ -110,7 +150,9 @@
                 </article>
               </div>
 
-              <div class="resource-panel">
+              <SystemUsagePanel v-if="operationsTab === 'usage'" :key="usagePanelKey" />
+
+              <div v-if="operationsTab === 'storage'" class="resource-panel">
                 <div class="resource-panel-heading">
                   <div>
                     <h4>{{ t('systemSettings.resources.storagePoolsTitle') }}</h4>
@@ -132,7 +174,7 @@
                 </div>
               </div>
 
-              <div class="resource-panel">
+              <div v-if="operationsTab === 'overview'" class="resource-panel">
                 <div class="resource-panel-heading">
                   <div>
                     <h4>{{ t('systemSettings.resources.platformTitle') }}</h4>
@@ -146,89 +188,147 @@
                   <article class="platform-metric-card"><span>{{ t('systemSettings.resources.appDatabases') }}</span><strong>{{ resourceOverview.platform.runtime_stats_available ? resourceOverview.platform.app_databases_total : '-' }}</strong><small>{{ resourceOverview.current.database_size_available ? t('systemSettings.resources.logicalDatabaseSize', { value: formatBytes(resourceOverview.current.database_logical_bytes) }) : t('systemSettings.resources.databaseSizeUnavailable') }}</small></article>
                   <article class="platform-metric-card"><span>{{ t('systemSettings.resources.scheduledTasks') }}</span><strong>{{ resourceOverview.platform.timer_stats_available ? resourceOverview.platform.scheduled_tasks_total : '-' }}</strong><small>{{ resourceOverview.platform.timer_stats_available ? t('systemSettings.resources.activeTasks', { count: resourceOverview.platform.scheduled_tasks_active }) : t('systemSettings.resources.sourceUnavailable') }}</small></article>
                 </div>
-                <el-table v-if="resourceOverview.current.largest_databases.length" :data="resourceOverview.current.largest_databases" size="small" class="database-size-table">
-                  <el-table-column prop="name" :label="t('systemSettings.resources.databaseName')" min-width="200" />
-                  <el-table-column :label="t('systemSettings.resources.logicalSize')" min-width="140"><template #default="{ row }">{{ formatBytes(row.used_bytes) }}</template></el-table-column>
-                </el-table>
               </div>
 
-              <div class="resource-panel">
+              <div v-if="operationsTab === 'databases'" class="resource-panel database-inventory">
+                  <div class="database-inventory-heading">
+                    <div>
+                      <h4>{{ t('systemSettings.resources.databaseInventoryTitle') }}</h4>
+                      <p>{{ t('systemSettings.resources.databaseInventoryDesc', { time: formatResourceTime(resourceOverview.capacity_collected_at) }) }}</p>
+                    </div>
+                    <div class="database-counts">
+                      <el-tag effect="plain">{{ t('systemSettings.resources.databaseCountAll', { count: databaseTotal }) }}</el-tag>
+                      <el-tag type="info" effect="plain">{{ t('systemSettings.resources.databaseCountPlatform', { count: platformDatabaseCount }) }}</el-tag>
+                      <el-tag type="success" effect="plain">{{ t('systemSettings.resources.databaseCountWorkspace', { count: workspaceDatabaseCount }) }}</el-tag>
+                    </div>
+                  </div>
+                  <el-alert
+                    v-if="!resourceOverview.current.database_inventory_complete"
+                    :title="t('systemSettings.resources.databaseInventoryPartial')"
+                    type="warning"
+                    :closable="false"
+                    show-icon
+                  />
+                  <div class="monitoring-policy-strip">
+                    <span>{{ t('systemSettings.resources.capacityPolicy', { hour: resourceOverview.capacity_schedule_local, days: resourceOverview.capacity_retention_days }) }}</span>
+                    <span>{{ t('systemSettings.resources.runtimePolicy', { seconds: resourceOverview.runtime_interval_seconds, minutes: resourceOverview.sample_interval_minutes, days: resourceOverview.runtime_retention_days }) }}</span>
+                  </div>
+                  <div v-if="latestCapacityDaily" class="database-delta-grid">
+                    <article>
+                      <span>{{ t('systemSettings.resources.databaseDailySize') }}</span>
+                      <strong>{{ latestCapacityDaily.database_size_available ? formatBytes(latestCapacityDaily.database_logical_bytes) : '-' }}</strong>
+                      <small>{{ latestCapacityDaily.database_logical_delta_available ? formatSignedBytes(latestCapacityDaily.database_logical_delta) : '-' }}</small>
+                    </article>
+                    <article>
+                      <span>{{ t('systemSettings.resources.databaseDailyCount') }}</span>
+                      <strong>{{ latestCapacityDaily.database_count_available ? latestCapacityDaily.database_count : '-' }}</strong>
+                      <small>{{ latestCapacityDaily.database_count_delta_available ? formatSignedCount(latestCapacityDaily.database_count_delta) : '-' }}</small>
+                    </article>
+                  </div>
+                  <div v-if="capacityDailyRows.length" class="database-daily-history">
+                    <h5>{{ t('systemSettings.resources.databaseDailyHistory') }}</h5>
+                    <el-table :data="capacityDailyRows" size="small">
+                      <el-table-column :label="t('systemSettings.resources.capacityDate')" min-width="150"><template #default="{ row }">{{ formatResourceDate(row.collected_at) }}</template></el-table-column>
+                      <el-table-column :label="t('systemSettings.resources.databaseDailySize')" min-width="130"><template #default="{ row }">{{ row.database_size_available ? formatBytes(row.database_logical_bytes) : '-' }}</template></el-table-column>
+                      <el-table-column :label="t('systemSettings.resources.dailyDelta')" min-width="130"><template #default="{ row }">{{ row.database_logical_delta_available ? formatSignedBytes(row.database_logical_delta) : '-' }}</template></el-table-column>
+                      <el-table-column :label="t('systemSettings.resources.databaseDailyCount')" min-width="110"><template #default="{ row }">{{ row.database_count_available ? row.database_count : '-' }}</template></el-table-column>
+                      <el-table-column :label="t('systemSettings.resources.countDelta')" min-width="110"><template #default="{ row }">{{ row.database_count_delta_available ? formatSignedCount(row.database_count_delta) : '-' }}</template></el-table-column>
+                    </el-table>
+                  </div>
+                  <div class="database-toolbar">
+                    <el-input v-model="databaseSearch" clearable :placeholder="t('systemSettings.resources.databaseSearchPlaceholder')" />
+                    <el-radio-group v-model="databaseScope" size="small">
+                      <el-radio-button value="all">{{ t('systemSettings.resources.databaseScopeAll') }}</el-radio-button>
+                      <el-radio-button value="platform">{{ t('systemSettings.resources.databaseScopePlatform') }}</el-radio-button>
+                      <el-radio-button value="workspace">{{ t('systemSettings.resources.databaseScopeWorkspace') }}</el-radio-button>
+                    </el-radio-group>
+                  </div>
+                  <el-table :data="databaseInventory" size="small" stripe class="database-size-table">
+                    <el-table-column :label="t('systemSettings.resources.databaseType')" width="110">
+                      <template #default="{ row }"><el-tag :type="row.kind === 'platform' ? 'info' : 'success'" size="small" effect="plain">{{ databaseKindLabel(row.kind) }}</el-tag></template>
+                    </el-table-column>
+                    <el-table-column prop="name" :label="t('systemSettings.resources.databaseName')" min-width="150" sortable><template #default="{ row }"><code class="database-code">{{ row.name }}</code></template></el-table-column>
+                    <el-table-column prop="owner" :label="t('systemSettings.resources.databaseOwner')" min-width="180" />
+                    <el-table-column prop="directory" :label="t('systemSettings.resources.databaseDirectory')" min-width="230"><template #default="{ row }"><code class="database-directory">{{ databaseDirectoryLabel(row.kind, row.directory) }}</code></template></el-table-column>
+                    <el-table-column prop="purpose" :label="t('systemSettings.resources.databasePurpose')" min-width="260"><template #default="{ row }">{{ databasePurposeLabel(row.purpose) }}</template></el-table-column>
+                    <el-table-column :label="t('systemSettings.resources.databaseStatus')" width="110"><template #default="{ row }"><el-tag :type="databaseStatusType(row.status)" size="small">{{ databaseStatusLabel(row.status) }}</el-tag></template></el-table-column>
+                    <el-table-column prop="used_bytes" :label="t('systemSettings.resources.logicalSize')" min-width="140" sortable><template #default="{ row }">{{ formatBytes(row.used_bytes) }}</template></el-table-column>
+                  </el-table>
+                  <el-pagination
+                    v-if="databaseTotal > databasePageSize"
+                    v-model:current-page="databasePage"
+                    class="database-pagination"
+                    background
+                    layout="prev, pager, next, total"
+                    :page-size="databasePageSize"
+                    :total="databaseTotal"
+                    @current-change="loadResourceDatabases"
+                  />
+              </div>
+
+              <div v-if="operationsTab === 'trends'" class="resource-panel">
                 <div class="resource-panel-heading">
                   <div>
                     <h4>{{ t('systemSettings.resources.historyTitle') }}</h4>
-                    <p>{{ t('systemSettings.resources.historyDesc', { minutes: resourceOverview.sample_interval_minutes }) }}</p>
+                    <p>{{ t('systemSettings.resources.historyDesc', { minutes: resourceOverview.sample_interval_minutes, days: resourceOverview.runtime_retention_days }) }}</p>
                   </div>
-                  <el-radio-group v-model="resourceHistoryHours" size="small" @change="loadResources">
+                  <el-radio-group v-model="resourceHistoryHours" size="small" @change="loadResourceTrends">
                     <el-radio-button :value="24">24h</el-radio-button>
                     <el-radio-button :value="168">7d</el-radio-button>
                     <el-radio-button :value="720">30d</el-radio-button>
                   </el-radio-group>
                 </div>
-                <div v-if="resourceOverview.history.length > 1" class="resource-chart-wrap">
-                  <svg class="resource-chart" viewBox="0 0 800 180" preserveAspectRatio="none" role="img" :aria-label="t('systemSettings.resources.historyTitle')">
-                    <line v-for="level in [25, 50, 75]" :key="level" x1="0" :y1="180 - level * 1.8" x2="800" :y2="180 - level * 1.8" class="chart-grid-line" />
-                    <polyline :points="historyPolyline('disk_used_percent')" class="chart-line disk-line" />
-                    <polyline :points="historyPolyline('memory_used_percent')" class="chart-line memory-line" />
-                    <polyline :points="historyPolyline('cpu_used_percent')" class="chart-line cpu-line" />
-                  </svg>
-                  <div class="chart-legend">
-                    <span><i class="legend-dot disk-dot" />{{ t('systemSettings.resources.diskUsage') }}</span>
-                    <span><i class="legend-dot memory-dot" />{{ t('systemSettings.resources.memoryUsage') }}</span>
-                    <span><i class="legend-dot cpu-dot" />{{ t('systemSettings.resources.cpuUsage') }}</span>
-                    <span>{{ historyTimeRange }}</span>
-                  </div>
-                  <svg class="resource-chart rate-chart" viewBox="0 0 800 120" preserveAspectRatio="none" role="img" :aria-label="t('systemSettings.resources.networkTrend')">
-                    <polyline :points="historyRatePolyline('network_rx_bytes_per_second')" class="chart-line network-rx-line" />
-                    <polyline :points="historyRatePolyline('network_tx_bytes_per_second')" class="chart-line network-tx-line" />
-                  </svg>
-                  <div class="chart-legend">
-                    <span><i class="legend-dot network-rx-dot" />{{ t('systemSettings.resources.networkDownload') }}</span>
-                    <span><i class="legend-dot network-tx-dot" />{{ t('systemSettings.resources.networkUpload') }}</span>
-                    <span>{{ t('systemSettings.resources.networkTrendScale') }}</span>
-                  </div>
-                </div>
+                <SystemResourceTrendChart v-if="resourceOverview.history.length > 1" :history="resourceOverview.history" />
                 <el-empty v-else :description="t('systemSettings.resources.historyCollecting')" />
               </div>
-              <div class="resource-panel">
-                <div class="resource-panel-heading"><div><h4>{{ t('systemSettings.resources.collectionTitle') }}</h4><p>{{ t('systemSettings.resources.collectionDesc') }}</p></div></div>
-                <el-table :data="resourceOverview.collection_tasks" size="small">
-                  <el-table-column :label="t('systemSettings.resources.collectionTask')" min-width="150"><template #default="{ row }">{{ collectionTaskName(row.key) }}</template></el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.collectionStatus')" width="110"><template #default="{ row }"><el-tag :type="collectionStatusType(row.status)" size="small">{{ collectionStatusLabel(row.status) }}</el-tag></template></el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.lastSuccess')" min-width="180"><template #default="{ row }">{{ row.last_succeeded_at ? formatResourceTime(row.last_succeeded_at) : '-' }}</template></el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.nextCollection')" min-width="180"><template #default="{ row }">{{ row.next_run_at ? formatResourceTime(row.next_run_at) : '-' }}</template></el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.collectionDuration')" width="120"><template #default="{ row }">{{ formatDurationMillis(row.duration_millis) }}</template></el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.collectionResult')" min-width="180"><template #default="{ row }"><span :class="{ 'collection-error': row.error }">{{ collectionResult(row.error) }}</span></template></el-table-column>
-                </el-table>
-              </div>
+              <div v-if="operationsTab === 'diagnostics'" class="advanced-content">
+                    <div class="resource-panel">
+                      <div class="resource-panel-heading"><div><h4>{{ t('systemSettings.resources.collectionTitle') }}</h4><p>{{ t('systemSettings.resources.collectionDesc') }}</p></div></div>
+                      <el-table :data="resourceOverview.collection_tasks" size="small">
+                        <el-table-column :label="t('systemSettings.resources.collectionTask')" min-width="150"><template #default="{ row }">{{ collectionTaskName(row.key) }}</template></el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.collectionStatus')" width="110"><template #default="{ row }"><el-tag :type="collectionStatusType(row.status)" size="small">{{ collectionStatusLabel(row.status) }}</el-tag></template></el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.lastSuccess')" min-width="180"><template #default="{ row }">{{ row.last_succeeded_at ? formatResourceTime(row.last_succeeded_at) : '-' }}</template></el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.nextCollection')" min-width="180"><template #default="{ row }">{{ row.next_run_at ? formatResourceTime(row.next_run_at) : '-' }}</template></el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.collectionDuration')" width="120"><template #default="{ row }">{{ formatDurationMillis(row.duration_millis) }}</template></el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.collectionResult')" min-width="180"><template #default="{ row }"><span :class="{ 'collection-error': row.error }">{{ collectionResult(row.error) }}</span></template></el-table-column>
+                      </el-table>
+                    </div>
 
-              <div class="resource-panel">
-                <div class="resource-panel-heading">
-                  <div>
-                    <h4>{{ t('systemSettings.resources.breakdownTitle') }}</h4>
-                    <p>{{ t('systemSettings.resources.breakdownDesc') }}</p>
-                  </div>
-                </div>
-                <el-table :data="resourceOverview.current.components" stripe>
-                  <el-table-column :label="t('systemSettings.resources.service')" min-width="180">
-                    <template #default="{ row }">{{ resourceComponentName(row.key, row.name) }}</template>
-                  </el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.storagePool')" min-width="150">
-                    <template #default="{ row }">{{ storagePoolName(row.pool_key, row.pool_key) }}</template>
-                  </el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.usedSpace')" min-width="160">
-                    <template #default="{ row }">{{ row.available ? formatBytes(row.used_bytes) : t('systemSettings.resources.notMounted') }}</template>
-                  </el-table-column>
-                  <el-table-column :label="t('systemSettings.resources.share')" min-width="220">
-                    <template #default="{ row }">
-                      <el-progress v-if="row.available" :percentage="componentDiskPercent(row.used_bytes, row.pool_key)" />
-                      <span v-else>-</span>
-                    </template>
-                  </el-table-column>
-                </el-table>
               </div>
-              <p class="resource-collected-at">{{ t('systemSettings.resources.collectedAt', { time: formatResourceTime(resourceOverview.current.collected_at) }) }}</p>
+              <div v-if="operationsTab === 'storage'" class="advanced-content">
+                    <div class="resource-panel">
+                      <div class="resource-panel-heading">
+                        <div>
+                          <h4>{{ t('systemSettings.resources.breakdownTitle') }}</h4>
+                          <p>{{ t('systemSettings.resources.breakdownDesc') }}</p>
+                        </div>
+                      </div>
+                      <el-table :data="resourceOverview.current.components" size="small">
+                        <el-table-column :label="t('systemSettings.resources.service')" min-width="180">
+                          <template #default="{ row }">{{ resourceComponentName(row.key, row.name) }}</template>
+                        </el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.storagePool')" min-width="150">
+                          <template #default="{ row }">{{ storagePoolName(row.pool_key, row.pool_key) }}</template>
+                        </el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.usedSpace')" min-width="160">
+                          <template #default="{ row }">{{ row.available ? formatBytes(row.used_bytes) : t('systemSettings.resources.notMounted') }}</template>
+                        </el-table-column>
+                        <el-table-column :label="t('systemSettings.resources.share')" min-width="220">
+                          <template #default="{ row }">
+                            <el-progress v-if="row.available" :percentage="componentDiskPercent(row.used_bytes, row.pool_key)" />
+                            <span v-else>-</span>
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                    </div>
+              </div>
+              <p v-if="operationsTab === 'overview'" class="resource-collected-at">{{ t('systemSettings.resources.collectedAt', { time: formatResourceTime(resourceOverview.current.collected_at) }) }}</p>
             </template>
             <el-empty v-else-if="!resourcesLoading" :description="t('systemSettings.resources.empty')" />
+          </div>
+
+          <div v-else-if="activeTab === 'fileAssets'" class="section-pane">
+            <SystemStorageAssetsPanel :key="storageAssetsPanelKey" />
           </div>
 
           <div v-else-if="activeTab === 'email'" v-loading="loading" class="section-pane">
@@ -313,13 +413,19 @@
                     <el-input
                       v-model="loginAnnouncement.markdown"
                       type="textarea"
-                      :rows="8"
+                      :rows="5"
                       maxlength="10000"
                       show-word-limit
                       :placeholder="t('systemSettings.loginAnnouncementMarkdownPlaceholder')"
                     />
                   </el-form-item>
                   <div class="login-announcement-actions">
+                    <el-button
+                      :disabled="!loginAnnouncement.markdown.trim()"
+                      @click="announcementPreviewVisible = true"
+                    >
+                      {{ t('systemSettings.previewLoginAnnouncement') }}
+                    </el-button>
                     <el-button type="primary" :icon="Check" :loading="announcementSaving" @click="saveLoginAnnouncement">
                       {{ t('systemSettings.saveLoginAnnouncement') }}
                     </el-button>
@@ -327,40 +433,59 @@
                 </el-form>
               </div>
 
-              <div class="provider-summary">
-                <div class="summary-item">
-                  <span class="summary-value">{{ authProviders.length }}</span>
-                  <span class="summary-label">{{ t('systemSettings.loginPresetCount') }}</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-value">{{ configuredProviderCount }}</span>
-                  <span class="summary-label">{{ t('systemSettings.configuredCount') }}</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-value">{{ enabledProviderCount }}</span>
-                  <span class="summary-label">{{ t('systemSettings.enabledCount') }}</span>
-                </div>
+              <div class="provider-summary" :aria-label="t('systemSettings.loginOverview')">
+                <span>{{ t('systemSettings.loginPresetCount') }} {{ authProviders.length }}</span>
+                <el-tag size="small" effect="plain">{{ t('systemSettings.configuredCount') }} {{ configuredProviderCount }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ t('systemSettings.enabledCount') }} {{ enabledProviderCount }}</el-tag>
               </div>
 
               <el-empty v-if="!authProviders.length && !providersLoading" :description="t('systemSettings.noLoginProviders')" />
 
-              <div
+              <section
                 v-for="provider in authProviders"
                 :key="provider.code"
                 class="provider-panel"
+                :class="{ 'is-expanded': isProviderExpanded(provider.code) }"
               >
                 <div class="provider-panel-header">
-                  <div class="provider-heading">
-                    <div class="provider-title-row">
-                      <span class="provider-name">{{ provider.name }}</span>
-                      <el-tag :type="providerStatusType(provider)" size="small">
-                        {{ providerStatusLabel(provider) }}
-                      </el-tag>
-                      <el-tag size="small" effect="plain">
-                        {{ providerActionLabel(provider.action) }}
-                      </el-tag>
-                    </div>
-                    <p>{{ provider.description }}</p>
+                  <button
+                    type="button"
+                    class="provider-toggle"
+                    :aria-expanded="isProviderExpanded(provider.code)"
+                    @click="toggleProvider(provider.code)"
+                  >
+                    <span class="provider-logo" aria-hidden="true">
+                      <img :src="authProviderLogo(provider.code)" alt="" />
+                    </span>
+                    <span class="provider-heading">
+                      <span class="provider-title-row">
+                        <span class="provider-name">{{ provider.name }}</span>
+                        <el-tag :type="providerStatusType(provider)" size="small">
+                          {{ providerStatusLabel(provider) }}
+                        </el-tag>
+                        <el-tag size="small" effect="plain">
+                          {{ providerActionLabel(provider.action) }}
+                        </el-tag>
+                      </span>
+                      <span class="provider-description">{{ provider.description }}</span>
+                    </span>
+                    <el-icon class="provider-chevron" :class="{ 'is-expanded': isProviderExpanded(provider.code) }">
+                      <ArrowDown />
+                    </el-icon>
+                  </button>
+                  <div class="provider-enable" @click.stop>
+                    <span>{{ t('systemSettings.enabled') }}</span>
+                    <el-switch
+                      :model-value="provider.enabled"
+                      :disabled="!provider.configured"
+                      :loading="providerSwitching[provider.code]"
+                      @change="handleProviderSwitchChange(provider, $event)"
+                    />
+                  </div>
+                </div>
+
+                <el-collapse-transition>
+                  <div v-show="isProviderExpanded(provider.code)" class="provider-body">
                     <div class="provider-meta">
                       <span v-if="provider.callback_path" class="callback-path">
                         {{ t('systemSettings.callbackUrl') }}：<code>{{ callbackURL(provider) }}</code>
@@ -384,24 +509,13 @@
                         {{ t('systemSettings.platformDocs') }}
                       </el-link>
                     </div>
-                  </div>
-                  <div class="provider-enable">
-                    <span>{{ t('systemSettings.enabled') }}</span>
-                    <el-switch
-                      :model-value="provider.enabled"
-                      :disabled="!provider.configured"
-                      :loading="providerSwitching[provider.code]"
-                      @change="handleProviderSwitchChange(provider, $event)"
-                    />
-                  </div>
-                </div>
 
-                <el-form
-                  v-if="providerConfigs[provider.code]"
-                  :model="providerConfigs[provider.code]"
-                  label-width="120px"
-                  class="provider-form"
-                >
+                    <el-form
+                      v-if="providerConfigs[provider.code]"
+                      :model="providerConfigs[provider.code]"
+                      label-width="120px"
+                      class="provider-form"
+                    >
                   <el-form-item
                     v-for="field in provider.fields"
                     :key="field.key"
@@ -452,8 +566,10 @@
                       </el-button>
                     </div>
                   </el-form-item>
-                </el-form>
-              </div>
+                    </el-form>
+                  </div>
+                </el-collapse-transition>
+              </section>
             </div>
           </div>
 
@@ -469,36 +585,59 @@
             <SystemUserManagementPage :key="usersPanelKey" />
           </div>
 
-          <div v-else-if="activeTab === 'backups'" v-loading="archivesLoading" class="section-pane">
+          <div v-else-if="activeTab === 'dataBackup'" class="section-pane">
+            <SystemBackupPanel :key="backupPanelKey" />
+          </div>
+
+          <div v-else-if="activeTab === 'backups'" v-loading="archivesLoading" class="section-pane backup-pane">
             <el-alert :title="t('systemSettings.archiveFallbackNote')" type="info" show-icon :closable="false" />
             <div class="archive-summary-row">
-              <span>{{ t('systemSettings.archiveRetention', { days: archiveRetentionDays }) }}</span>
-              <span>{{ t('systemSettings.archiveSchedule', { cron: archiveCronExpr, timezone: archiveTimezone }) }}</span>
+              <div class="archive-policy-item">
+                <span>{{ t('systemSettings.archiveRetentionLabel') }}</span>
+                <strong>{{ t('systemSettings.archiveRetentionValue', { days: archiveRetentionDays }) }}</strong>
+                <small>{{ t('systemSettings.archiveRetentionHint') }}</small>
+              </div>
+              <div class="archive-policy-item">
+                <span>{{ t('systemSettings.archiveScheduleLabel') }}</span>
+                <strong>{{ archiveScheduleFriendly }}</strong>
+                <small :title="t('systemSettings.archiveSchedule', { cron: archiveCronExpr, timezone: archiveTimezone })">{{ archiveTimezone }}</small>
+              </div>
             </div>
-            <el-table :data="archiveBatches" stripe class="archive-table">
-              <el-table-column :label="t('systemSettings.archiveScope')" min-width="150">
-                <template #default="{ row }">{{ row.tenant_user }}/{{ row.app }}</template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveRange')" min-width="220">
-                <template #default="{ row }">{{ formatArchiveTime(row.range_started_at) }} — {{ formatArchiveTime(row.range_ended_at) }}</template>
-              </el-table-column>
-              <el-table-column prop="record_count" :label="t('systemSettings.archiveRecords')" width="110" />
-              <el-table-column :label="t('systemSettings.archiveSize')" width="110">
-                <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveStatus')" width="110">
-                <template #default="{ row }"><el-tag :type="archiveStatusType(row.status)" size="small">{{ archiveStatusLabel(row.status) }}</el-tag></template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveSummary')" min-width="240">
-                <template #default="{ row }">{{ archiveResourceSummary(row) }}</template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveEvidence')" min-width="260">
+            <el-table v-if="archiveBatches.length" :data="archiveBatches" size="small" class="archive-table">
+              <el-table-column type="expand" width="44">
                 <template #default="{ row }">
-                  <div class="archive-evidence"><code>{{ row.object_ref || '-' }}</code><code v-if="row.sha256">SHA256 {{ row.sha256 }}</code></div>
+                  <div class="archive-detail-grid">
+                    <div><span>{{ t('systemSettings.archiveKey') }}</span><code>{{ row.archive_key || '-' }}</code></div>
+                    <div><span>{{ t('systemSettings.archiveObjectRef') }}</span><code>{{ row.object_ref || '-' }}</code></div>
+                    <div><span>SHA256</span><code>{{ row.sha256 || '-' }}</code></div>
+                    <div v-if="row.error_message"><span>{{ t('systemSettings.archiveError') }}</span><strong class="archive-error">{{ row.error_message }}</strong></div>
+                  </div>
                 </template>
               </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveScope')" min-width="210">
+                <template #default="{ row }">
+                  <div class="archive-primary-cell">
+                    <strong>{{ row.tenant_user }}/{{ row.app }}</strong>
+                    <small>{{ formatArchiveTime(row.range_started_at) }} — {{ formatArchiveTime(row.range_ended_at) }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveData')" width="150">
+                <template #default="{ row }">
+                  <div class="archive-primary-cell">
+                    <strong>{{ t('systemSettings.archiveRecordValue', { count: row.record_count }) }}</strong>
+                    <small>{{ formatFileSize(row.file_size) }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveSummary')" min-width="260">
+                <template #default="{ row }"><span class="archive-resource-summary">{{ archiveResourceSummary(row) }}</span></template>
+              </el-table-column>
+              <el-table-column :label="t('systemSettings.archiveStatus')" width="110" align="right">
+                <template #default="{ row }"><el-tag :type="archiveStatusType(row.status)" size="small">{{ archiveStatusLabel(row.status) }}</el-tag></template>
+              </el-table-column>
             </el-table>
-            <el-empty v-if="!archiveBatches.length && !archivesLoading" :description="t('systemSettings.noArchives')" />
+            <el-empty v-else-if="!archivesLoading" :description="t('systemSettings.noArchives')" />
             <el-pagination
               v-if="archiveTotal > archivePageSize"
               v-model:current-page="archivePage"
@@ -543,26 +682,74 @@
         </section>
       </div>
     </el-card>
+
+    <el-dialog
+      v-model="announcementPreviewVisible"
+      :title="t('systemSettings.loginAnnouncementPreviewTitle')"
+      width="min(640px, calc(100vw - 32px))"
+      align-center
+    >
+      <div
+        class="login-announcement-preview"
+        v-html="renderMarkdown(loginAnnouncement.markdown)"
+      />
+      <template #footer>
+        <div class="login-announcement-preview-footer">
+          <span class="login-announcement-preview-hint">
+            {{ t('systemSettings.loginAnnouncementPreviewHint') }}
+          </span>
+          <el-button @click="announcementPreviewVisible = false">{{ t('common.close') }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Check, CopyDocument, Message, QuestionFilled, Refresh } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  Brush,
+  Check,
+  Coin,
+  Connection,
+  CopyDocument,
+  Document,
+  FolderOpened,
+  Key,
+  Lock,
+  Message,
+  Monitor,
+  QuestionFilled,
+  Reading,
+  Refresh,
+  Setting,
+  User,
+} from '@element-plus/icons-vue'
 import { useLocaleStore, useThemeStore } from '@/architecture/presentation/context/appStoresContext'
 import type { SupportedLocale } from '@/architecture/shared/i18n'
+import { authProviderLogo } from '@/architecture/shared/assets/authProviderLogos'
 import { getKageosDocsURL, openExternalURL, type KageosDocSlug } from '@/architecture/shared/config/externalLinks'
 import { featureFlags } from '@/architecture/shared/config/features'
 import ConnectorProviderManagementPage from '@/architecture/presentation/features/connector/pages/ConnectorProviderManagementPage.vue'
 import OpenAPITokenManagementPage from '@/architecture/presentation/features/agent/pages/OpenAPITokenManagementPage.vue'
 import SystemUserManagementPage from '@/architecture/presentation/features/system/pages/SystemUserManagementPage.vue'
+import SystemResourceTrendChart from '@/architecture/presentation/features/system/components/SystemResourceTrendChart.vue'
+import SystemUsagePanel from '@/architecture/presentation/features/system/components/SystemUsagePanel.vue'
+import SystemStorageAssetsPanel from '@/architecture/presentation/features/system/components/SystemStorageAssetsPanel.vue'
+import SystemBackupPanel from '@/architecture/presentation/features/system/components/SystemBackupPanel.vue'
+import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
 import {
   getSystemSettings,
   getLoginAnnouncementConfig,
-  getSystemResourceOverview,
+  getSystemResourceSummary,
+  getSystemResourceTrends,
+  getSystemResourceStorage,
+  getSystemResourceDatabases,
+  getSystemResourceDiagnostics,
   listAuthLoginProviders,
   listLogArchiveBatches,
   updateSystemSettings,
@@ -574,17 +761,27 @@ import {
   type AuthLoginProviderInfo,
   type LogArchiveBatch,
   type LoginAnnouncement,
-  type SystemResourceHistoryPoint,
   type SystemResourceOverview,
+  type SystemResourceSummary,
   type SystemSettings
 } from '@/architecture/presentation/context/api/system-settings'
 
-type SettingsTab = 'operations' | 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'backups' | 'appearance' | 'language'
+type SettingsTab = 'operations' | 'fileAssets' | 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'dataBackup' | 'backups' | 'appearance' | 'language'
+type OperationsTab = 'overview' | 'usage' | 'trends' | 'storage' | 'databases' | 'diagnostics'
 
 interface SettingsSection {
   key: SettingsTab
   title: string
   desc: string
+  icon: Component
+}
+
+type SettingsGroupKey = 'system' | 'access' | 'integrations' | 'preferences'
+
+interface SettingsNavigationGroup {
+  key: SettingsGroupKey
+  title: string
+  sections: SettingsSection[]
 }
 
 const loading = ref(false)
@@ -596,6 +793,9 @@ const activeTab = ref<SettingsTab>(defaultSettingsTab)
 const connectorPanelKey = ref(0)
 const openapiPanelKey = ref(0)
 const usersPanelKey = ref(0)
+const backupPanelKey = ref(0)
+const usagePanelKey = ref(0)
+const storageAssetsPanelKey = ref(0)
 const archivesLoading = ref(false)
 const archiveBatches = ref<LogArchiveBatch[]>([])
 const archivePage = ref(1)
@@ -606,12 +806,23 @@ const archiveCronExpr = ref('20 3 * * *')
 const archiveTimezone = ref('Asia/Shanghai')
 const resourcesLoading = ref(false)
 const resourceOverview = ref<SystemResourceOverview | null>(null)
+const operationsTab = ref<OperationsTab>('overview')
+const loadedOperationsTabs = reactive<Record<OperationsTab, boolean>>({ overview: false, usage: false, trends: false, storage: false, databases: false, diagnostics: false })
 const resourceHistoryHours = ref(168)
+const databaseScope = ref<'all' | 'platform' | 'workspace'>('all')
+const databaseSearch = ref('')
+const databasePage = ref(1)
+const databasePageSize = 20
+const databaseTotal = ref(0)
+const platformDatabaseCount = ref(0)
+const workspaceDatabaseCount = ref(0)
 let resourceRefreshTimer: ReturnType<typeof setInterval> | undefined
-let lastFullResourceRefreshAt = 0
+let databaseSearchTimer: ReturnType<typeof setTimeout> | undefined
 const providersLoading = ref(false)
 const announcementSaving = ref(false)
+const announcementPreviewVisible = ref(false)
 const authProviders = ref<AuthLoginProviderInfo[]>([])
+const expandedProviderCodes = ref<string[]>([])
 const providerConfigs = reactive<Record<string, Record<string, string>>>({})
 const providerSaving = reactive<Record<string, boolean>>({})
 const providerSwitching = reactive<Record<string, boolean>>({})
@@ -619,19 +830,22 @@ const loginAnnouncement = reactive<LoginAnnouncement>({ enabled: false, markdown
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const { renderMarkdown, preloadMarkdown } = useLazyMarkdownRenderer()
 const localeStore = useLocaleStore()
 const themeStore = useThemeStore()
 
 const allSettingsSections = computed<SettingsSection[]>(() => [
-  { key: 'operations', title: t('systemSettings.sections.operationsTitle'), desc: t('systemSettings.sections.operationsDesc') },
-  { key: 'email', title: t('systemSettings.sections.emailTitle'), desc: t('systemSettings.sections.emailDesc') },
-  { key: 'login', title: t('systemSettings.sections.loginTitle'), desc: t('systemSettings.sections.loginDesc') },
-  { key: 'users', title: t('systemSettings.sections.usersTitle'), desc: t('systemSettings.sections.usersDesc') },
-  { key: 'backups', title: t('systemSettings.sections.backupsTitle'), desc: t('systemSettings.sections.backupsDesc') },
-  { key: 'openapi', title: t('systemSettings.sections.openapiTitle'), desc: t('systemSettings.sections.openapiDesc') },
-  { key: 'connectors', title: t('systemSettings.sections.connectorsTitle'), desc: t('systemSettings.sections.connectorsDesc') },
-  { key: 'appearance', title: t('systemSettings.sections.appearanceTitle'), desc: t('systemSettings.sections.appearanceDesc') },
-  { key: 'language', title: t('systemSettings.sections.languageTitle'), desc: t('systemSettings.sections.languageDesc') },
+  { key: 'operations', title: t('systemSettings.sections.operationsTitle'), desc: t('systemSettings.sections.operationsDesc'), icon: Monitor },
+  { key: 'fileAssets', title: t('systemSettings.sections.fileAssetsTitle'), desc: t('systemSettings.sections.fileAssetsDesc'), icon: FolderOpened },
+  { key: 'email', title: t('systemSettings.sections.emailTitle'), desc: t('systemSettings.sections.emailDesc'), icon: Message },
+  { key: 'login', title: t('systemSettings.sections.loginTitle'), desc: t('systemSettings.sections.loginDesc'), icon: Lock },
+  { key: 'users', title: t('systemSettings.sections.usersTitle'), desc: t('systemSettings.sections.usersDesc'), icon: User },
+  { key: 'dataBackup', title: t('systemSettings.sections.dataBackupTitle'), desc: t('systemSettings.sections.dataBackupDesc'), icon: Coin },
+  { key: 'backups', title: t('systemSettings.sections.backupsTitle'), desc: t('systemSettings.sections.backupsDesc'), icon: Document },
+  { key: 'openapi', title: t('systemSettings.sections.openapiTitle'), desc: t('systemSettings.sections.openapiDesc'), icon: Key },
+  { key: 'connectors', title: t('systemSettings.sections.connectorsTitle'), desc: t('systemSettings.sections.connectorsDesc'), icon: Connection },
+  { key: 'appearance', title: t('systemSettings.sections.appearanceTitle'), desc: t('systemSettings.sections.appearanceDesc'), icon: Brush },
+  { key: 'language', title: t('systemSettings.sections.languageTitle'), desc: t('systemSettings.sections.languageDesc'), icon: Reading },
 ])
 
 const settingsSections = computed<SettingsSection[]>(() => {
@@ -643,13 +857,29 @@ const settingsSections = computed<SettingsSection[]>(() => {
   })
 })
 
+const settingsNavigationGroups = computed<SettingsNavigationGroup[]>(() => {
+  const availableSections = new Map(settingsSections.value.map((section) => [section.key, section]))
+  const groups: Array<{ key: SettingsGroupKey; title: string; keys: SettingsTab[] }> = [
+    { key: 'system', title: t('systemSettings.navigationGroups.system'), keys: ['operations', 'fileAssets'] },
+    { key: 'access', title: t('systemSettings.navigationGroups.access'), keys: ['login', 'users'] },
+    { key: 'integrations', title: t('systemSettings.navigationGroups.integrations'), keys: ['dataBackup', 'backups', 'email', 'openapi', 'connectors'] },
+    { key: 'preferences', title: t('systemSettings.navigationGroups.preferences'), keys: ['appearance', 'language'] },
+  ]
+
+  return groups
+    .map((group) => ({ ...group, sections: group.keys.flatMap((key) => availableSections.get(key) ? [availableSections.get(key)!] : []) }))
+    .filter((group) => group.sections.length > 0)
+})
+
 const settingsDocSlugMap: Record<SettingsTab, KageosDocSlug> = {
   operations: 'runtime',
+  fileAssets: 'runtime',
   email: 'runtime',
   login: 'login',
   connectors: 'connectors',
   openapi: 'api',
   users: 'runtime',
+  dataBackup: 'runtime',
   backups: 'runtime',
   appearance: 'docs',
   language: 'docs',
@@ -703,10 +933,24 @@ const forecastDescription = computed(() => {
   return t('systemSettings.resources.forecastStable', { target: forecast.target_percent })
 })
 
-const historyTimeRange = computed(() => {
-  const history = resourceOverview.value?.history || []
-  if (!history.length) return ''
-  return `${formatResourceTime(history[0].collected_at)} — ${formatResourceTime(history[history.length - 1].collected_at)}`
+const databaseInventory = computed(() => resourceOverview.value?.current.databases?.length
+  ? resourceOverview.value.current.databases
+  : resourceOverview.value?.current.largest_databases || [])
+const capacityDailyRows = computed(() => (resourceOverview.value?.capacity_history || [])
+  .slice(-7)
+  .reverse())
+const latestCapacityDaily = computed(() => resourceOverview.value?.capacity_history?.at(-1))
+
+watch(databaseScope, () => {
+  databasePage.value = 1
+  if (operationsTab.value === 'databases') void loadResourceDatabases()
+})
+watch(databaseSearch, () => {
+  databasePage.value = 1
+  if (databaseSearchTimer) clearTimeout(databaseSearchTimer)
+  databaseSearchTimer = setTimeout(() => {
+    if (operationsTab.value === 'databases') void loadResourceDatabases()
+  }, 300)
 })
 
 const environmentTitle = computed(() => {
@@ -745,6 +989,38 @@ const form = reactive<SystemSettings>({
 
 const configuredProviderCount = computed(() => authProviders.value.filter((provider) => provider.configured).length)
 const enabledProviderCount = computed(() => authProviders.value.filter((provider) => provider.enabled).length)
+const loadStatusType = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
+  const current = resourceOverview.value?.current
+  if (!current?.load_available || current.cpu_cores <= 0) return 'info'
+  const ratio = current.load_1 / current.cpu_cores
+  if (ratio >= 0.85) return 'danger'
+  if (ratio >= 0.6) return 'warning'
+  return 'success'
+})
+const loadStatusLabel = computed(() => t(`systemSettings.resources.loadStatuses.${loadStatusType.value}`))
+const archiveScheduleFriendly = computed(() => {
+  const parts = archiveCronExpr.value.trim().split(/\s+/)
+  if (parts.length === 5 && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
+    const minute = Number(parts[0])
+    const hour = Number(parts[1])
+    if (Number.isInteger(minute) && Number.isInteger(hour) && minute >= 0 && minute < 60 && hour >= 0 && hour < 24) {
+      return t('systemSettings.archiveDailyAt', {
+        time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+      })
+    }
+  }
+  return t('systemSettings.archiveCustomSchedule')
+})
+
+function isProviderExpanded(code: string) {
+  return expandedProviderCodes.value.includes(code)
+}
+
+function toggleProvider(code: string) {
+  expandedProviderCodes.value = isProviderExpanded(code)
+    ? expandedProviderCodes.value.filter(item => item !== code)
+    : [...expandedProviderCodes.value, code]
+}
 
 function applySettings(settings: SystemSettings) {
   form.registration_mode = settings.registration_mode
@@ -826,11 +1102,19 @@ async function saveLoginAnnouncement() {
 
 async function refreshActiveTab() {
   if (activeTab.value === 'operations') {
+		if (operationsTab.value === 'usage') {
+			usagePanelKey.value += 1
+			return
+		}
     await loadResources()
     return
   }
   if (activeTab.value === 'login') {
     await loadAuthProviders()
+    return
+  }
+  if (activeTab.value === 'fileAssets') {
+    storageAssetsPanelKey.value += 1
     return
   }
   if (activeTab.value === 'connectors') {
@@ -843,6 +1127,10 @@ async function refreshActiveTab() {
   }
   if (activeTab.value === 'users') {
     usersPanelKey.value += 1
+    return
+  }
+  if (activeTab.value === 'dataBackup') {
+    backupPanelKey.value += 1
     return
   }
   if (activeTab.value === 'backups') {
@@ -868,10 +1156,76 @@ function handleTabChange(tabName: string | number) {
 }
 
 async function loadResources() {
+	await loadActiveOperationsTab(true)
+}
+
+function overviewFromSummary(summary: SystemResourceSummary): SystemResourceOverview {
+  return {
+    current: { ...summary.current, storage_pools: [], components: [], databases: [], largest_databases: [] },
+    history: [],
+    capacity_history: [],
+    history_hours: resourceHistoryHours.value,
+    sample_interval_minutes: summary.sample_interval_minutes,
+    runtime_retention_days: summary.runtime_retention_days,
+    platform_retention_days: 0,
+    capacity_retention_days: 0,
+    platform_interval_hours: 24,
+    capacity_interval_hours: 24,
+    platform_schedule_local: '',
+    capacity_schedule_local: '',
+    capacity_collected_at: '',
+    forecast: summary.forecast,
+    platform: summary.platform,
+    collection_tasks: [],
+    runtime_interval_seconds: summary.runtime_interval_seconds,
+  }
+}
+
+async function loadResourceSummary(silent = false) {
+	if (!silent) resourcesLoading.value = true
+	try {
+		const summary = await getSystemResourceSummary()
+		if (!resourceOverview.value) {
+			resourceOverview.value = overviewFromSummary(summary)
+		} else {
+			const previous = resourceOverview.value
+			resourceOverview.value = {
+				...previous,
+				current: {
+					...summary.current,
+					storage_pools: previous.current.storage_pools,
+					components: previous.current.components,
+					databases: previous.current.databases,
+					largest_databases: previous.current.largest_databases,
+				},
+				platform: summary.platform,
+				forecast: loadedOperationsTabs.storage ? previous.forecast : summary.forecast,
+				sample_interval_minutes: summary.sample_interval_minutes,
+				runtime_retention_days: summary.runtime_retention_days,
+				runtime_interval_seconds: summary.runtime_interval_seconds,
+			}
+		}
+		loadedOperationsTabs.overview = true
+	} catch (error: any) {
+		if (!silent) ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.resources.loadFailed'))
+	} finally {
+		if (!silent) resourcesLoading.value = false
+	}
+}
+
+async function loadResourceTrends() {
   resourcesLoading.value = true
   try {
-    resourceOverview.value = await getSystemResourceOverview(resourceHistoryHours.value)
-    lastFullResourceRefreshAt = Date.now()
+		const result = await getSystemResourceTrends(resourceHistoryHours.value)
+		if (resourceOverview.value) {
+			Object.assign(resourceOverview.value, {
+				history: result.history,
+				history_hours: result.history_hours,
+				sample_interval_minutes: result.sample_interval_minutes,
+				runtime_retention_days: result.runtime_retention_days,
+			})
+		}
+		loadedOperationsTabs.trends = true
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.resources.loadFailed'))
   } finally {
@@ -879,23 +1233,107 @@ async function loadResources() {
   }
 }
 
+async function loadResourceStorage() {
+	resourcesLoading.value = true
+	try {
+		const result = await getSystemResourceStorage()
+		if (resourceOverview.value) {
+			resourceOverview.value.current.environment = result.environment
+			resourceOverview.value.current.storage_pools = result.storage_pools
+			resourceOverview.value.current.components = result.components
+			resourceOverview.value.forecast = result.forecast
+			resourceOverview.value.capacity_retention_days = result.capacity_retention_days
+			resourceOverview.value.capacity_schedule_local = result.capacity_schedule_local
+			resourceOverview.value.capacity_collected_at = result.collected_at
+		}
+		loadedOperationsTabs.storage = true
+	} catch (error: any) {
+		ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.resources.loadFailed'))
+	} finally {
+		resourcesLoading.value = false
+	}
+}
+
+async function loadResourceDatabases() {
+	resourcesLoading.value = true
+	try {
+		const result = await getSystemResourceDatabases({
+			page: databasePage.value,
+			page_size: databasePageSize,
+			scope: databaseScope.value,
+			keyword: databaseSearch.value.trim(),
+			include_history: !loadedOperationsTabs.databases,
+		})
+		if (resourceOverview.value) {
+			resourceOverview.value.current.databases = result.items
+			resourceOverview.value.current.largest_databases = []
+			resourceOverview.value.current.database_logical_bytes = result.database_logical_bytes
+			resourceOverview.value.current.database_size_available = result.database_size_available
+			resourceOverview.value.current.database_inventory_complete = result.database_inventory_complete
+			if (result.capacity_history?.length) resourceOverview.value.capacity_history = result.capacity_history
+			resourceOverview.value.capacity_retention_days = result.capacity_retention_days
+			resourceOverview.value.capacity_schedule_local = result.capacity_schedule_local
+			resourceOverview.value.capacity_collected_at = result.collected_at
+		}
+		databaseTotal.value = result.total
+		platformDatabaseCount.value = result.platform_count
+		workspaceDatabaseCount.value = result.workspace_count
+		loadedOperationsTabs.databases = true
+	} catch (error: any) {
+		ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.resources.loadFailed'))
+	} finally {
+		resourcesLoading.value = false
+	}
+}
+
+async function loadResourceDiagnostics() {
+	resourcesLoading.value = true
+	try {
+		const result = await getSystemResourceDiagnostics()
+		if (resourceOverview.value) {
+			resourceOverview.value.current.environment = result.environment
+			resourceOverview.value.collection_tasks = result.collection_tasks
+			resourceOverview.value.platform_retention_days = result.platform_retention_days
+			resourceOverview.value.capacity_retention_days = result.capacity_retention_days
+			resourceOverview.value.platform_schedule_local = result.platform_schedule_local
+			resourceOverview.value.capacity_schedule_local = result.capacity_schedule_local
+			resourceOverview.value.sample_interval_minutes = result.sample_interval_minutes
+			resourceOverview.value.runtime_retention_days = result.runtime_retention_days
+			resourceOverview.value.runtime_interval_seconds = result.runtime_interval_seconds
+		}
+		loadedOperationsTabs.diagnostics = true
+	} catch (error: any) {
+		ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.resources.loadFailed'))
+	} finally {
+		resourcesLoading.value = false
+	}
+}
+
+async function loadActiveOperationsTab(force = false) {
+	const tab = operationsTab.value
+	if (!force && loadedOperationsTabs[tab]) return
+	if (tab === 'overview') return loadResourceSummary()
+	if (!resourceOverview.value) await loadResourceSummary()
+	if (tab === 'usage') {
+		loadedOperationsTabs.usage = true
+		return
+	}
+	if (tab === 'trends') return loadResourceTrends()
+	if (tab === 'storage') return loadResourceStorage()
+	if (tab === 'databases') return loadResourceDatabases()
+	return loadResourceDiagnostics()
+}
+
+function handleOperationsTabChange(tabName: string | number) {
+	operationsTab.value = tabName as OperationsTab
+	void loadActiveOperationsTab()
+	router.replace({ path: route.path, query: { ...route.query, resource_tab: operationsTab.value } })
+}
+
 async function refreshResourcesSilently() {
-  if (activeTab.value !== 'operations' || resourcesLoading.value) return
+  if (activeTab.value !== 'operations' || operationsTab.value !== 'overview' || resourcesLoading.value) return
   try {
-    const previous = resourceOverview.value
-    const includeHistory = !previous || Date.now() - lastFullResourceRefreshAt >= 10 * 60_000
-    const latest = await getSystemResourceOverview(resourceHistoryHours.value, includeHistory)
-    if (includeHistory || !previous) {
-      resourceOverview.value = latest
-      lastFullResourceRefreshAt = Date.now()
-    } else {
-      resourceOverview.value = {
-        ...latest,
-        history: previous.history,
-        history_hours: previous.history_hours,
-        forecast: previous.forecast
-      }
-    }
+    await loadResourceSummary(true)
   } catch {
     // Keep the last successful snapshot; the explicit refresh path reports errors.
   }
@@ -915,6 +1353,17 @@ function formatBytes(value: number) {
 
 function formatRate(value: number) {
   return `${formatBytes(value)}/s`
+}
+
+function formatSignedBytes(value: number) {
+  if (!Number.isFinite(value)) return '-'
+  if (value === 0) return '0 B'
+  return `${value > 0 ? '+' : '-'}${formatBytes(Math.abs(value))}`
+}
+
+function formatSignedCount(value: number) {
+  if (!Number.isFinite(value)) return '-'
+  return value > 0 ? `+${value}` : String(value)
 }
 
 function roundedPercent(value: number) {
@@ -949,30 +1398,40 @@ function formatUptime(seconds: number) {
   return t('systemSettings.resources.uptime', { days, hours })
 }
 
-function formatResourceTime(value: string) {
+function formatResourceTime(value?: string) {
+  if (!value) return '-'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
-function historyPolyline(key: keyof Pick<SystemResourceHistoryPoint, 'disk_used_percent' | 'memory_used_percent' | 'cpu_used_percent'>) {
-  const history = resourceOverview.value?.history || []
-  if (history.length < 2) return ''
-  return history.map((point, index) => {
-    const x = index * 800 / (history.length - 1)
-    const y = 180 - Math.min(100, Math.max(0, point[key])) * 1.8
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
+function formatResourceDate(value?: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
 }
 
-function historyRatePolyline(key: keyof Pick<SystemResourceHistoryPoint, 'network_rx_bytes_per_second' | 'network_tx_bytes_per_second'>) {
-  const history = resourceOverview.value?.history || []
-  if (history.length < 2) return ''
-  const max = Math.max(1, ...history.flatMap(point => [point.network_rx_bytes_per_second, point.network_tx_bytes_per_second]))
-  return history.map((point, index) => {
-    const x = index * 800 / (history.length - 1)
-    const y = 120 - Math.min(1, Math.max(0, point[key] / max)) * 112
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
+function databaseKindLabel(kind: string) {
+  return t(`systemSettings.resources.databaseKinds.${kind}`)
+}
+
+function databaseStatusLabel(status: string) {
+  return t(`systemSettings.resources.databaseStatuses.${status}`)
+}
+
+function databaseStatusType(status: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (status === 'active') return 'success'
+  if (status === 'pending') return 'warning'
+  if (status === 'missing') return 'danger'
+  return 'info'
+}
+
+function databasePurposeLabel(purpose: string) {
+  const translated = t(`systemSettings.resources.databasePurposes.${purpose}`)
+  return translated.includes('systemSettings.resources.databasePurposes.') ? purpose : translated
+}
+
+function databaseDirectoryLabel(kind: string, directory: string) {
+  return kind === 'platform' ? t('systemSettings.resources.databasePlatformDirectory') : directory
 }
 
 function collectionTaskName(key: string) {
@@ -1054,6 +1513,10 @@ function isSettingsTab(value: unknown): value is SettingsTab {
   return typeof value === 'string' && settingsSections.value.some((section) => section.key === value)
 }
 
+function isOperationsTab(value: unknown): value is OperationsTab {
+	return value === 'overview' || value === 'usage' || value === 'trends' || value === 'storage' || value === 'databases' || value === 'diagnostics'
+}
+
 function selectSettingsSection(tabName: SettingsTab) {
   activeTab.value = tabName
   handleTabChange(tabName)
@@ -1061,6 +1524,11 @@ function selectSettingsSection(tabName: SettingsTab) {
     path: route.path,
     query: { ...route.query, tab: tabName }
   })
+}
+
+function handleMobileSettingsChange(event: Event) {
+  const tabName = (event.target as HTMLSelectElement).value
+  if (isSettingsTab(tabName)) selectSettingsSection(tabName)
 }
 
 function openCurrentDocs() {
@@ -1281,8 +1749,14 @@ async function sendTestEmail() {
 }
 
 onMounted(() => {
+  preloadMarkdown()
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab
-  if (isSettingsTab(tab)) {
+	const resourceTab = Array.isArray(route.query.resource_tab) ? route.query.resource_tab[0] : route.query.resource_tab
+	const legacyAssetsTab = resourceTab === 'assets'
+	if (isOperationsTab(resourceTab)) operationsTab.value = resourceTab
+  if (legacyAssetsTab) {
+    activeTab.value = 'fileAssets'
+  } else if (isSettingsTab(tab)) {
     activeTab.value = tab
   } else if (!isSettingsTab(activeTab.value)) {
     activeTab.value = settingsSections.value[0]?.key || defaultSettingsTab
@@ -1297,45 +1771,32 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (resourceRefreshTimer) clearInterval(resourceRefreshTimer)
+	if (databaseSearchTimer) clearTimeout(databaseSearchTimer)
 })
 </script>
 
 <style scoped>
 .system-settings-page {
+  --settings-page-bg: var(--app-shell-bg, var(--bg-primary));
+  --settings-sidebar-bg: color-mix(in srgb, var(--settings-page-bg) 96%, var(--color-primary) 4%);
+  --settings-sidebar-border: color-mix(in srgb, var(--color-primary) 12%, var(--border-light));
+  --settings-nav-hover-bg: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  --settings-nav-active-bg: color-mix(in srgb, var(--color-primary) 14%, var(--settings-sidebar-bg));
+  --settings-nav-active-mark: color-mix(in srgb, var(--color-primary) 82%, var(--text-primary));
   min-height: 100vh;
-  padding: 32px clamp(20px, 2.5vw, 48px);
-  background: var(--bg-primary);
+  padding: 0;
+  background: var(--settings-page-bg);
 }
 
 .settings-card {
   width: 100%;
-  border-radius: var(--border-radius-xl);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--app-shell-panel-shadow-soft);
-  background: var(--bg-secondary);
+  min-height: 100vh;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 24px 32px;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.card-header h2 {
-  margin: 0 0 6px;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.card-header p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
+.settings-card :deep(.el-card__body) { padding: 0; }
 
 .header-actions,
 .test-row {
@@ -1347,68 +1808,139 @@ onBeforeUnmount(() => {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 236px minmax(0, 1fr);
   gap: 0;
   align-items: stretch;
+  min-height: 100vh;
 }
 
 .settings-sidebar {
-  border-right: 1px solid var(--border-light);
-  background: var(--bg-secondary);
-  padding: 16px;
+  border-right: 1px solid var(--settings-sidebar-border);
+  background: var(--settings-sidebar-bg);
+  padding: 28px 16px 24px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  border-radius: var(--border-radius-xl) 0 0 var(--border-radius-xl);
+  gap: 22px;
+}
+
+.settings-sidebar-heading {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 0 8px 6px;
+}
+
+.settings-sidebar-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--settings-nav-active-mark);
+  font-size: 18px;
+}
+
+.settings-sidebar-heading h2,
+.settings-mobile-heading h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.settings-sidebar-heading p,
+.settings-mobile-heading p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-nav-group {
+  display: grid;
+  gap: 7px;
+}
+
+.settings-nav-group-title {
+  margin: 0;
+  padding: 0 11px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.settings-nav-list {
+  display: grid;
+  gap: 3px;
 }
 
 .settings-nav-item {
+  position: relative;
   width: 100%;
-  min-height: 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid transparent;
-  border-radius: var(--border-radius-base);
-  background: var(--bg-tertiary);
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
-  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: background-color 0.18s ease, color 0.18s ease;
 }
 
 .settings-nav-item:hover {
-  background: var(--el-fill-color);
+  background: var(--settings-nav-hover-bg);
 }
 
 .settings-nav-item.is-active {
-  background: var(--el-fill-color-blank);
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.1);
+  background: var(--settings-nav-active-bg);
+  color: var(--settings-nav-active-mark);
+}
+
+.settings-nav-item.is-active::before {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: var(--settings-nav-active-mark);
+  content: '';
+}
+
+.settings-nav-icon {
+  color: var(--text-secondary);
+  font-size: 17px;
+}
+
+.settings-nav-item:hover .settings-nav-icon,
+.settings-nav-item.is-active .settings-nav-icon {
+  color: currentColor;
 }
 
 .settings-nav-title {
   display: block;
   font-size: 14px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.settings-nav-desc {
-  display: block;
-  margin-top: 4px;
-  color: var(--text-secondary);
-  font-size: 12px;
+  font-weight: 500;
   line-height: 1.35;
 }
 
+.settings-nav-item.is-active .settings-nav-title { font-weight: 650; }
+
 .settings-content {
   min-width: 0;
-  background: transparent;
-  border-radius: 0 var(--border-radius-xl) var(--border-radius-xl) 0;
-  padding: 32px 40px;
+  background: var(--settings-page-bg);
+  padding: 34px clamp(28px, 4vw, 56px) 48px;
 }
+
+.settings-mobile-heading { display: none; }
 
 .section-header {
   display: flex;
@@ -1443,24 +1975,74 @@ onBeforeUnmount(() => {
 }
 
 .archive-summary-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
-  margin: 16px 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 260px));
+  gap: 12px;
+  margin: 16px 0 18px;
+}
+
+.archive-policy-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-base);
+  background: var(--bg-tertiary);
+}
+
+.archive-policy-item span,
+.archive-policy-item small {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.archive-policy-item strong {
+  color: var(--text-primary);
+  font-size: 15px;
 }
 
 .archive-table {
   margin-bottom: 16px;
 }
 
-.archive-evidence {
+.archive-primary-cell {
   display: grid;
   gap: 4px;
-  font-size: 11px;
+}
+
+.archive-primary-cell strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.archive-primary-cell small,
+.archive-resource-summary {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.archive-detail-grid {
+  display: grid;
+  gap: 10px;
+  padding: 8px 18px 12px 44px;
+}
+
+.archive-detail-grid > div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.archive-detail-grid code {
+  color: var(--text-primary);
   overflow-wrap: anywhere;
 }
+
+.archive-error { color: var(--el-color-danger); }
+.backup-pane :deep(.el-pagination) { justify-content: flex-end; }
 
 .test-row {
   width: 100%;
@@ -1474,7 +2056,7 @@ onBeforeUnmount(() => {
 }
 
 .login-announcement-panel {
-  padding: 18px;
+  padding: 14px 16px;
   border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   background: var(--el-bg-color);
@@ -1485,7 +2067,7 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .login-announcement-heading h4 {
@@ -1503,50 +2085,119 @@ onBeforeUnmount(() => {
 .login-announcement-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+}
+
+.login-announcement-preview {
+  min-height: 120px;
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.login-announcement-preview :deep(:first-child) {
+  margin-top: 0;
+}
+
+.login-announcement-preview :deep(:last-child) {
+  margin-bottom: 0;
+}
+
+.login-announcement-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.login-announcement-preview-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  text-align: left;
 }
 
 .provider-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.summary-item {
-  min-width: 0;
-  padding: 14px 16px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  background: var(--el-fill-color-lighter);
-}
-
-.summary-value {
-  display: block;
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--el-text-color-primary);
-  line-height: 1.2;
-}
-
-.summary-label {
-  display: block;
-  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0;
   font-size: 13px;
   color: var(--el-text-color-secondary);
 }
 
 .provider-panel {
-  padding: 18px;
   border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
+  border-radius: var(--border-radius-base);
   background: var(--el-bg-color);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.provider-panel:hover,
+.provider-panel.is-expanded {
+  border-color: var(--el-border-color);
+}
+
+.provider-panel.is-expanded {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
 .provider-panel-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 18px;
+  gap: 12px;
+  min-height: 66px;
+  padding: 10px 14px;
+}
+
+.provider-toggle {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.provider-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.provider-logo {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.provider-logo img { width: 28px; height: 28px; object-fit: contain; }
+
+.provider-chevron {
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.provider-chevron.is-expanded { transform: rotate(180deg); }
+
+.provider-body {
+  padding: 0 16px 14px 66px;
+  border-top: 1px solid var(--el-border-color-extra-light);
 }
 
 .provider-heading {
@@ -1562,15 +2213,17 @@ onBeforeUnmount(() => {
 }
 
 .provider-name {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.provider-heading p {
-  margin: 8px 0 0;
+.provider-description {
+  display: block;
+  margin-top: 4px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .provider-meta {
@@ -1605,6 +2258,7 @@ onBeforeUnmount(() => {
 
 .provider-form {
   max-width: 860px;
+  padding-top: 12px;
 }
 
 .provider-field {
@@ -1670,6 +2324,23 @@ onBeforeUnmount(() => {
 
 .operations-pane { display: grid; gap: 20px; }
 
+.operations-tabs {
+  margin-bottom: 2px;
+  overflow: hidden;
+}
+.operations-tabs :deep(.el-tabs__header) { margin: 0; }
+.operations-tabs :deep(.el-tabs__nav-wrap) { overflow-x: auto; }
+.operations-tabs :deep(.el-tabs__item) {
+  height: 42px;
+  padding: 0 18px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.operations-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--color-primary);
+  font-weight: 650;
+}
+
 .resource-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1698,6 +2369,16 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.resource-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.resource-value-row strong { min-width: 0; }
 
 .resource-summary-card small,
 .resource-panel-heading p,
@@ -1755,8 +2436,54 @@ onBeforeUnmount(() => {
 .platform-metric-card span,
 .platform-metric-card small { color: var(--text-secondary); font-size: 12px; }
 .platform-metric-card strong { color: var(--text-primary); font-size: 24px; }
+.database-inventory-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.database-inventory-heading h4 { margin: 0; color: var(--text-primary); font-size: 15px; }
+.database-inventory-heading p { margin: 6px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.database-counts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.monitoring-policy-strip { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0; color: var(--text-secondary); font-size: 12px; }
+.monitoring-policy-strip span { display: inline-flex; align-items: center; }
+.monitoring-policy-strip span::before { width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--el-color-primary); content: ''; }
+.database-delta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.database-delta-grid article { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--border-light); border-radius: var(--border-radius-lg); background: var(--bg-secondary); }
+.database-delta-grid span,
+.database-delta-grid small { color: var(--text-secondary); font-size: 12px; }
+.database-delta-grid strong { color: var(--text-primary); font-size: 20px; }
+.database-daily-history { margin: 18px 0; }
+.database-daily-history h5 { margin: 0 0 10px; color: var(--text-primary); font-size: 13px; }
+.database-toolbar { display: grid; grid-template-columns: minmax(240px, 1fr) auto; gap: 12px; align-items: center; margin: 16px 0 12px; }
 .database-size-table { margin-top: 8px; }
+.database-code,
+.database-directory { color: var(--text-primary); font-size: 12px; overflow-wrap: anywhere; }
+.database-pagination { justify-content: flex-end; margin-top: 16px; }
 .collection-error { color: var(--el-color-danger); }
+
+.operations-advanced {
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.operations-advanced :deep(.el-collapse-item__header) {
+  height: auto;
+  min-height: 58px;
+  padding: 10px 18px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.operations-advanced :deep(.el-collapse-item__wrap) { border-bottom: 0; background: transparent; }
+.operations-advanced :deep(.el-collapse-item__content) { padding: 0 16px 16px; }
+
+.advanced-title {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.advanced-title strong { color: var(--text-primary); font-size: 14px; }
+.advanced-title span { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
+.advanced-content { display: grid; gap: 14px; }
 
 .resource-panel-heading {
   display: flex;
@@ -1769,71 +2496,87 @@ onBeforeUnmount(() => {
 .resource-panel-heading h4,
 .resource-panel-heading p { margin: 0; }
 .resource-panel-heading p { margin-top: 5px; font-size: 13px; }
-.resource-chart-wrap { overflow: hidden; }
-.resource-chart { display: block; width: 100%; height: 180px; }
-.chart-grid-line { stroke: var(--border-light); stroke-width: 1; }
-
-.chart-line {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 3;
-  vector-effect: non-scaling-stroke;
-}
-
-.disk-line { stroke: var(--el-color-primary); }
-.memory-line { stroke: var(--el-color-warning); }
-.cpu-line { stroke: var(--el-color-success); }
-.network-rx-line { stroke: var(--el-color-primary); }
-.network-tx-line { stroke: var(--el-color-danger); }
-.rate-chart { height: 120px; margin-top: 22px; border-top: 1px solid var(--border-light); }
-
-.chart-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 12px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.chart-legend span:last-child { margin-left: auto; }
-.legend-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
-.disk-dot { background: var(--el-color-primary); }
-.memory-dot { background: var(--el-color-warning); }
-.cpu-dot { background: var(--el-color-success); }
-.network-rx-dot { background: var(--el-color-primary); }
-.network-tx-dot { background: var(--el-color-danger); }
 .resource-collected-at { margin: -6px 0 0; text-align: right; font-size: 12px; }
 
-@media (max-width: 768px) {
-  .system-settings-page {
-    padding: 12px;
-  }
+@media (max-width: 980px) {
+  .settings-layout { grid-template-columns: 216px minmax(0, 1fr); }
+  .settings-sidebar { padding-inline: 12px; }
+  .settings-content { padding-inline: 28px; }
+}
 
+@media (max-width: 768px) {
   .settings-layout {
     grid-template-columns: 1fr;
   }
 
   .settings-sidebar {
-    position: static;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: none;
   }
 
-  .card-header,
-  .provider-panel-header {
+  .settings-content {
+    padding: 22px 18px 36px;
+  }
+
+  .settings-mobile-heading {
+    display: grid;
+    gap: 18px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .settings-mobile-heading h2 { font-size: 20px; }
+  .settings-mobile-heading p { font-size: 13px; }
+
+  .settings-mobile-select {
+    display: grid;
+    gap: 7px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .settings-mobile-select select {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 38px 0 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 9px;
+    outline: none;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 14px;
+  }
+
+  .settings-mobile-select select:focus-visible {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.14);
+  }
+
+  .section-header {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .provider-summary {
+  .section-header .header-actions {
+    width: 100%;
+  }
+
+  .archive-summary-row {
     grid-template-columns: 1fr;
   }
+
+  .provider-body { padding-left: 16px; }
 
   .resource-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .database-inventory-heading { flex-direction: column; }
+  .database-toolbar { grid-template-columns: 1fr; }
+  .database-counts { justify-content: flex-start; }
+  .database-delta-grid { grid-template-columns: 1fr; }
 
   .settings-form,
   .provider-form {
@@ -1847,12 +2590,32 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 520px) {
-  .settings-sidebar,
   .preference-grid,
   .resource-summary-grid {
     grid-template-columns: 1fr;
   }
 
+  .section-header .header-actions :deep(.el-button) {
+    flex: 1 1 auto;
+    margin-left: 0;
+  }
+
   .resource-panel-heading { flex-direction: column; }
+
+  .provider-panel-header {
+    align-items: flex-start;
+  }
+
+  .provider-enable > span { display: none; }
+
+  .provider-toggle {
+    grid-template-columns: 34px minmax(0, 1fr) 18px;
+    gap: 8px;
+  }
+
+  .provider-logo { width: 32px; height: 32px; border-radius: 8px; }
+
+  .archive-detail-grid { padding-left: 8px; }
+  .archive-detail-grid > div { grid-template-columns: 1fr; gap: 4px; }
 }
 </style>

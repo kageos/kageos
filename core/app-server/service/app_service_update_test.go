@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
 	"github.com/kageos/kageos/dto"
+	"github.com/kageos/kageos/pkg/contextx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -76,7 +78,7 @@ func (c *fakeAppRuntimeClient) DeleteApp(_ context.Context, hostID int64, req *d
 	return &dto.DeleteAppResp{}, nil
 }
 
-func newAppServiceUpdateTestRepo(t *testing.T) *repository.AppRepository {
+func newAppServiceUpdateTestRepo(t *testing.T) (*repository.AppRepository, *gorm.DB) {
 	t.Helper()
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
@@ -88,14 +90,14 @@ func newAppServiceUpdateTestRepo(t *testing.T) *repository.AppRepository {
 		t.Fatalf("get sql db: %v", err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.App{}); err != nil {
+	if err := db.AutoMigrate(&model.App{}, &model.OperateLog{}); err != nil {
 		t.Fatalf("migrate app: %v", err)
 	}
-	return repository.NewAppRepository(db)
+	return repository.NewAppRepository(db), db
 }
 
 func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T) {
-	appRepo := newAppServiceUpdateTestRepo(t)
+	appRepo, db := newAppServiceUpdateTestRepo(t)
 	if err := appRepo.CreateApp(&model.App{
 		User:    "alice",
 		Code:    "demo",
@@ -118,11 +120,13 @@ func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T)
 		},
 	}
 	service := NewAppService(AppServiceDependencies{
-		AppRuntimeClient: client,
-		AppRepository:    appRepo,
+		AppRuntimeClient:     client,
+		AppRepository:        appRepo,
+		OperateLogRepository: repository.NewOperateLogRepository(db),
 	})
 
-	resp, err := service.UpdateApp(context.Background(), &dto.UpdateAppReq{
+	ctx := contextx.WithRequestUser(context.Background(), "bob")
+	resp, err := service.UpdateApp(ctx, &dto.UpdateAppReq{
 		ResourcePath:      "/alice/demo/workspace",
 		SourceFiles:       sourceFiles,
 		Requirement:       "add ticket list",
@@ -163,10 +167,25 @@ func TestAppServiceUpdateAppUsesRuntimeBoundHostAndPersistsVersion(t *testing.T)
 	if updated.Version != "v2" {
 		t.Fatalf("app version = %q, want v2", updated.Version)
 	}
+
+	log := waitOperateLog(t, db, workspaceUpdatedAction)
+	if log.ActorUser != "bob" || log.Status != "success" || log.ResourceType != "workspace" || log.ResourcePath != "/alice/demo" {
+		t.Fatalf("unexpected workspace update log: %#v", log)
+	}
+	var oldValues, newValues workspaceOperateLogValues
+	if err := json.Unmarshal(log.OldValuesJSON, &oldValues); err != nil {
+		t.Fatalf("unmarshal old values: %v", err)
+	}
+	if err := json.Unmarshal(log.NewValuesJSON, &newValues); err != nil {
+		t.Fatalf("unmarshal new values: %v", err)
+	}
+	if oldValues.Version != "v1" || newValues.Version != "v2" {
+		t.Fatalf("unexpected workspace version change: old=%#v new=%#v", oldValues, newValues)
+	}
 }
 
 func TestAppServiceUpdateAppDoesNotPersistVersionWhenRuntimeFails(t *testing.T) {
-	appRepo := newAppServiceUpdateTestRepo(t)
+	appRepo, db := newAppServiceUpdateTestRepo(t)
 	if err := appRepo.CreateApp(&model.App{
 		User:    "alice",
 		Code:    "demo",
@@ -177,11 +196,13 @@ func TestAppServiceUpdateAppDoesNotPersistVersionWhenRuntimeFails(t *testing.T) 
 		t.Fatalf("create app: %v", err)
 	}
 	service := NewAppService(AppServiceDependencies{
-		AppRuntimeClient: &fakeAppRuntimeClient{updateErr: errors.New("runtime down")},
-		AppRepository:    appRepo,
+		AppRuntimeClient:     &fakeAppRuntimeClient{updateErr: errors.New("runtime down")},
+		AppRepository:        appRepo,
+		OperateLogRepository: repository.NewOperateLogRepository(db),
 	})
 
-	_, err := service.UpdateApp(context.Background(), &dto.UpdateAppReq{ResourcePath: "/alice/demo"})
+	ctx := contextx.WithRequestUser(context.Background(), "bob")
+	_, err := service.UpdateApp(ctx, &dto.UpdateAppReq{ResourcePath: "/alice/demo"})
 	if err == nil {
 		t.Fatal("expected runtime error")
 	}
@@ -192,5 +213,9 @@ func TestAppServiceUpdateAppDoesNotPersistVersionWhenRuntimeFails(t *testing.T) 
 	}
 	if updated.Version != "v1" {
 		t.Fatalf("app version = %q, want v1", updated.Version)
+	}
+	log := waitOperateLog(t, db, workspaceUpdatedAction)
+	if log.ActorUser != "bob" || log.Status != "failed" || !strings.Contains(log.Summary, "failed to update workspace") {
+		t.Fatalf("unexpected failed workspace update log: %#v", log)
 	}
 }

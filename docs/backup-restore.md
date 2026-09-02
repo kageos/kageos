@@ -63,6 +63,27 @@ go run ./cmd/kagectl backup verify \
 
 校验不会连接或修改正在运行的实例。不要只依赖旁边的 `.sha256` 文件；`backup verify` 还会检查内部 manifest 与每一个归档条目。
 
+## S3 定时备份
+
+生产安装会在宿主机安装一个轻量 `kageos-backup.timer`，每 5 分钟检查一次备份计划。计划默认关闭；只有 `system` 超管在“系统设置 -> 数据备份”中保存并启用后，执行器才会每天在指定本地时间运行一次。
+
+执行器位于宿主机而不是 `core-server` 内部，因为一致性物理备份需要短暂停止生产 Compose 栈。执行顺序为：停止平台、创建并校验归档、重新启动并验证平台、上传到用户配置的 S3 兼容存储、校验远端对象大小、清理超过保留期的远端备份以及多余的本地副本。任务状态写入 `<storage.root>/data/system-backup`，页面只展示最近 50 次结果。
+
+S3 配置支持 AWS S3 和兼容 API：
+
+- AWS S3 的 Endpoint 可以留空，执行器会根据 Region 使用 AWS 官方地址；
+- Cloudflare R2、阿里云 OSS、腾讯云 COS、MinIO 等兼容存储需要填写其 S3 API Endpoint；
+- Endpoint 是对象存储 API 地址，不是 kageos 的访问域名；
+- Secret Access Key 使用部署 JWT secret 派生的密钥加密落盘，读取接口只返回“已配置”状态；
+- 连接测试会在指定 Prefix 下上传、读取并删除一个小对象，因此凭证需要对应权限；
+- Prefix 必填，远端过期清理只处理这个 Prefix 下的对象，避免影响 Bucket 中的其他数据。
+
+没有 systemd 的部署环境不会自动安装 timer，可以使用 cron 每 5 分钟执行一次：
+
+```bash
+.kageos/prod/bin/kagectl backup --config .kageos/prod/kage.yaml scheduled-run
+```
+
 ## 恢复预检
 
 先执行 dry-run：
@@ -124,8 +145,6 @@ go run ./cmd/kagectl restore <archive> --force --keep-rollback
 
 ## 当前未包含
 
-- 定时备份策略和 UI 控制面；
-- S3/OSS/COS 自动上传；
 - 增量备份和 MySQL 时间点恢复；
 - 外部 MySQL、外部 MinIO 的统一备份；
 - 无停机跨数据面快照；

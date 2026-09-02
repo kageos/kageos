@@ -45,7 +45,9 @@ func (d *workspaceStreamLoopDeps) BuildMessages(ctx context.Context) ([]llms.Mes
 		return nil, nil, err
 	}
 	contextWindow, _ := ResolveLLMContextWindow(llmConfig)
-	outputReserve := workspaceOutputTokenLimit(workspaceConfiguredMaxTokens(llmConfig), d.contextReductionLevel, d.outputLimitRecovery, contextWindow)
+	// Before messages exist, reserve a bounded planning share so a large
+	// provider maximum does not force unnecessary history reduction.
+	outputReserve := workspaceOutputTokenLimit(workspaceConfiguredMaxTokens(llmConfig), d.contextReductionLevel, d.outputLimitRecovery, contextWindow, 0)
 	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, d.fullCodePath, "")
 	if err != nil || workspaceCtx == nil {
 		return nil, nil, err
@@ -87,9 +89,10 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 	}
 	d.currentLLMMeta = buildMessageLLMMetadata(llmConfig, client)
 	contextWindow, contextWindowSource := ResolveLLMContextWindow(llmConfig)
-	chatReq.MaxTokens = workspaceOutputTokenLimit(chatReq.MaxTokens, d.contextReductionLevel, d.outputLimitRecovery, contextWindow)
+	estimatedInputTokens := estimateWorkspaceLLMMessageTokens(msgs) + estimateWorkspaceLLMToolTokens(tools)
+	chatReq.MaxTokens = workspaceOutputTokenLimit(chatReq.MaxTokens, d.contextReductionLevel, d.outputLimitRecovery, contextWindow, estimatedInputTokens)
 	if d.outputLimitRecovery {
-		chatReq.ReasoningEffort = lowerWorkspaceRecoveryReasoningEffort(chatReq.ReasoningEffort)
+		chatReq.ReasoningEffort = lowerWorkspaceRecoveryReasoningEffort(chatReq.ReasoningEffort, chatReq.Model)
 		if strings.TrimSpace(chatReq.Verbosity) != "" {
 			chatReq.Verbosity = "low"
 		}
@@ -121,19 +124,22 @@ func (d *workspaceStreamLoopDeps) PrepareLLM(ctx context.Context, msgs []llms.Me
 	return client, chatReq, nil
 }
 
-func workspaceOutputTokenLimit(maxTokens int, reductionLevel int, outputLimitRecovery bool, contextWindow int) int {
+func workspaceOutputTokenLimit(maxTokens int, reductionLevel int, outputLimitRecovery bool, contextWindow int, estimatedInputTokens int) int {
 	if maxTokens <= 0 {
 		maxTokens = workspaceContextDefaultOutputReserve
 	}
 	if contextWindow <= 0 {
 		contextWindow = DefaultLLMContextWindow
 	}
-	contextShare := contextWindow / 4
-	if contextShare < 1024 {
-		contextShare = 1024
+	availableOutput := contextWindow / 4
+	if estimatedInputTokens > 0 {
+		availableOutput = workspaceContextSoftLimit(contextWindow) - estimatedInputTokens
 	}
-	if maxTokens > contextShare {
-		maxTokens = contextShare
+	if availableOutput < 1024 {
+		availableOutput = 1024
+	}
+	if maxTokens > availableOutput {
+		maxTokens = availableOutput
 	}
 	if outputLimitRecovery {
 		return maxTokens
@@ -203,10 +209,18 @@ func applyWorkspaceOutputContinuationInstruction(msgs []llms.Message) []llms.Mes
 	return append([]llms.Message{{Role: "system", Content: workspaceOutputContinuationInstruction}}, out...)
 }
 
-func lowerWorkspaceRecoveryReasoningEffort(value string) string {
+func lowerWorkspaceRecoveryReasoningEffort(value, modelName string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "xhigh", "high", "medium":
 		return "low"
+	case "":
+		name := strings.ToLower(strings.TrimSpace(modelName))
+		for _, prefix := range []string{"gpt-5", "o1", "o3", "o4"} {
+			if strings.HasPrefix(name, prefix) {
+				return "low"
+			}
+		}
+		return ""
 	default:
 		return strings.TrimSpace(value)
 	}

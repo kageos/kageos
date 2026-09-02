@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { getKageosHubURL, openExternalURL } from './externalLinks'
+import { getKageosHubURL, getKageosWebsiteURL, openExternalURL } from './externalLinks'
 
 describe('externalLinks', () => {
   it('uses the official kageos.com Hub domain', () => {
     expect(getKageosHubURL()).toBe('https://hub.kageos.com')
+  })
+
+  it('uses the official website for the documentation center entry', () => {
+    expect(getKageosWebsiteURL()).toBe('https://kageos.com')
   })
 
   it('opens external links without giving the new page an opener', () => {

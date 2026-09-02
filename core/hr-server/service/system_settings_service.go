@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -14,11 +15,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kageos/kageos/core/hr-server/repository"
 	"github.com/kageos/kageos/dto"
 	appconfig "github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/emailx"
+	"github.com/kageos/kageos/pkg/systembackup"
 )
 
 const (
@@ -160,6 +163,99 @@ func (s *SystemSettingsService) TestEmail(to string) error {
 		return err
 	}
 	return emailx.NewSender(cfg.SMTP).SendHTML(to, "kageos test email", "<p>kageos email service is configured correctly.</p>")
+}
+
+func (s *SystemSettingsService) GetBackupOverview() (*dto.SystemBackupOverview, error) {
+	cfg, err := systembackup.LoadConfig(systembackup.StateDir(), backupEncryptionSecret())
+	if err != nil {
+		return nil, err
+	}
+	state, err := systembackup.LoadState(systembackup.StateDir())
+	if err != nil {
+		return nil, err
+	}
+	return backupOverview(systembackup.PublicConfig(cfg), state), nil
+}
+
+func (s *SystemSettingsService) UpdateBackupConfig(req dto.SystemBackupConfig) (*dto.SystemBackupOverview, error) {
+	current, err := systembackup.LoadConfig(systembackup.StateDir(), backupEncryptionSecret())
+	if err != nil {
+		return nil, err
+	}
+	cfg := backupConfigFromDTO(req)
+	if strings.TrimSpace(cfg.SecretAccessKey) == "" {
+		cfg.SecretAccessKey = current.SecretAccessKey
+	}
+	cfg.RunNowRequestedAt = current.RunNowRequestedAt
+	cfg.LastRunNowProcessedAt = current.LastRunNowProcessedAt
+	if err := systembackup.SaveConfig(systembackup.StateDir(), backupEncryptionSecret(), cfg); err != nil {
+		return nil, err
+	}
+	return s.GetBackupOverview()
+}
+
+func (s *SystemSettingsService) TestBackupS3(ctx context.Context, req dto.SystemBackupConfig) error {
+	current, err := systembackup.LoadConfig(systembackup.StateDir(), backupEncryptionSecret())
+	if err != nil {
+		return err
+	}
+	cfg := backupConfigFromDTO(req)
+	if strings.TrimSpace(cfg.SecretAccessKey) == "" {
+		cfg.SecretAccessKey = current.SecretAccessKey
+	}
+	testCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return systembackup.TestS3(testCtx, cfg)
+}
+
+func (s *SystemSettingsService) RequestBackupRunNow() (*dto.SystemBackupOverview, error) {
+	cfg, err := systembackup.LoadConfig(systembackup.StateDir(), backupEncryptionSecret())
+	if err != nil {
+		return nil, err
+	}
+	if !cfg.Enabled {
+		return nil, fmt.Errorf("请先保存并启用自动备份")
+	}
+	cfg.RunNowRequestedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	if err := systembackup.SaveConfig(systembackup.StateDir(), backupEncryptionSecret(), cfg); err != nil {
+		return nil, err
+	}
+	return s.GetBackupOverview()
+}
+
+func backupEncryptionSecret() string {
+	return appconfig.GetGlobalSharedConfig().JWT.Secret
+}
+
+func backupConfigFromDTO(req dto.SystemBackupConfig) systembackup.Config {
+	return systembackup.Config{
+		Enabled: req.Enabled, ScheduleTime: req.ScheduleTime, Endpoint: req.Endpoint, Region: req.Region,
+		Bucket: req.Bucket, Prefix: req.Prefix, AccessKeyID: req.AccessKeyID, SecretAccessKey: req.SecretAccessKey,
+		SecretAccessKeySet: req.SecretAccessKeySet, UseSSL: req.UseSSL, ForcePathStyle: req.ForcePathStyle, KeepLocal: req.KeepLocal,
+		RetentionDays: req.RetentionDays,
+	}
+}
+
+func backupOverview(cfg systembackup.Config, state systembackup.State) *dto.SystemBackupOverview {
+	records := make([]dto.SystemBackupRecord, 0, len(state.Records))
+	for _, item := range state.Records {
+		records = append(records, dto.SystemBackupRecord{
+			ID: item.ID, TriggeredBy: item.TriggeredBy, Status: item.Status, StartedAt: item.StartedAt, FinishedAt: item.FinishedAt,
+			ArchiveName: item.ArchiveName, SizeBytes: item.SizeBytes, SHA256: item.SHA256, Bucket: item.Bucket,
+			ObjectKey: item.ObjectKey, ETag: item.ETag, ErrorMessage: item.ErrorMessage,
+		})
+	}
+	lastSeen, _ := time.Parse(time.RFC3339, state.AgentLastSeenAt)
+	return &dto.SystemBackupOverview{
+		Config: dto.SystemBackupConfig{
+			Enabled: cfg.Enabled, ScheduleTime: cfg.ScheduleTime, Endpoint: cfg.Endpoint, Region: cfg.Region, Bucket: cfg.Bucket,
+			Prefix: cfg.Prefix, AccessKeyID: cfg.AccessKeyID, SecretAccessKeySet: cfg.SecretAccessKeySet,
+			UseSSL: cfg.UseSSL, ForcePathStyle: cfg.ForcePathStyle, KeepLocal: cfg.KeepLocal,
+			RetentionDays: cfg.RetentionDays,
+		},
+		AgentAvailable:  state.Running || (!lastSeen.IsZero() && time.Since(lastSeen) < 15*time.Minute),
+		AgentLastSeenAt: state.AgentLastSeenAt, Running: state.Running, Records: records,
+	}
 }
 
 func (s *SystemSettingsService) GetTLSSettings() (*dto.TLSSettingsResp, error) {

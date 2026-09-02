@@ -91,6 +91,7 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 		return nil, err
 	}
 	resolveElapsed := time.Since(start)
+	oldValues := workspaceOperateLogSnapshot(app)
 
 	// 调用 app-runtime 更新应用，使用应用所属的 HostID
 	runtimeStart := time.Now()
@@ -109,6 +110,10 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 			resolveElapsed.Truncate(time.Millisecond),
 			time.Since(runtimeStart).Truncate(time.Millisecond),
 			time.Since(start).Truncate(time.Millisecond))
+		a.writeWorkspaceOperateLog(ctx, app, workspaceUpdatedAction, "failed",
+			fmt.Sprintf("%s failed to update workspace /%s/%s", contextx.GetRequestUser(ctx), user, appCode),
+			workspaceUpdateOperateLogDetailsFromRequest(req, nil, start, err),
+			oldValues, nil)
 		return nil, err
 	}
 	runtimeElapsed := time.Since(runtimeStart)
@@ -120,6 +125,10 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 			user, appCode, resp.NewVersion, err,
 			time.Since(finalizeStart).Truncate(time.Millisecond),
 			time.Since(start).Truncate(time.Millisecond))
+		a.writeWorkspaceOperateLog(ctx, app, workspaceUpdatedAction, "failed",
+			fmt.Sprintf("%s updated workspace /%s/%s but metadata finalization failed", contextx.GetRequestUser(ctx), user, appCode),
+			workspaceUpdateOperateLogDetailsFromRequest(req, resp, start, err),
+			oldValues, workspaceUpdateResponseSnapshot(app, resp))
 		return nil, err
 	}
 	resp.Warnings = append(resp.Warnings, warnings...)
@@ -129,6 +138,10 @@ func (a *AppService) UpdateApp(ctx context.Context, req *dto.UpdateAppReq) (*dto
 		runtimeElapsed.Truncate(time.Millisecond),
 		time.Since(finalizeStart).Truncate(time.Millisecond),
 		time.Since(start).Truncate(time.Millisecond))
+	a.writeWorkspaceOperateLog(ctx, app, workspaceUpdatedAction, "success",
+		fmt.Sprintf("%s updated workspace /%s/%s from %s to %s", contextx.GetRequestUser(ctx), user, appCode, resp.OldVersion, resp.NewVersion),
+		workspaceUpdateOperateLogDetailsFromRequest(req, resp, start, nil),
+		oldValues, workspaceUpdateResponseSnapshot(app, resp))
 
 	return resp, nil
 }
@@ -1310,7 +1323,11 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 	if req.Name != nil {
 		name := strings.TrimSpace(*req.Name)
 		if name == "" {
-			return nil, fmt.Errorf("工作空间名称不能为空")
+			updateErr := fmt.Errorf("工作空间名称不能为空")
+			a.writeWorkspaceOperateLog(ctx, app, workspaceSettingsUpdatedAction, "failed",
+				fmt.Sprintf("%s failed to update workspace settings for /%s/%s", contextx.GetRequestUser(ctx), user, appCode),
+				map[string]interface{}{"error": updateErr.Error()}, workspaceOperateLogSnapshot(app), nil)
+			return nil, updateErr
 		}
 		updatedApp.Name = name
 		nameChanged = name != app.Name
@@ -1349,12 +1366,19 @@ func (a *AppService) UpdateWorkspace(ctx context.Context, req *dto.UpdateWorkspa
 		}
 		return tx.Save(&updatedApp).Error
 	}); err != nil {
-		return nil, fmt.Errorf("更新工作空间失败: %w", err)
+		updateErr := fmt.Errorf("更新工作空间失败: %w", err)
+		a.writeWorkspaceOperateLog(ctx, app, workspaceSettingsUpdatedAction, "failed",
+			fmt.Sprintf("%s failed to update workspace settings for /%s/%s", contextx.GetRequestUser(ctx), user, appCode),
+			map[string]interface{}{"error": updateErr.Error()}, workspaceOperateLogSnapshot(app), workspaceOperateLogSnapshot(&updatedApp))
+		return nil, updateErr
 	}
 	a.appRepo.InvalidateAppCacheBoth(updatedApp.User, updatedApp.Code, updatedApp.ID)
 
 	logger.Infof(ctx, "[AppService] 更新工作空间成功: user=%s, app=%s, name=%s, admins=%s, is_public=%t, hide_unauthorized_nodes=%t",
 		user, appCode, updatedApp.Name, updatedApp.Admins, updatedApp.IsPublic, updatedApp.HideUnauthorizedNodes)
+	a.writeWorkspaceOperateLog(ctx, &updatedApp, workspaceSettingsUpdatedAction, "success",
+		fmt.Sprintf("%s updated workspace settings for /%s/%s", contextx.GetRequestUser(ctx), user, appCode),
+		nil, workspaceOperateLogSnapshot(app), workspaceOperateLogSnapshot(&updatedApp))
 
 	return &dto.UpdateWorkspaceResp{
 		User:                  user,

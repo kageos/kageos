@@ -19,6 +19,45 @@ export interface SystemSettings {
   email: EmailSettings
 }
 
+export interface SystemBackupConfig {
+  enabled: boolean
+  schedule_time: string
+  endpoint: string
+  region: string
+  bucket: string
+  prefix: string
+  access_key_id: string
+  secret_access_key?: string
+  secret_access_key_set: boolean
+  use_ssl: boolean
+  force_path_style: boolean
+  keep_local: number
+  retention_days: number
+}
+
+export interface SystemBackupRecord {
+  id: string
+  triggered_by: string
+  status: string
+  started_at: string
+  finished_at?: string
+  archive_name?: string
+  size_bytes?: number
+  sha256?: string
+  bucket?: string
+  object_key?: string
+  etag?: string
+  error_message?: string
+}
+
+export interface SystemBackupOverview {
+  config: SystemBackupConfig
+  agent_available: boolean
+  agent_last_seen_at?: string
+  running: boolean
+  records: SystemBackupRecord[]
+}
+
 export interface TLSCertificateInfo {
   subject: string
   issuer: string
@@ -161,6 +200,7 @@ export interface SystemStoragePool {
 }
 
 export interface SystemResourceSnapshot {
+  capacity_schema_version?: number
   collected_at: string
   hostname: string
   operating_system: string
@@ -200,6 +240,8 @@ export interface SystemResourceSnapshot {
   components: SystemResourceComponent[]
   database_logical_bytes: number
   database_size_available: boolean
+  database_inventory_complete: boolean
+  databases: SystemDatabaseSize[]
   largest_databases: SystemDatabaseSize[]
 }
 
@@ -219,6 +261,11 @@ export interface SystemResourceHistoryPoint {
 
 export interface SystemDatabaseSize {
   name: string
+  kind: 'platform' | 'workspace' | string
+  owner: string
+  directory: string
+  purpose: string
+  status: 'active' | 'pending' | 'missing' | 'orphaned' | string
   used_bytes: number
 }
 
@@ -259,15 +306,136 @@ export interface StorageExpansionForecast {
   message: string
 }
 
+export interface SystemCapacityDailyPoint {
+  collected_at: string
+  database_logical_bytes: number
+  database_logical_delta: number
+  database_logical_delta_available: boolean
+  database_count: number
+  database_count_delta: number
+  database_count_delta_available: boolean
+  platform_database_count: number
+  workspace_database_count: number
+  database_size_available: boolean
+  database_count_available: boolean
+}
+
 export interface SystemResourceOverview {
   current: SystemResourceSnapshot
   history: SystemResourceHistoryPoint[]
+  capacity_history: SystemCapacityDailyPoint[]
   history_hours: number
   sample_interval_minutes: number
+  runtime_retention_days: number
+  platform_retention_days: number
+  capacity_retention_days: number
+  platform_interval_hours: number
+  capacity_interval_hours: number
+  platform_schedule_local: string
+  capacity_schedule_local: string
+  capacity_collected_at: string
   forecast: StorageExpansionForecast
   platform: SystemPlatformMetrics
   collection_tasks: SystemCollectionTaskStatus[]
   runtime_interval_seconds: number
+}
+
+export interface SystemResourceSummary {
+  current: SystemResourceSnapshot
+  platform: SystemPlatformMetrics
+  forecast: StorageExpansionForecast
+  sample_interval_minutes: number
+  runtime_retention_days: number
+  runtime_interval_seconds: number
+}
+
+export interface SystemResourceTrends {
+  history: SystemResourceHistoryPoint[]
+  history_hours: number
+  sample_interval_minutes: number
+  runtime_retention_days: number
+}
+
+export interface SystemResourceStorage {
+  collected_at: string
+  environment: SystemEnvironmentInfo
+  storage_pools: SystemStoragePool[]
+  components: SystemResourceComponent[]
+  forecast: StorageExpansionForecast
+  capacity_retention_days: number
+  capacity_schedule_local: string
+}
+
+export interface SystemResourceDatabaseList {
+  items: SystemDatabaseSize[]
+  total: number
+  page: number
+  page_size: number
+  platform_count: number
+  workspace_count: number
+  database_logical_bytes: number
+  database_size_available: boolean
+  database_inventory_complete: boolean
+  collected_at: string
+  capacity_history: SystemCapacityDailyPoint[]
+  capacity_retention_days: number
+  capacity_schedule_local: string
+}
+
+export interface SystemResourceDiagnostics {
+  collected_at: string
+  environment: SystemEnvironmentInfo
+  collection_tasks: SystemCollectionTaskStatus[]
+  platform_retention_days: number
+  capacity_retention_days: number
+  platform_schedule_local: string
+  capacity_schedule_local: string
+  sample_interval_minutes: number
+  runtime_retention_days: number
+  runtime_interval_seconds: number
+}
+
+export interface SystemFunctionUsageItem {
+  path: string
+  name: string
+  directory_path: string
+  directory_name: string
+  template_type: string
+  total_calls: number
+  period_calls: number
+}
+
+export interface SystemDirectoryUsageItem {
+  path: string
+  name: string
+  function_count: number
+  total_calls: number
+  period_calls: number
+}
+
+export interface SystemUsageDailyPoint {
+  date: string
+  operations: number
+  failed: number
+}
+
+export interface SystemUsageOverview {
+  available: boolean
+  collected_at: string
+  period_days: number
+  ranking_basis: 'period' | 'cumulative'
+  operations_today: number
+  operations_period: number
+  failed_operations: number
+  successful_calls: number
+  top_directories: SystemDirectoryUsageItem[]
+  top_functions: SystemFunctionUsageItem[]
+  directory_total: number
+  function_total: number
+  ranking_page: number
+  ranking_page_size: number
+  daily_history: SystemUsageDailyPoint[]
+  snapshot_schedule_local: string
 }
 
 export function getSystemSettings() {
@@ -280,6 +448,22 @@ export function updateSystemSettings(data: SystemSettings) {
 
 export function testSystemEmail(to: string) {
   return post('/hr/api/v1/system/settings/email/test', { to })
+}
+
+export function getSystemBackupOverview() {
+  return get<SystemBackupOverview>('/hr/api/v1/system/settings/backup')
+}
+
+export function updateSystemBackupConfig(data: SystemBackupConfig) {
+  return put<SystemBackupOverview>('/hr/api/v1/system/settings/backup', data)
+}
+
+export function testSystemBackupS3(data: SystemBackupConfig) {
+  return post('/hr/api/v1/system/settings/backup/test', data)
+}
+
+export function runSystemBackupNow() {
+  return post<SystemBackupOverview>('/hr/api/v1/system/settings/backup/run')
 }
 
 export function getTLSSettings() {
@@ -331,4 +515,28 @@ export function getSystemResourceOverview(hours = 24 * 7, includeHistory = true)
     hours,
     include_history: includeHistory
   })
+}
+
+export function getSystemResourceSummary() {
+  return get<SystemResourceSummary>('/hr/api/v1/system/settings/resources/summary')
+}
+
+export function getSystemResourceTrends(hours = 24 * 7) {
+  return get<SystemResourceTrends>('/hr/api/v1/system/settings/resources/trends', { hours })
+}
+
+export function getSystemResourceStorage() {
+  return get<SystemResourceStorage>('/hr/api/v1/system/settings/resources/storage')
+}
+
+export function getSystemResourceDatabases(params: { page?: number; page_size?: number; scope?: string; keyword?: string; include_history?: boolean } = {}) {
+  return get<SystemResourceDatabaseList>('/hr/api/v1/system/settings/resources/databases', params)
+}
+
+export function getSystemResourceDiagnostics() {
+  return get<SystemResourceDiagnostics>('/hr/api/v1/system/settings/resources/diagnostics')
+}
+
+export function getSystemResourceUsage(days = 7, page = 1, pageSize = 10) {
+  return get<SystemUsageOverview>('/hr/api/v1/system/settings/resources/usage', { days, page, page_size: pageSize })
 }

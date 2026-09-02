@@ -64,6 +64,7 @@ func llmInfoFromConfig(cfg *model.LLMConfig, currentUser string) dto.LLMInfo {
 	apiKey, hasAPIKey := llmAPIKeyForResponse(cfg)
 	provider, protocol := llmProviderProtocolForResponse(cfg)
 	effectiveContextWindow, contextWindowSource := service.ResolveLLMContextWindow(cfg)
+	effectiveMaxOutputTokens, maxOutputTokenSource := service.ResolveLLMMaxOutputTokens(cfg)
 	isAdmin := cfg.IsAdminUser(currentUser)
 	headers := ""
 	extraConfig := ""
@@ -74,34 +75,38 @@ func llmInfoFromConfig(cfg *model.LLMConfig, currentUser string) dto.LLMInfo {
 		admin = cfg.Admin
 	}
 	return dto.LLMInfo{
-		ID:                          cfg.ID,
-		Code:                        cfg.Code,
-		Name:                        cfg.Name,
-		Provider:                    provider,
-		Protocol:                    protocol,
-		Model:                       cfg.Model,
-		APIKey:                      apiKey,
-		HasAPIKey:                   hasAPIKey,
-		APIBase:                     cfg.APIBase,
-		EndpointPath:                cfg.EndpointPath,
-		APIVersion:                  cfg.APIVersion,
-		AuthScheme:                  cfg.AuthScheme,
-		Headers:                     headers,
-		Timeout:                     cfg.Timeout,
-		MaxTokens:                   cfg.MaxTokens,
-		ContextWindow:               cfg.ContextWindow,
-		DetectedContextWindow:       cfg.DetectedContextWindow,
-		DetectedContextWindowSource: cfg.DetectedContextWindowSource,
-		EffectiveContextWindow:      effectiveContextWindow,
-		ContextWindowSource:         contextWindowSource,
-		ExtraConfig:                 extraConfig,
-		Capabilities:                llmStringValue(cfg.Capabilities),
-		IsDefault:                   cfg.IsDefault,
-		Visibility:                  cfg.Visibility,
-		Admin:                       admin,
-		IsAdmin:                     isAdmin,
-		CreatedAt:                   time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:                   time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
+		ID:                           cfg.ID,
+		Code:                         cfg.Code,
+		Name:                         cfg.Name,
+		Provider:                     provider,
+		Protocol:                     protocol,
+		Model:                        cfg.Model,
+		APIKey:                       apiKey,
+		HasAPIKey:                    hasAPIKey,
+		APIBase:                      cfg.APIBase,
+		EndpointPath:                 cfg.EndpointPath,
+		APIVersion:                   cfg.APIVersion,
+		AuthScheme:                   cfg.AuthScheme,
+		Headers:                      headers,
+		Timeout:                      cfg.Timeout,
+		MaxTokens:                    cfg.MaxTokens,
+		DetectedMaxOutputTokens:      cfg.DetectedMaxOutputTokens,
+		DetectedMaxOutputTokenSource: cfg.DetectedMaxOutputTokenSource,
+		EffectiveMaxOutputTokens:     effectiveMaxOutputTokens,
+		MaxOutputTokenSource:         maxOutputTokenSource,
+		ContextWindow:                cfg.ContextWindow,
+		DetectedContextWindow:        cfg.DetectedContextWindow,
+		DetectedContextWindowSource:  cfg.DetectedContextWindowSource,
+		EffectiveContextWindow:       effectiveContextWindow,
+		ContextWindowSource:          contextWindowSource,
+		ExtraConfig:                  extraConfig,
+		Capabilities:                 llmStringValue(cfg.Capabilities),
+		IsDefault:                    cfg.IsDefault,
+		Visibility:                   cfg.Visibility,
+		Admin:                        admin,
+		IsAdmin:                      isAdmin,
+		CreatedAt:                    time.Time(cfg.CreatedAt).Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:                    time.Time(cfg.UpdatedAt).Format("2006-01-02T15:04:05Z"),
 	}
 }
 
@@ -278,26 +283,28 @@ func (h *LLM) Create(c *gin.Context) {
 
 	ctx := contextx.ToContext(c)
 	cfg := &model.LLMConfig{
-		Name:                        req.Name,
-		Provider:                    req.Provider,
-		Protocol:                    req.Protocol,
-		Model:                       req.Model,
-		APIKey:                      req.APIKey,
-		APIBase:                     req.APIBase,
-		EndpointPath:                req.EndpointPath,
-		APIVersion:                  req.APIVersion,
-		AuthScheme:                  req.AuthScheme,
-		Headers:                     req.Headers,
-		Timeout:                     req.Timeout,
-		MaxTokens:                   req.MaxTokens,
-		ContextWindow:               req.ContextWindow,
-		DetectedContextWindow:       req.DetectedContextWindow,
-		DetectedContextWindowSource: req.DetectedContextWindowSource,
-		ExtraConfig:                 req.ExtraConfig,
-		Capabilities:                req.Capabilities,
-		IsDefault:                   req.IsDefault,
-		Visibility:                  req.Visibility,
-		Admin:                       req.Admin,
+		Name:                         req.Name,
+		Provider:                     req.Provider,
+		Protocol:                     req.Protocol,
+		Model:                        req.Model,
+		APIKey:                       req.APIKey,
+		APIBase:                      req.APIBase,
+		EndpointPath:                 req.EndpointPath,
+		APIVersion:                   req.APIVersion,
+		AuthScheme:                   req.AuthScheme,
+		Headers:                      req.Headers,
+		Timeout:                      req.Timeout,
+		MaxTokens:                    req.MaxTokens,
+		DetectedMaxOutputTokens:      req.DetectedMaxOutputTokens,
+		DetectedMaxOutputTokenSource: req.DetectedMaxOutputTokenSource,
+		ContextWindow:                req.ContextWindow,
+		DetectedContextWindow:        req.DetectedContextWindow,
+		DetectedContextWindowSource:  req.DetectedContextWindowSource,
+		ExtraConfig:                  req.ExtraConfig,
+		Capabilities:                 req.Capabilities,
+		IsDefault:                    req.IsDefault,
+		Visibility:                   req.Visibility,
+		Admin:                        req.Admin,
 	}
 
 	if err := h.service.CreateLLMConfig(ctx, cfg); err != nil {
@@ -401,6 +408,8 @@ func (h *LLM) Update(c *gin.Context) {
 	cfg.Headers = llmStringPtr(req.Headers)
 	cfg.Timeout = req.Timeout
 	cfg.MaxTokens = req.MaxTokens
+	cfg.DetectedMaxOutputTokens = req.DetectedMaxOutputTokens
+	cfg.DetectedMaxOutputTokenSource = req.DetectedMaxOutputTokenSource
 	cfg.ContextWindow = req.ContextWindow
 	cfg.DetectedContextWindow = req.DetectedContextWindow
 	cfg.DetectedContextWindowSource = req.DetectedContextWindowSource

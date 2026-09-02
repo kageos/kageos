@@ -17,6 +17,11 @@ func ResolveLLMContextWindow(cfg *model.LLMConfig) (int, string) {
 	if cfg != nil && cfg.DetectedContextWindow > 0 {
 		return cfg.DetectedContextWindow, "detected"
 	}
+	if cfg != nil {
+		if value := knownModelSpecForName(cfg.Model).ContextWindow; value > 0 {
+			return value, "model_registry"
+		}
+	}
 	return DefaultLLMContextWindow, "default"
 }
 
