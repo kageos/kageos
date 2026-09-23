@@ -1092,7 +1092,7 @@ func (a *AppService) deleteFunctionsForAPIs(ctx context.Context, app *model.App,
 }
 
 // DeleteApp 删除应用
-func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto.DeleteAppResp, error) {
+func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (resp *dto.DeleteAppResp, resultErr error) {
 	user, appCode, err := resolveUserAppFromRequiredResourcePath(req.ResourcePath)
 	if err != nil {
 		return nil, err
@@ -1107,8 +1107,18 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 		return nil, fmt.Errorf("默认个人空间不支持删除。若要开始新的工作，可创建其他工作空间。")
 	}
 
+	audit, err := beginManagementAudit(ctx, a.appRepo.GetDB(), "workspace.deleted", "workspace", fmt.Sprintf("/%s/%s", user, appCode), app.Name, fmt.Sprintf("%d", app.ID), workspaceOperateLogSnapshot(app), map[string]any{"runtime_deleted": false, "workspace_record_deleted": false})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { audit.finish(ctx, nil, &resultErr) }()
+	defer audit.capturePanic(&resultErr)
+	if err := audit.stage(ctx, "deleting_runtime"); err != nil {
+		return nil, err
+	}
+
 	// 调用 app-runtime 删除应用
-	resp, err := a.appCall.DeleteApp(ctx, app.HostID, &dto.DeleteAppRuntimeReq{
+	resp, err = a.appCall.DeleteApp(ctx, app.HostID, &dto.DeleteAppRuntimeReq{
 		User: user,
 		App:  appCode,
 	})
@@ -1117,11 +1127,17 @@ func (a *AppService) DeleteApp(ctx context.Context, req *dto.DeleteAppReq) (*dto
 	}
 
 	// 删除数据库记录
+	audit.details["runtime_deleted"] = true
+	if err := audit.stage(ctx, "deleting_workspace_record"); err != nil {
+		return nil, err
+	}
 	err = a.appRepo.DeleteAppAndVersions(user, appCode)
 	if err != nil {
 		return nil, err
 	}
 
+	audit.details["workspace_record_deleted"] = true
+	audit.details["stage"] = "completed"
 	return resp, nil
 }
 

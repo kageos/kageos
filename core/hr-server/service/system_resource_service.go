@@ -14,6 +14,7 @@ import (
 	"github.com/kageos/kageos/core/hr-server/repository"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/maintenance"
 	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
 )
@@ -68,10 +69,30 @@ func (s *SystemResourceService) Start(ctx context.Context) {
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
-	s.wg.Add(3)
+	s.wg.Add(1)
 	go s.runtimeLoop(workerCtx)
-	go s.platformLoop(workerCtx)
-	go s.capacityLoop(workerCtx)
+	if stored, err := s.repo.LatestPlatform(); err == nil {
+		s.mu.Lock()
+		s.lastPlatform = stored
+		s.mu.Unlock()
+		s.restoreTask("platform", stored.CollectedAt)
+	}
+	if stored, err := s.repo.LatestCapacity(); err == nil {
+		s.mu.Lock()
+		s.lastCapacity = stored
+		s.mu.Unlock()
+		s.restoreTask("capacity", stored.CollectedAt)
+	}
+	if err := maintenance.Start(workerCtx, s.natsConn,
+		maintenance.Job{Key: "platform.platform_snapshot", Title: "平台用量每日快照", Description: "统计工作空间、函数、数据库及定时任务用量", Schedule: maintenance.Cron("0 2 * * *"), RunOnCreate: true, Handler: func(ctx context.Context) (any, error) {
+			return s.runManagedCollection(ctx, "platform", s.collectPlatform)
+		}},
+		maintenance.Job{Key: "platform.capacity_snapshot", Title: "数据库与磁盘容量每日快照", Description: "采集容量和数据库清单，并清理过期监测历史", Schedule: maintenance.Cron("30 2 * * *"), RunOnCreate: true, Handler: func(ctx context.Context) (any, error) {
+			return s.runManagedCollection(ctx, "capacity", s.collectCapacity)
+		}},
+	); err != nil {
+		logger.Warnf(ctx, "[SystemResourceMonitor] register maintenance: %v", err)
+	}
 }
 
 func (s *SystemResourceService) Stop() {
@@ -94,55 +115,6 @@ func (s *SystemResourceService) runtimeLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.collectRuntime(ctx, false)
-		}
-	}
-}
-
-func (s *SystemResourceService) platformLoop(ctx context.Context) {
-	defer s.wg.Done()
-	if stored, err := s.repo.LatestPlatform(); err == nil {
-		s.mu.Lock()
-		s.lastPlatform = stored
-		s.mu.Unlock()
-		s.restoreTask("platform", stored.CollectedAt)
-	}
-	for {
-		now := time.Now()
-		if shouldRunScheduledDaily(s.platformCollectedAt(), now, platformRunHour, platformRunMinute) {
-			if !s.collectPlatform(ctx) {
-				if !waitFor(ctx, platformRetryInterval) {
-					return
-				}
-				s.collectPlatform(ctx)
-			}
-		}
-		next := nextDailyRun(time.Now(), platformRunHour, platformRunMinute)
-		s.setTaskNextRun("platform", next)
-		if !waitUntil(ctx, next) {
-			return
-		}
-	}
-}
-
-func (s *SystemResourceService) capacityLoop(ctx context.Context) {
-	defer s.wg.Done()
-	if stored, err := s.repo.LatestCapacity(); err == nil {
-		s.mu.Lock()
-		s.lastCapacity = stored
-		s.mu.Unlock()
-		s.restoreTask("capacity", stored.CollectedAt)
-	}
-	for {
-		now := time.Now()
-		if s.capacityCollectionDue(now) {
-			if !s.collectCapacity(ctx) && waitFor(ctx, capacityRetryInterval) {
-				s.collectCapacity(ctx)
-			}
-		}
-		next := nextDailyRun(time.Now(), capacityRunHour, capacityRunMinute)
-		s.setTaskNextRun("capacity", next)
-		if !waitUntil(ctx, next) {
-			return
 		}
 	}
 }
@@ -1124,4 +1096,15 @@ func mergeDatabaseInventory(local, remote []dto.SystemDatabaseSize) []dto.System
 		}
 	}
 	return append(result, remote...)
+}
+
+func (s *SystemResourceService) runManagedCollection(ctx context.Context, key string, collect func(context.Context) bool) (any, error) {
+	ok := collect(ctx)
+	s.mu.Lock()
+	result := s.tasks[key]
+	s.mu.Unlock()
+	if !ok {
+		return result, fmt.Errorf("%s collection incomplete: %s", key, result.Error)
+	}
+	return result, nil
 }

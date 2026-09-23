@@ -42,7 +42,7 @@ func NewPublicShareService(
 	}
 }
 
-func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicShareReq, actor string) (*dto.PublicShareResp, error) {
+func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicShareReq, actor string) (resp *dto.PublicShareResp, resultErr error) {
 	if req == nil {
 		return nil, fmt.Errorf("请求不能为空")
 	}
@@ -93,6 +93,24 @@ func (s *PublicShareService) Create(ctx context.Context, req *dto.CreatePublicSh
 	}
 	share.CreatedBy = actor
 	share.UpdatedBy = actor
+	ctx = contextx.WithRequestUser(ctx, actor)
+	if s.operateLogRepo == nil {
+		return nil, fmt.Errorf("operation audit storage unavailable")
+	}
+	audit, err := beginManagementAudit(ctx, s.operateLogRepo.GetDB(), "public_share.created", "public_share", fullCodePath, share.Title, "", nil, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	audit.secrets = []string{share.ShareID}
+	defer func() {
+		var after any
+		if resultErr == nil {
+			after = publicShareAuditSnapshot(share)
+			audit.details["stage"] = "completed"
+		}
+		audit.finish(ctx, after, &resultErr)
+	}()
+	defer audit.capturePanic(&resultErr)
 	if err := s.publicShareRepo.Create(ctx, share); err != nil {
 		return nil, fmt.Errorf("创建公开分享失败: %w", err)
 	}
@@ -114,15 +132,42 @@ func (s *PublicShareService) List(ctx context.Context, tenantUser, app string, f
 	return resp, nil
 }
 
-func (s *PublicShareService) Disable(ctx context.Context, shareID, actor string) error {
+func (s *PublicShareService) Disable(ctx context.Context, shareID, actor string) (resultErr error) {
 	shareID = strings.TrimSpace(shareID)
 	if shareID == "" {
-		return fmt.Errorf("share_id 不能为空")
+		return fmt.Errorf("share_id is required")
 	}
-	if err := s.publicShareRepo.Disable(ctx, shareID, actor); err != nil {
-		return fmt.Errorf("禁用公开分享失败: %w", err)
+	share, err := s.publicShareRepo.GetByShareID(ctx, shareID)
+	if err != nil {
+		return err
 	}
-	return nil
+	if !share.Enabled {
+		return nil
+	}
+	ctx = contextx.WithRequestUser(ctx, actor)
+	if s.operateLogRepo == nil {
+		return fmt.Errorf("operation audit storage unavailable")
+	}
+	audit, err := beginManagementAudit(ctx, s.operateLogRepo.GetDB(), "public_share.disabled", "public_share", share.FullCodePath, share.Title, fmt.Sprintf("%d", share.ID), publicShareAuditSnapshot(share), nil)
+	if err != nil {
+		return err
+	}
+	audit.secrets = []string{share.ShareID}
+	defer func() {
+		var after any
+		if resultErr == nil {
+			share.Enabled = false
+			after = publicShareAuditSnapshot(share)
+			audit.details["stage"] = "completed"
+		}
+		audit.finish(ctx, after, &resultErr)
+	}()
+	defer audit.capturePanic(&resultErr)
+	return s.publicShareRepo.Disable(ctx, shareID, actor)
+}
+
+func publicShareAuditSnapshot(share *model.PublicShare) map[string]any {
+	return map[string]any{"share_record_id": share.ID, "title": share.Title, "enabled": share.Enabled, "expires_at": share.ExpiresAt, "max_uses": share.MaxUses}
 }
 
 func (s *PublicShareService) GetShare(ctx context.Context, shareID string) (*model.PublicShare, error) {

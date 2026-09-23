@@ -13,14 +13,16 @@ export type KageosDocSlug =
   | 'operations'
   | 'api'
 
-const kageosDocsBaseURL = 'https://kageos.ai'
+const kageosDocsBaseURLs = { en: 'https://kageos.ai', zh: 'https://kageos.com' }
 const kageosWebsiteURL = 'https://kageos.com'
 const kageosHubBaseURL = 'https://hub.kageos.com'
 
 export function getKageosDocsURL(slug: KageosDocSlug = 'docs', locale?: SupportedLocale | string): string {
-  const docsPrefix = locale?.toLowerCase().startsWith('zh') ? '/zh/docs' : '/docs'
-  const suffix = slug === 'docs' ? '' : `/${slug}`
-  return `${kageosDocsBaseURL}${docsPrefix}${suffix}`
+  const zh = locale?.toLowerCase().startsWith('zh')
+  const baseURL = zh ? kageosDocsBaseURLs.zh : kageosDocsBaseURLs.en
+  const docsPrefix = zh ? '/zh/docs/' : '/docs/'
+  const suffix = slug === 'docs' ? '' : `${slug}/`
+  return `${baseURL}${docsPrefix}${suffix}`
 }
 
 export function getKageosHubURL(): string {

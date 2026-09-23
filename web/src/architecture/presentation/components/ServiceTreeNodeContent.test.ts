@@ -79,7 +79,7 @@ describe('ServiceTreeNodeContent', () => {
     expect(wrapper.get('.tree-node').classes()).toContain('agent-state-failed')
     expect(marker.attributes('data-agent-state')).toBe('failed')
     const image = marker.get('img')
-    expect(image.attributes('src')).toContain('service-icon.webp')
+    expect(image.attributes('src')).toContain('service-icon-portrait.webp')
   })
 
   it('shows a clickable lock and switches to the pending marker after a request is submitted', async () => {

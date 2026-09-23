@@ -142,6 +142,7 @@ export interface LogArchiveResourceSummary {
 }
 
 export interface LogArchiveBatch {
+  resource_path?: string
   attempts?: number
   next_retry_at?: string
   id: number
@@ -157,7 +158,7 @@ export interface LogArchiveBatch {
   file_size: number
   sha256: string
   status: 'exporting' | 'uploaded' | 'completed' | 'failed' | string
-  summary_json?: { top_resource_paths?: LogArchiveResourceSummary[] }
+  summary_json?: { status_counts?: Record<string, number>; top_resource_paths?: LogArchiveResourceSummary[] }
   error_message?: string
   archived_at?: string
   deleted_at_source?: string
@@ -165,6 +166,10 @@ export interface LogArchiveBatch {
 }
 
 export interface ListLogArchiveBatchesResp {
+ min_records?: number
+ scheduled_retention_days?: number
+ progress_supported?: boolean
+ scheduled_success_retention_days?: number
   list: LogArchiveBatch[]
   total: number
   retention_days: number
@@ -549,4 +554,25 @@ export function getSystemResourceDiagnostics() {
 
 export function getSystemResourceUsage(days = 7, page = 1, pageSize = 10) {
   return get<SystemUsageOverview>('/hr/api/v1/system/settings/resources/usage', { days, page, page_size: pageSize })
+}
+
+export interface ArchiveRunProgress {
+ execution_id: number; phase: string; batch_id: number; batch_records: number; records: number; batches: number; failed_batches: number; stop_reason: string; started_at: string; updated_at: string; finished_at?: string
+}
+export function getArchiveProgress(executionID: number) {
+ return get<{progress: ArchiveRunProgress | null}>('/workspace/api/v1/system/log_archives/progress', {execution_id: executionID})
+}
+
+export function downloadLogArchive(id: number) {
+ return get<{download_url: string}>(`/workspace/api/v1/system/log_archives/${id}/download`)
+}
+
+export function listResourceLogArchives(resourcePath: string, page = 1) {
+  return get<ListLogArchiveBatchesResp>('/workspace/api/v1/log_archives', {resource_path: resourcePath, page, page_size: 20})
+}
+export function downloadResourceLogArchive(resourcePath: string, id: number) {
+  return get<{download_url: string}>(`/workspace/api/v1/log_archives/${id}/download`, {resource_path: resourcePath})
+}
+export function retryResourceLogArchive(resourcePath: string, id: number) {
+  return post(`/workspace/api/v1/log_archives/${id}/retry?resource_path=${encodeURIComponent(resourcePath)}`, {})
 }

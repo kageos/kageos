@@ -7,7 +7,7 @@
         :function-detail="currentFunctionDetail"
       />
       <el-tabs
-        :model-value="activeTab"
+        :model-value="activeTab === 'logArchives' ? 'operateLog' : activeTab"
         class="function-detail-tabs"
         @update:model-value="$emit('update:activeTab', $event)"
         @tab-change="onFunctionTabChange"
@@ -70,8 +70,14 @@
           lazy
         >
           <div class="tab-content">
+            <ResourceLogsPanel
+              v-if="activeTab === 'operateLog' || activeTab === 'logArchives'"
+              :resource-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
+              :can-manage-archives="canConfigureFunction"
+              :active-view="activeTab === 'logArchives' ? 'logArchives' : 'operateLog'"
+              @change="changeLogView"
+            >
             <OperateLogSection
-              v-if="activeTab === 'operateLog'"
               ref="operateLogSectionRef"
               :full-code-path="currentFunction?.full_code_path || currentFunctionDetail?.full_code_path || ''"
               :row-id="0"
@@ -83,6 +89,7 @@
               :auto-load="activeTab === 'operateLog'"
               :on-apply-form-log="handleApplyFormLog"
             />
+            </ResourceLogsPanel>
           </div>
         </el-tab-pane>
 
@@ -110,6 +117,8 @@
 </template>
 
 <script setup lang="ts">
+import ResourceLogsPanel from './ResourceLogsPanel.vue'
+
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -129,7 +138,7 @@ import {
 import { ElMessage } from 'element-plus'
 import { canAdmin, canWrite } from '@/architecture/presentation/composables/useAccessControl'
 
-type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'scheduledTask'
+type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'logArchives' | 'scheduledTask'
 
 const OperateLogSection = defineAsyncComponent(() => import('./OperateLogSection.vue'))
 const PermissionPanel = defineAsyncComponent(() => import('./PermissionPanel.vue'))
@@ -169,6 +178,11 @@ const canWriteFunction = computed(() => canWrite(props.currentFunction))
 const scheduledFocusTaskID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_TASK_ID_QUERY_KEY))
 const scheduledFocusExecutionID = computed(() => readStringQuery(route.query, PLATFORM_SCHEDULED_EXECUTION_ID_QUERY_KEY))
 
+function changeLogView(tab: 'operateLog' | 'logArchives') {
+  emit('update:activeTab', tab)
+  props.onFunctionTabChange(tab)
+}
+
 function loadOperateLogTab(tabName: FunctionTabName) {
   if (tabName === 'operateLog' && featureFlags.operateLogs) {
     nextTick(() => operateLogSectionRef.value?.load())
@@ -200,7 +214,7 @@ async function handleApplyFormLog(requestBody: Record<string, any>, responseBody
 watch(
   [() => props.activeTab, canConfigureFunction, canWriteFunction, isFormFunction],
   ([tabName]) => {
-    if ((tabName === 'notification' && !canConfigureFunction.value)
+    if (((tabName === 'notification' || tabName === 'logArchives') && !canConfigureFunction.value)
       || (tabName === 'publicShare' && (!isFormFunction.value || !canWriteFunction.value))
       || (tabName === 'scheduledTask' && !canWriteFunction.value)) {
       emit('update:activeTab', 'content')

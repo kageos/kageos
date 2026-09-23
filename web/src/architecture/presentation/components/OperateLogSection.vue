@@ -1,28 +1,19 @@
 <template>
-  <div class="operate-log-section" :class="{ 'is-embedded': embedded }">
+  <div class="operate-log-section" :class="{ 'is-embedded': embedded, 'has-view-nav': scope !== 'row' }">
     <el-divider v-if="!embedded" />
-    <div v-if="!isFormOperateLog" class="operate-log-header">
-      <div class="operate-log-title-group">
-        <el-icon class="operate-log-icon"><Clock /></el-icon>
-        <span class="operate-log-title">{{ title || t('operateLog.title') }}</span>
+    <header v-if="scope !== 'row'" class="log-workspace-header">
+      <div class="log-workspace-heading"><h3>{{ title || t('operateLog.title') }}</h3><p>{{ t(scheduled ? 'logStorage.scheduledHint' : 'logStorage.operateHint') }}</p></div>
+      <div class="log-header-actions">
+        <el-button v-if="showRefresh" :icon="Refresh" :loading="loading" :aria-label="t('common.refresh')" class="header-refresh" @click="load" />
       </div>
-      <div>
-        <el-button
-          v-if="showRefresh"
-          size="small"
-          :icon="Refresh"
-          :loading="loading"
-          @click="load"
-        >
-          {{ t('common.refresh') }}
-        </el-button>
-      </div>
-    </div>
-    <div v-loading="loading" class="operate-log-content">
-      <template v-if="isFormOperateLog">
+    </header>
+    <div v-else-if="!isFormOperateLog" class="operate-log-header"><div class="operate-log-title-group"><el-icon class="operate-log-icon"><Clock /></el-icon><span>{{ title || t('operateLog.title') }}</span></div><el-button v-if="showRefresh" size="small" :icon="Refresh" :loading="loading" @click="load">{{ t('common.refresh') }}</el-button></div>
+    <div class="operate-log-content" :aria-busy="loading">
+      <el-skeleton v-if="loading && !logs.length" class="log-loading-skeleton" :rows="5" animated />
+      <template v-else-if="isFormOperateLog">
         <div class="form-operate-log-section">
           <div class="history-card">
-            <div class="section-header">
+            <div v-if="scope === 'row'" class="section-header">
               <div class="section-heading">
                 <div class="section-title">{{ t('operateLog.recentExecutions') }}</div>
                 <div class="section-subtitle">{{ t('operateLog.executionSubtitle') }}</div>
@@ -104,9 +95,6 @@
               >
                 {{ t('common.search') }}
               </el-button>
-              <el-checkbox v-model="showScheduledTasks" @change="handleScheduledTasksChange">
-                {{ t('operateLog.showScheduledTasks') }}
-              </el-checkbox>
             </div>
 
             <el-table
@@ -328,9 +316,6 @@
           >
             {{ t('common.search') }}
           </el-button>
-          <el-checkbox v-model="showScheduledTasks" @change="handleScheduledTasksChange">
-            {{ t('operateLog.showScheduledTasks') }}
-          </el-checkbox>
         </div>
 
         <el-table
@@ -347,8 +332,10 @@
           <el-table-column type="expand" width="40">
             <template #default="{ row }">
               <div class="table-log-details">
+                <ManagementLogDetails v-if="isManagementAction(row.action)" :log="asOperateLogEntry(row)" />
+                <WorkspaceUpdateLogDetails v-else-if="row.action === 'workspace.updated'" :log="row" />
                 <div
-                  v-if="row.action === 'OnTableUpdateRow' && getChangeEntries(asOperateLogEntry(row)).length > 0"
+                  v-else-if="row.action === 'OnTableUpdateRow' && getChangeEntries(asOperateLogEntry(row)).length > 0"
                   class="change-list"
                 >
                   <OperateLogFieldChange
@@ -577,6 +564,10 @@
 </template>
 
 <script setup lang="ts">
+import WorkspaceUpdateLogDetails from './WorkspaceUpdateLogDetails.vue'
+import ManagementLogDetails from './ManagementLogDetails.vue'
+import { isManagementAction } from '../composables/managementLog'
+
 import { computed, ref, toRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -584,7 +575,6 @@ import { Clock, Refresh, Search } from '@element-plus/icons-vue'
 
 import {
   ElButton,
-  ElCheckbox,
   ElDialog,
   ElDivider,
   ElEmpty,
@@ -593,6 +583,7 @@ import {
   ElOption,
   ElPagination,
   ElSelect,
+  ElSkeleton,
   ElTable,
   ElTableColumn,
   ElTabPane,
@@ -617,6 +608,8 @@ import {
 } from '@/architecture/shared/routing/platformRouteParams'
 
 interface Props {
+  scheduled?: boolean
+  taskId?: number
   fullCodePath: string
   rowId: number
   functionDetail?: any
@@ -627,6 +620,7 @@ interface Props {
   title?: string
   onApplyFormLog?: (requestBody: Record<string, any>, responseBody: Record<string, any> | null) => void
 }
+
 
 const props = withDefaults(defineProps<Props>(), {
   fullCodePath: '',
@@ -650,8 +644,8 @@ function asOperateLogEntry(row: Record<string, unknown>): OperateLogEntry {
   return row as OperateLogEntry
 }
 
-const focusLogId = computed(() => readStringQuery(route.query, PLATFORM_LOG_ID_QUERY_KEY))
-const focusTraceId = computed(() => readStringQuery(route.query, PLATFORM_TRACE_ID_QUERY_KEY))
+const focusLogId = computed(() => props.scheduled ? '' : readStringQuery(route.query, PLATFORM_LOG_ID_QUERY_KEY))
+const focusTraceId = computed(() => props.scheduled ? '' : readStringQuery(route.query, PLATFORM_TRACE_ID_QUERY_KEY))
 
 const {
   logs,
@@ -661,7 +655,6 @@ const {
   keyword,
   actionFilter,
   sourceFilter,
-  showScheduledTasks,
   userFilter,
   userOptions,
   userFilterLoading,
@@ -695,7 +688,6 @@ const {
   handleSearch,
   handleActionChange,
   handleSourceChange,
-  handleScheduledTasksChange,
   handleUserChange,
   searchUserOptions,
   handlePageChange,
@@ -709,6 +701,8 @@ const {
   functionDetail: toRef(props, 'functionDetail'),
   autoLoad: toRef(props, 'autoLoad'),
   scope: toRef(props, 'scope'),
+  scheduled: toRef(props, 'scheduled'),
+  taskId: toRef(props, 'taskId'),
   focusLogId,
   focusTraceId,
   onApplyFormLog: props.onApplyFormLog,
@@ -817,7 +811,7 @@ function openPreviewDialog(log: any) {
 }
 
 function syncOperateLogRoute(log: any) {
-  if (!props.fullCodePath || !log?.id) return
+  if (props.scheduled || !props.fullCodePath || !log?.id) return
   const target = buildOperateLogRoute({
     fullCodePath: props.fullCodePath,
     logId: log.id,
@@ -873,6 +867,14 @@ defineExpose({
 </script>
 
 <style scoped>
+/* The view control sits alongside the title, below the workspace navigation. */
+.log-workspace-header { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 4px 0 22px; flex-shrink: 0; }
+.log-workspace-heading { min-width: 0; }.log-workspace-heading h3 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.5; letter-spacing: -.2px; color: var(--el-text-color-primary); }.log-workspace-heading p { margin: 6px 0 0; font-size: 12px; line-height: 1.7; color: var(--el-text-color-secondary); }
+.log-header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }.log-view-control { display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--el-border-color-lighter); border-radius: 10px; background: var(--el-fill-color-light); }
+.log-view-control button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 14px; border: 0; border-radius: 7px; background: transparent; color: var(--el-text-color-secondary); font-family: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, box-shadow .15s; }.log-view-control button:hover { color: var(--el-text-color-primary); background: var(--el-fill-color); }.log-view-control button.is-selected { color: var(--el-color-primary); background: var(--el-bg-color-overlay); box-shadow: 0 1px 4px rgb(0 0 0 / 10%); font-weight: 600; }.log-view-control button:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }.log-view-control .el-icon { font-size: 15px; }.header-refresh { width: 36px; height: 36px; padding: 0; border-color: var(--el-border-color-lighter); border-radius: 9px; background: transparent; }
+.log-loading-skeleton { padding: 24px; border: 1px solid var(--el-border-color-extra-light); border-radius: 12px; box-sizing: border-box; }
+.has-view-nav .operate-log-toolbar { padding: 16px; box-shadow: none; background: var(--el-fill-color-light); border-color: var(--el-border-color-extra-light); margin-bottom: 18px; }.has-view-nav .operate-log-toolbar > .el-checkbox { grid-column: 1 / -1; height: 24px; margin-top: 2px; }.has-view-nav .history-card { box-shadow: none; }.has-view-nav .form-history-toolbar { border-bottom-color: var(--el-border-color-extra-light); background: var(--el-fill-color-light); }.has-view-nav :deep(.el-empty) { padding: 48px 0; }.has-view-nav :deep(.el-empty__description p) { font-size: 13px; }
+@media (max-width: 850px) { .log-workspace-header { align-items: flex-start; flex-direction: column; gap: 16px; }.log-header-actions { width: 100%; justify-content: space-between; } }
 .operate-log-section {
   margin-top: 24px;
 }

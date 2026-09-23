@@ -80,3 +80,72 @@ func openUserSessionRepositoryTestDB(t *testing.T) *gorm.DB {
 	}
 	return db
 }
+
+func TestLoginTimestampCommitsWithSession(t *testing.T) {
+	db := openUserSessionRepositoryTestDB(t)
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		t.Fatal(err)
+	}
+	user := model.User{Username: "login_user", Status: "active"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	repo := NewUserSessionRepository(db)
+	read := func() *model.User {
+		t.Helper()
+		got, err := NewUserRepository(db).GetUserByID(user.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if read().LastLoginAt != nil {
+		t.Fatal("new user has a login timestamp")
+	}
+	start := time.Now().Truncate(time.Second)
+	if err := repo.CreateActiveUserSession(user.ID, "login", "refresh", models.Time(time.Now().Add(time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	loggedIn := read()
+	if loggedIn.LastLoginAt == nil || time.Time(*loggedIn.LastLoginAt).Before(start) {
+		t.Fatal("successful login was not recorded")
+	}
+	// Token refresh must preserve the actual login time.
+	old := models.Time(time.Now().Add(-24 * time.Hour).Truncate(time.Second))
+	if err := db.Model(&user).UpdateColumn("last_login_at", old).Error; err != nil {
+		t.Fatal(err)
+	}
+	session, err := repo.GetUserSessionByToken("login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpdateUserSessionTokens(session.ID, "new-login", "new-refresh"); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.LastLoginAt == nil || !time.Time(*got.LastLoginAt).Equal(time.Time(old)) {
+		t.Fatal("refresh changed login time")
+	}
+	// A failed session insert must leave the previous timestamp intact.
+	if err := repo.CreateActiveUserSession(user.ID, "new-login", "new-refresh", models.Time(time.Now().Add(time.Hour))); err == nil {
+		t.Fatal("expected duplicate session failure")
+	}
+	if got := read(); got.LastLoginAt == nil || !time.Time(*got.LastLoginAt).Equal(time.Time(old)) {
+		t.Fatal("failed login changed timestamp")
+	}
+	if err := repo.CreateActiveUserSession(user.ID, "second-login", "second-refresh", models.Time(time.Now().Add(time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.LastLoginAt == nil || !time.Time(*got.LastLoginAt).After(time.Time(old)) {
+		t.Fatal("second login did not advance timestamp")
+	}
+	if err := db.Model(&user).UpdateColumn("status", "disabled").Error; err != nil {
+		t.Fatal(err)
+	}
+	before := read()
+	if err := repo.CreateActiveUserSession(user.ID, "disabled-login", "disabled-refresh", models.Time(time.Now().Add(time.Hour))); err == nil {
+		t.Fatal("disabled user logged in")
+	}
+	if got := read(); !time.Time(*got.LastLoginAt).Equal(time.Time(*before.LastLoginAt)) {
+		t.Fatal("disabled login changed timestamp")
+	}
+}

@@ -659,10 +659,9 @@ const nodeIconClass = computed(() => {
   flex-shrink: 0;
   place-items: center;
   margin-left: 6px;
-  border: 1px solid var(--agent-badge-border);
-  border-radius: 8px;
-  background: var(--agent-badge-bg);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--agent-accent) 18%, transparent);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
   line-height: 1;
   transition:
     transform 0.2s ease,
@@ -939,42 +938,9 @@ const nodeIconClass = computed(() => {
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
 }
 
-.tree-node.agent-state-running .scheduled-agent-badge {
-  animation: scheduled-agent-working 1.45s ease-in-out infinite;
-}
-
-.tree-node.agent-state-failed .scheduled-agent-badge {
-  animation: scheduled-agent-attention 1.15s ease-in-out infinite;
-}
-
-@keyframes scheduled-agent-working {
-  0%,
-  100% {
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.16);
-  }
-  50% {
-    box-shadow:
-      0 2px 10px rgba(37, 99, 235, 0.26),
-      0 0 0 3px rgba(37, 99, 235, 0.1);
-  }
-}
-
-@keyframes scheduled-agent-attention {
-  0%,
-  100% {
-    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.17);
-  }
-  50% {
-    box-shadow:
-      0 2px 10px rgba(234, 88, 12, 0.3),
-      0 0 0 3px rgba(234, 88, 12, 0.11);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .tree-node.agent-state-running .scheduled-agent-badge,
-  .tree-node.agent-state-failed .scheduled-agent-badge {
-    animation: none;
+  .scheduled-agent-badge {
+    transition: none;
   }
 }
 

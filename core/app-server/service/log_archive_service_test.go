@@ -1,6 +1,7 @@
 package service
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +27,7 @@ func TestDeleteArchivedSourceRequiresVerificationAndDeletesOnlySelectedIDs(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&model.OperateLog{}, &model.LogArchiveBatch{}); err != nil {
+	if err := db.AutoMigrate(&model.OperateLog{}, &model.ScheduledExecutionLog{}, &model.LogArchiveBatch{}); err != nil {
 		t.Fatal(err)
 	}
 	for id := int64(1); id <= 3; id++ {
@@ -67,10 +70,12 @@ func TestDeleteArchivedSourceRequiresVerificationAndDeletesOnlySelectedIDs(t *te
 }
 
 func TestDefaultLogArchiveConfig(t *testing.T) {
+	t.Setenv("KAGEOS_LOG_ARCHIVE_MAX_BATCHES", "")
+	t.Setenv("KAGEOS_LOG_ARCHIVE_BATCH_SIZE", "")
 	t.Setenv("KAGEOS_LOG_ARCHIVE_RETENTION_DAYS", "30")
 	t.Setenv("KAGEOS_LOG_ARCHIVE_CRON", "5 2 * * *")
 	cfg := DefaultLogArchiveConfig()
-	if !cfg.Enabled || cfg.RetentionDays != 30 || cfg.CronExpr != "5 2 * * *" {
+	if !cfg.Enabled || cfg.RetentionDays != 30 || cfg.CronExpr != "5 2 * * *" || cfg.MaxBatches != 1000 || cfg.BatchSize != 10000 {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
 }
@@ -81,7 +86,7 @@ func archiveFixture(t *testing.T) (*gorm.DB, *LogArchiveService, *model.LogArchi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&model.OperateLog{}, &model.LogArchiveBatch{}); err != nil {
+	if err := db.AutoMigrate(&model.OperateLog{}, &model.ScheduledExecutionLog{}, &model.LogArchiveBatch{}); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now()
@@ -157,7 +162,7 @@ func TestFailedArchiveBackoffDoesNotClaimItsSourceAgain(t *testing.T) {
 	if _, err := svc.repo.GetResumable(context.Background()); !repository.IsArchiveNotFound(err) {
 		t.Fatalf("backoff batch was selected: %v", err)
 	}
-	ids, err := svc.repo.SelectIDs(context.Background(), "alice", "crm", time.Now(), 100)
+	_, _, ids, err := svc.repo.ForType("operate_log").SelectArchiveIDs(context.Background(), time.Now(), 1, 100)
 	if err != nil || len(ids) != 1 || ids[0] != 3 {
 		t.Fatalf("claimed source was selected again: %v %v", ids, err)
 	}
@@ -216,5 +221,163 @@ func TestManualArchiveRetryCannotOverlapAnotherWorker(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestArchiveRunContinuesBeyondTwentyBatchesAndRenewsContext(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&model.OperateLog{}, &model.ScheduledExecutionLog{}, &model.LogArchiveBatch{}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	for i := 0; i < 21; i++ {
+		batch := &model.LogArchiveBatch{ArchiveKey: fmt.Sprintf("verified-%d", i), ArchiveType: logArchiveTypeOperate, TenantUser: "alice", App: "crm", Status: model.LogArchiveStatusUploaded, SelectedIDsJSON: json.RawMessage(`[]`), ObjectVerifiedAt: &now, ObjectRef: "bucket/verified", SHA256: "verified", RangeStartedAt: now, RangeEndedAt: now}
+		if err := db.Create(batch).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := NewLogArchiveService(repository.NewLogArchiveRepository(db), LogArchiveConfig{RetentionDays: 90, BatchSize: 10000, MaxBatches: 1000})
+	renewals := 0
+	result, err := svc.runWithContext(context.Background(), func(ctx context.Context) (context.Context, error) { renewals++; return ctx, nil })
+	if err != nil || result.Batches != 21 || renewals != 22 || result.StopReason != "no_eligible_logs" {
+		t.Fatalf("result=%+v renewals=%d error=%v", result, renewals, err)
+	}
+}
+
+func TestArchiveProgressSurvivesServiceRecreationAndReportsDeferredRetry(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&model.OperateLog{}, &model.ScheduledExecutionLog{}, &model.LogArchiveBatch{}, &model.LogArchiveProgress{}); err != nil {
+		t.Fatal(err)
+	}
+	repo := repository.NewLogArchiveRepository(db)
+	svc := NewLogArchiveService(repo, LogArchiveConfig{RetentionDays: 90, MaxBatches: 1})
+	p := &model.LogArchiveProgress{ExecutionID: 123, StartedAt: time.Now()}
+	ctx := context.WithValue(context.Background(), archiveProgressKey{}, p)
+	svc.setPhase(ctx, "verifying", &model.LogArchiveBatch{Base: models.Base{ID: 42}, RecordCount: 10000})
+	another := NewLogArchiveService(repo, svc.config)
+	got, err := another.Progress(context.Background(), 123)
+	if err != nil || got == nil || got.Phase != "verifying" || got.BatchID != 42 || got.BatchRecords != 10000 {
+		t.Fatalf("snapshot not durable: %+v %v", got, err)
+	}
+	missing, err := another.Progress(context.Background(), 456)
+	if err != nil || missing != nil {
+		t.Fatalf("missing snapshot: %+v %v", missing, err)
+	}
+	retry := time.Now().Add(time.Hour)
+	batch := &model.LogArchiveBatch{ArchiveKey: "deferred", TenantUser: "alice", App: "ops", RangeStartedAt: time.Now(), RangeEndedAt: time.Now(), Status: model.LogArchiveStatusFailed, NextRetryAt: &retry, SelectedIDsJSON: json.RawMessage(`[]`)}
+	if err := db.Create(batch).Error; err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.Run(context.Background())
+	if err != nil || result.StopReason != "retry_pending" {
+		t.Fatalf("deferred work reported drained: %+v %v", result, err)
+	}
+}
+
+func TestScheduledArchiveRoundTripAndSourceTableIsolation(t *testing.T) {
+	db, svc, _ := archiveFixture(t)
+	// Remove the fixture checkpoint, not its human operation rows.
+	if err := db.Unscoped().Where("1=1").Delete(&model.LogArchiveBatch{}).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, status := range []string{"success", "failed"} {
+		row := model.ScheduledExecutionLog{TenantUser: "alice", App: "crm", ResourcePath: "/alice/crm/task.form", ResourceType: "form", Status: status, SourceRef: "timer_task:1:execution:2", NewValuesJSON: json.RawMessage(`{"result":{"n":0},"error":"timeout"}`)}
+		row.CreatedAt = models.Time(time.Now().AddDate(0, 0, -8))
+		if err := db.Create(&row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	batch, err := svc.nextBatch(context.Background(), time.Now().AddDate(0, 0, -90))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if batch.ArchiveType != "scheduled_execution" || batch.RecordCount != 2 {
+		t.Fatalf("wrong batch: %+v", batch)
+	}
+	path, summary, err := svc.exportBatch(context.Background(), batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	gz, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gz.Close()
+	decoder := json.NewDecoder(gz)
+	for range 2 {
+		var row model.ScheduledExecutionLog
+		if err := decoder.Decode(&row); err != nil {
+			t.Fatal(err)
+		}
+		if string(row.NewValuesJSON) != `{"result":{"n":0},"error":"timeout"}` {
+			t.Fatalf("raw result changed: %s", row.NewValuesJSON)
+		}
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		t.Fatalf("unexpected trailing content: %v", err)
+	}
+	if !strings.Contains(string(summary), `"failed":1`) {
+		t.Fatalf("missing failure count: %s", summary)
+	}
+	if err := svc.deleteArchivedSource(context.Background(), batch); err == nil {
+		t.Fatal("deleted before verification")
+	}
+	now := time.Now()
+	batch.ObjectVerifiedAt = &now
+	batch.ObjectRef = "verified"
+	batch.SHA256 = "test"
+	if err := svc.deleteArchivedSource(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	var human, scheduled int64
+	if err := db.Model(&model.OperateLog{}).Count(&human).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.ScheduledExecutionLog{}).Count(&scheduled).Error; err != nil {
+		t.Fatal(err)
+	}
+	if human != 3 || scheduled != 0 {
+		t.Fatalf("cross-table deletion: human=%d scheduled=%d", human, scheduled)
+	}
+}
+
+func TestLegacyArchiveRetryReleasesUnselectedScheduledRowsForMigration(t *testing.T) {
+	db, svc, batch := archiveFixture(t)
+	batch.MaxLogID = 3 // The old batch owns the range, but selected only IDs 1 and 2.
+	if err := svc.repo.Save(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.OperateLog{}).Where("id = 3").Updates(map[string]any{"resource_type": "form", "source": "scheduled_task"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.repo.MoveLegacyScheduledLogs(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var count int64
+	if err := db.Model(&model.ScheduledExecutionLog{}).Count(&count).Error; err != nil || count != 0 {
+		t.Fatalf("migrated an owned range: %d %v", count, err)
+	}
+	if err := svc.Retry(context.Background(), batch.ID); err != nil {
+		t.Fatal(err)
+	}
+	var row model.ScheduledExecutionLog
+	if err := db.First(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	if row.OriginalLogID == nil || *row.OriginalLogID != 3 {
+		t.Fatalf("unselected row not recovered: %+v", row)
 	}
 }

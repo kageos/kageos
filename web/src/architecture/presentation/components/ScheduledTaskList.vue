@@ -102,6 +102,9 @@
               </div>
 
               <section class="detail-document-section is-executions">
+                <details class="scheduled-call-logs"><summary>{{ t('logStorage.scheduledTitle') }}</summary>
+                  <OperateLogSection :key="selectedTask.id" :full-code-path="selectedTask.resource_key || resourcePath" :row-id="0" scope="function" :function-detail="functionDetail || undefined" :task-id="selectedTask.id" scheduled auto-load embedded show-refresh :title="t('logStorage.scheduledTitle')" />
+                </details>
                 <div class="detail-section-head">
                   <div>
                     <div class="detail-section-title">{{ t('scheduledTask.executionRecords') }}</div>
@@ -302,6 +305,7 @@
 </template>
 
 <script setup lang="ts">
+import OperateLogSection from './OperateLogSection.vue'
 import { reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

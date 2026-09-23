@@ -29,13 +29,15 @@ function deferred<T>() {
 }
 
 describe('useOperateLogSection', () => {
-  it('hides scheduled task logs by default and can include them on demand', async () => {
+  it('queries scheduled executions separately with an exact task ID', async () => {
     const scope = effectScope()
     getOperateLogsMock.mockReset().mockResolvedValue({ logs: [], total: 0 })
 
     try {
       const section = scope.run(() =>
         useOperateLogSection({
+          scheduled: ref(true),
+          taskId: ref(7),
           fullCodePath: ref('/alice/ops/tickets.table'),
           rowId: ref(0),
           functionDetail: ref({ template_type: 'table', schema: { type: 'table', table: { fields: [] } } }),
@@ -46,12 +48,7 @@ describe('useOperateLogSection', () => {
 
       section.load()
       await flushPromises()
-      expect(getOperateLogsMock).toHaveBeenLastCalledWith(expect.objectContaining({ exclude_scheduled_tasks: true }))
-
-      section.showScheduledTasks.value = true
-      section.handleScheduledTasksChange()
-      await flushPromises()
-      expect(getOperateLogsMock).toHaveBeenLastCalledWith(expect.objectContaining({ exclude_scheduled_tasks: false }))
+      expect(getOperateLogsMock).toHaveBeenLastCalledWith(expect.objectContaining({ log_kind: 'scheduled', task_id: 7 }))
     } finally {
       scope.stop()
     }
@@ -237,6 +234,7 @@ describe('useOperateLogSection', () => {
     try {
       const section = scope.run(() =>
         useOperateLogSection({
+          scheduled: ref(true),
           fullCodePath: ref('/alice/ops/tickets.table'),
           rowId: ref(42),
           functionDetail: ref({
@@ -276,6 +274,7 @@ describe('useOperateLogSection', () => {
     try {
       const section = scope.run(() =>
         useOperateLogSection({
+          scheduled: ref(true),
           fullCodePath: ref('/alice/ops/reports.chart'),
           rowId: ref(0),
           functionDetail: ref({

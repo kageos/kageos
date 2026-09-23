@@ -404,7 +404,7 @@ const inputText = ref('')
 type WorkstationInputRef = {
   focus: () => void
   focusAtEnd?: () => void
-  insertWorkspaceResources?: (paths: string[]) => void
+  insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string }>) => void
 }
 const inputRef = ref<WorkstationInputRef>()
 const llmSelectOpen = ref(false)

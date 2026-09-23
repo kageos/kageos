@@ -124,6 +124,10 @@ func (r *UserSessionRepository) CreateActiveUserSession(userID int64, token, ref
 		if !user.IsActive() {
 			return fmt.Errorf("账户已停用")
 		}
-		return NewUserSessionRepository(tx).CreateUserSession(userID, token, refreshToken, expiresAt, "", "")
+		if err := NewUserSessionRepository(tx).CreateUserSession(userID, token, refreshToken, expiresAt, "", ""); err != nil {
+			return err
+		}
+		// 与登录会话一起提交，失败时回滚；刷新令牌不经过此处。
+		return tx.Model(&user).UpdateColumn("last_login_at", models.Time(time.Now())).Error
 	})
 }

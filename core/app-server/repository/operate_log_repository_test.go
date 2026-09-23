@@ -21,7 +21,7 @@ func newOperateLogRepositoryTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("get sql db: %v", err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.OperateLog{}); err != nil {
+	if err := db.AutoMigrate(&model.OperateLog{}, &model.ScheduledExecutionLog{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

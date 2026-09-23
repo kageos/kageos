@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robfig/cron/v3"
+	"github.com/kageos/kageos/pkg/maintenance"
 
 	sharedDto "github.com/kageos/kageos/dto"
 
@@ -63,6 +64,7 @@ type CloseNotification struct {
 
 // AppManageService 应用管理服务 - 负责应用的增删改查
 type AppManageService struct {
+	natsConn             *nats.Conn
 	builder              *builder.Builder
 	config               *appconfig.AppManageServiceConfig
 	runtimeConfig        *appconfig.AppRuntimeConfig // 运行时完整配置（用于获取网关地址等）
@@ -88,7 +90,7 @@ type AppManageService struct {
 	// 容器级对账巡检控制（cron 低峰期执行 + 有变动时由 ticker 触发）
 	containerCleanupTicker *time.Ticker
 	containerCleanupDone   chan struct{}
-	containerCleanupCron   *cron.Cron // 每日定点执行，如 "0 4 * * *" 表示凌晨 4 点
+	cleanupRunMu           sync.Mutex
 
 	// 有版本/容器变动时置为 true，ticker 检查到后执行一次巡检
 	containerCleanupMu    sync.Mutex
@@ -148,6 +150,7 @@ func NewAppManageService(deps AppManageServiceDependencies) *AppManageService {
 		appDiscoveryService:  deps.AppDiscoveryService,
 		appControlClient:     NewAppControlClient(deps.NATSConnection),
 		appDatabaseService:   deps.AppDatabaseService,
+		natsConn:             deps.NATSConnection,
 		QPSTracker:           NewQPSTracker(60*time.Second, 10*time.Second), // 60秒窗口，10秒检查间隔
 		workspaceFileService: deps.WorkspaceFileService,
 		startupWaiters:       make(map[string]chan *StartupNotification),
@@ -780,17 +783,12 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 	logger.Infof(ctx, "[CleanupTask] 启动定时清理 | 进程级+容器级+二进制=cron(%s)+有变动时 | 顺序=进程级→容器级→二进制 | 保留版本数=%d",
 		containerCleanupCronExpr, maxKeepVersions)
 
-	// 凌晨 4 点：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余），最后裁剪旧二进制。
-	s.containerCleanupCron = cron.New(cron.WithLocation(time.Local))
-	_, err := s.containerCleanupCron.AddFunc(containerCleanupCronExpr, func() {
-		logger.Infof(ctx, "[CleanupTask] cron 触发 | 执行进程级清理 + 容器级巡检 + release 二进制清理 + workplace(file-cache/output/uploads)清空")
-		s.runAllCleanups(ctx)
-		s.runWorkplaceTempCleanup(ctx)
-	})
+	err := maintenance.Start(ctx, s.natsConn, maintenance.Job{Key: "platform.runtime_cleanup", Title: "应用版本和临时文件清理", Description: "清理旧进程、容器和二进制；清空 workplace/file-cache、output、uploads", Schedule: maintenance.Cron(containerCleanupCronExpr), Handler: func(ctx context.Context) (any, error) {
+		return s.runMaintenanceCleanup(ctx)
+
+	}})
 	if err != nil {
-		logger.Warnf(ctx, "[CleanupTask] cron 添加失败: %v，将仅依赖有变动时触发", err)
-	} else {
-		s.containerCleanupCron.Start()
+		logger.Warnf(ctx, "[CleanupTask] register: %v", err)
 	}
 
 	// 每 1 分钟检查是否有“有变动”标记，有则执行一次完整清理（进程级+容器级+二进制）
@@ -814,16 +812,17 @@ func (s *AppManageService) StartCleanupTask(ctx context.Context) {
 }
 
 // runAllCleanups 执行一次完整清理：先进程级（按当前版本停非当前），再容器级（保留最近 3 版本并删除多余），最后裁剪旧 release 二进制。
-func (s *AppManageService) runAllCleanups(ctx context.Context) {
-	s.performCleanup(ctx)        // 进程级：按 current_version 停掉非当前且无流量的版本
-	s.containerLevelCleanup(ctx) // 容器级：每应用保留最近 3 版本，其余 stop+remove
-	s.releaseBinaryCleanup(ctx)  // 文件级：每应用保留 current + 最近 3 个 release 二进制
+func (s *AppManageService) runAllCleanups(ctx context.Context) error {
+	s.cleanupRunMu.Lock()
+	defer s.cleanupRunMu.Unlock()
+	return errors.Join(s.performCleanup(ctx), s.containerLevelCleanup(ctx), s.releaseBinaryCleanup(ctx))
 }
 
 // runWorkplaceTempCleanup 清空各应用 workplace 下的临时目录（全部删除，无需保留）
-func (s *AppManageService) runWorkplaceTempCleanup(ctx context.Context) {
+func (s *AppManageService) runWorkplaceTempCleanup(ctx context.Context) (runErr error) {
 	apps, err := s.getAllApps(ctx)
 	if err != nil {
+		runErr = errors.Join(runErr, err)
 		logger.Errorf(ctx, "[WorkplaceCleanup] 获取应用列表失败: %v", err)
 		return
 	}
@@ -833,30 +832,31 @@ func (s *AppManageService) runWorkplaceTempCleanup(ctx context.Context) {
 			dir := appPaths.WorkplaceSubDir(subdir)
 			if _, err := os.Stat(dir); err != nil {
 				if !os.IsNotExist(err) {
+					runErr = errors.Join(runErr, err)
 					logger.Warnf(ctx, "[WorkplaceCleanup] 检查目录失败 %s: %v", dir, err)
 				}
 				continue
 			}
 			if err := os.RemoveAll(dir); err != nil {
+				runErr = errors.Join(runErr, err)
 				logger.Warnf(ctx, "[WorkplaceCleanup] 清空失败 %s: %v", dir, err)
 				continue
 			}
 			if err := os.MkdirAll(dir, 0755); err != nil {
+				runErr = errors.Join(runErr, err)
 				logger.Warnf(ctx, "[WorkplaceCleanup] 重建目录失败 %s: %v", dir, err)
 				continue
 			}
 			logger.Infof(ctx, "[WorkplaceCleanup] 已清空: %s/%s workplace/%s", app.User, app.App, subdir)
 		}
 	}
+	return runErr
 }
 
 // StopCleanupTask 停止定时清理任务
 func (s *AppManageService) StopCleanupTask(ctx context.Context) {
 	if s.containerCleanupTicker != nil {
 		s.containerCleanupTicker.Stop()
-	}
-	if s.containerCleanupCron != nil {
-		s.containerCleanupCron.Stop()
 	}
 
 	select {
@@ -872,12 +872,13 @@ func (s *AppManageService) StopCleanupTask(ctx context.Context) {
 }
 
 // performCleanup 执行清理任务
-func (s *AppManageService) performCleanup(ctx context.Context) {
+func (s *AppManageService) performCleanup(ctx context.Context) (runErr error) {
 	//logger.Infof(ctx, "[AppManageService] Performing cleanup check...")
 
 	// 获取所有应用
 	apps, err := s.getAllApps(ctx)
 	if err != nil {
+		runErr = errors.Join(runErr, err)
 		logger.Errorf(ctx, "[AppManageService] Failed to get apps: %v", err)
 		return
 	}
@@ -890,10 +891,12 @@ func (s *AppManageService) performCleanup(ctx context.Context) {
 	for _, app := range apps {
 		// 清理非当前版本的无流量版本
 		if err := s.CleanupNonCurrentVersions(ctx, app.User, app.App); err != nil {
+			runErr = errors.Join(runErr, err)
 			logger.Errorf(ctx, "[AppManageService] Failed to cleanup versions for %s/%s: %v", app.User, app.App, err)
 		}
 
 	}
+	return runErr
 }
 
 // getAllApps 获取所有应用
@@ -987,7 +990,7 @@ func (s *AppManageService) shutdownVersionGracefullyForCleanup(ctx context.Conte
 // containerLevelCleanup 运行时实例级对账巡检
 // 策略：仅处理 app 表中已注册的应用（runtime 构建的），每个应用保留最近 maxKeepVersions 个版本，更老的全部清理。
 // 非 runtime 构建的实例（未在 app 表注册的）一律不碰，保证基础设施等安全。
-func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
+func (s *AppManageService) containerLevelCleanup(ctx context.Context) (runErr error) {
 	if s.runtimeDriver == nil || !s.runtimeDriver.IsAvailable() {
 		logger.Debugf(ctx, "[ContainerCleanup] 跳过巡检: runtimeDriver 不可用或未运行")
 		return
@@ -998,6 +1001,7 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 	// 1. 获取 app 表中已注册的应用，只清理这些应用的多余容器
 	registeredApps, err := s.appRepo.GetAllApps()
 	if err != nil {
+		runErr = errors.Join(runErr, err)
 		logger.Warnf(ctx, "[ContainerCleanup] 获取已注册应用列表失败: %v，跳过本次巡检", err)
 		return
 	}
@@ -1008,6 +1012,7 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 
 	runtimeInstances, err := s.runtimeDriver.ListAppVersions(ctx)
 	if err != nil {
+		runErr = errors.Join(runErr, err)
 		logger.Warnf(ctx, "[ContainerCleanup] 获取运行时实例列表失败: %v", err)
 		return
 	}
@@ -1114,6 +1119,10 @@ func (s *AppManageService) containerLevelCleanup(ctx context.Context) {
 	totalCleaned := cleanedExited + cleanedRunning
 	logger.Infof(ctx, "[ContainerCleanup] 巡检完成 | 耗时=%s | 清理=%d（已停止=%d + 运行中=%d）| 跳过=%d（有流量）| 失败=%d",
 		time.Since(cleanupStart).Round(time.Millisecond), totalCleaned, cleanedExited, cleanedRunning, skippedTraffic, failedClean)
+	if failedClean > 0 {
+		runErr = errors.Join(runErr, fmt.Errorf("%d runtime instances failed cleanup", failedClean))
+	}
+	return runErr
 }
 
 // parseVersionNumber 从 "v1","v2","v10" 等版本字符串中提取数字部分
@@ -1514,4 +1523,37 @@ func (s *AppManageService) commitToGit(
 		user, app, version, commitHash)
 
 	return commitHash, nil
+}
+
+// runMaintenanceCleanup reports each stage and serializes manual, nightly and change-triggered cleanup.
+func (s *AppManageService) runMaintenanceCleanup(ctx context.Context) (any, error) {
+	s.cleanupRunMu.Lock()
+	defer s.cleanupRunMu.Unlock()
+	stages := []map[string]any{}
+	var allErr error
+	for _, stage := range []struct {
+		name string
+		run  func(context.Context) error
+	}{
+		{"processes", s.performCleanup}, {"runtime_instances", s.containerLevelCleanup}, {"release_binaries", s.releaseBinaryCleanup}, {"temporary_files", s.runWorkplaceTempCleanup},
+	} {
+		if err := ctx.Err(); err != nil {
+			return map[string]any{"stages": stages}, errors.Join(allErr, err)
+		}
+		start := time.Now()
+		err := stage.run(ctx)
+		status := "completed"
+		message := ""
+		if err != nil {
+			status = "failed"
+			message = err.Error()
+			allErr = errors.Join(allErr, err)
+		}
+		if stage.name == "runtime_instances" && (s.runtimeDriver == nil || !s.runtimeDriver.IsAvailable()) {
+			status = "skipped"
+			message = "runtime driver unavailable"
+		}
+		stages = append(stages, map[string]any{"stage": stage.name, "status": status, "duration_millis": time.Since(start).Milliseconds(), "error": message})
+	}
+	return map[string]any{"stages": stages, "keep_versions": maxKeepVersions}, allErr
 }

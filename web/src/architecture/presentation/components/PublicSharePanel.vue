@@ -6,7 +6,7 @@
           <div class="section-title">{{ t('publicSharePanel.title') }}</div>
           <div class="section-subtitle">{{ t('publicSharePanel.subtitle') }}</div>
         </div>
-        <el-button type="primary" size="small" @click="openCreateDialog">{{ t('publicSharePanel.createShare') }}</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreateDialog">{{ t('publicSharePanel.createShare') }}</el-button>
       </div>
 
       <div class="form-history-toolbar">
@@ -43,145 +43,54 @@
         <el-button plain :icon="Refresh" :loading="loading" @click="resetFilters">{{ t('common.reset') }}</el-button>
       </div>
 
-      <div class="share-bulk-toolbar">
-        <el-button type="danger" plain :loading="bulkClosing" :disabled="!selectedShares.length" @click="closeSelected">{{ t('shareGovernance.closeSelected', { count: selectedShares.length }) }}</el-button>
-        <span>{{ t('shareGovernance.scope') }}</span>
+      <div v-if="!loading && !loadError" class="share-list-caption">
+        <span>{{ t('publicSharePanel.resultCount', { count: shares.length }) }}</span>
       </div>
-      <div v-loading="loading" class="mobile-share-list">
-        <el-empty v-if="shares.length === 0" :description="t('publicSharePanel.empty')" :image-size="80" />
-        <article v-for="row in shares" :key="row.share_id" class="mobile-share-card">
-          <el-checkbox :model-value="selectedShares.some(item => item.share_id === row.share_id)" :disabled="!row.enabled || bulkClosing" @change="toggleSelected(row)">{{ t('shareGovernance.select') }}</el-checkbox>
-          <div class="mobile-share-head">
-            <div class="mobile-share-title">
-              <div class="title-name">{{ shareDisplayTitle(row) }}</div>
-              <div v-if="row.description" class="link-description">{{ row.description }}</div>
-            </div>
-            <el-tag size="small" :type="statusTagType(row)" effect="light" round>
-              {{ statusLabel(row) }}
-            </el-tag>
-          </div>
-
-          <button class="mobile-share-url" type="button" @click="copyLink(publicLink(row))">
-            {{ publicLink(row) }}
-          </button>
-
-          <div class="mobile-share-meta">
-            <div>
-              <span>{{ t('publicSharePanel.submissions') }}</span>
-              <strong>{{ row.use_count }}</strong>
-              <em>{{ usageLimitText(row.max_uses) }}</em>
-            </div>
-            <div>
-              <span>{{ t('publicSharePanel.expiration') }}</span>
-              <strong>{{ row.expires_at ? expiryHint(row.expires_at) : t('publicSharePanel.permanent') }}</strong>
-              <em>{{ row.expires_at ? formatDate(row.expires_at) : t('publicSharePanel.neverExpires') }}</em>
+      <div v-if="selectedShares.length" class="share-bulk-toolbar">
+        <span class="metric-hint">{{ t('shareGovernance.scope') }}</span>
+        <el-button type="danger" plain :loading="bulkClosing" @click="closeSelected">{{ t('shareGovernance.closeSelected', { count: selectedShares.length }) }}</el-button>
+        <el-button text :disabled="bulkClosing" @click="selectedShares = []">{{ t('common.cancel') }}</el-button>
+      </div>
+      <div v-loading="loading" class="share-list" :aria-busy="loading">
+        <el-result v-if="loadError" icon="warning" :title="t('publicSharePanel.loadFailed')" :sub-title="loadError">
+          <template #extra><el-button @click="load">{{ t('common.refresh') }}</el-button></template>
+        </el-result>
+        <el-empty v-else-if="!loading && shares.length === 0" :description="hasFilters ? t('publicSharePanel.noMatches') : t('publicSharePanel.empty')" :image-size="88">
+          <el-button v-if="hasFilters" @click="resetFilters">{{ t('common.reset') }}</el-button>
+          <el-button v-else type="primary" :icon="Plus" @click="openCreateDialog">{{ t('publicSharePanel.createShare') }}</el-button>
+        </el-empty>
+        <article v-for="row in shares" v-else :key="row.share_id" class="share-row">
+          <div class="share-identity">
+            <el-checkbox :model-value="selectedShares.some(item => item.share_id === row.share_id)" :disabled="!row.enabled || bulkClosing" :aria-label="`${t('shareGovernance.select')} ${shareDisplayTitle(row)}`" @change="toggleSelected(row)" />
+            <div class="share-information">
+              <div class="share-title-line">
+                <h3>{{ shareDisplayTitle(row) }}</h3>
+                <el-tag size="small" :type="statusTagType(row)" effect="light">{{ statusLabel(row) }}</el-tag>
+              </div>
+              <p v-if="row.description" class="link-description">{{ row.description }}</p>
+              <button class="url-cell" type="button" :title="publicLink(row)" @click="copyLink(publicLink(row))"><el-icon><Link /></el-icon><span>{{ publicLink(row) }}</span></button>
+              <div class="share-origin">{{ t('publicSharePanel.createdBy') }} {{ row.created_by || '—' }} <span>·</span> {{ formatDate(row.created_at) }}</div>
             </div>
           </div>
-
-          <div class="mobile-share-foot">
-            <span>{{ row.created_by || '-' }} · {{ formatDate(row.created_at) }}</span>
-            <div class="mobile-share-actions">
-              <el-button size="small" text @click="copyLink(publicLink(row))">{{ t('publicSharePanel.copy') }}</el-button>
-              <el-button size="small" text @click="openQrDialog(row)">{{ t('publicSharePanel.qrCode') }}</el-button>
-              <el-button
-                v-if="row.enabled"
-                size="small"
-                text
-                type="danger"
-                :loading="disablingId === row.share_id"
-                @click="disableShare(row.share_id)"
-              >
-                {{ t('publicSharePanel.close') }}
-              </el-button>
+          <div class="share-metric">
+            <span class="metric-label">{{ t('publicSharePanel.submissionCount') }}</span>
+            <strong>{{ row.use_count.toLocaleString() }}<small v-if="row.max_uses > 0"> / {{ row.max_uses.toLocaleString() }}</small></strong>
+            <span class="metric-hint">{{ usageLimitText(row.max_uses) }}</span>
+          </div>
+          <div class="share-expiry">
+            <span class="metric-label">{{ t('publicSharePanel.expirationTime') }}</span>
+            <strong>{{ row.expires_at ? formatDate(row.expires_at) : t('publicSharePanel.permanent') }}</strong>
+            <span class="metric-hint">{{ row.expires_at ? expiryHint(row.expires_at) : t('publicSharePanel.neverExpires') }}</span>
+          </div>
+          <div class="share-actions">
+            <el-button type="primary" plain :icon="CopyDocument" @click="copyLink(publicLink(row))">{{ t('publicSharePanel.copyLink') }}</el-button>
+            <div class="share-secondary-actions">
+              <el-button text @click="openQrDialog(row)">{{ t('publicSharePanel.qrCode') }}</el-button>
+              <el-button v-if="row.enabled" text type="danger" :disabled="bulkClosing" :loading="disablingId === row.share_id" @click="disableShare(row.share_id)">{{ t('publicSharePanel.close') }}</el-button>
             </div>
           </div>
         </article>
       </div>
-
-      <el-table
-        v-loading="loading"
-        :data="shares"
-        stripe
-        class="history-table"
-        @selection-change="selectedShares = $event"
-        :empty-text="t('publicSharePanel.empty')"
-      >
-        <el-table-column type="selection" width="48" :selectable="(row: PublicShareItem) => row.enabled && !bulkClosing" />
-        <el-table-column :label="t('publicSharePanel.shareTitle')" min-width="220">
-          <template #default="{ row }">
-            <div class="title-cell">
-              <div class="title-name">{{ shareDisplayTitle(row) }}</div>
-              <div v-if="row.description" class="link-description">{{ row.description }}</div>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('publicSharePanel.publicLink')" min-width="260">
-          <template #default="{ row }">
-            <button class="url-cell" type="button" @click="copyLink(publicLink(row))">
-              {{ publicLink(row) }}
-            </button>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('publicSharePanel.status')" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" :type="statusTagType(row)" effect="light" round>
-              {{ statusLabel(row) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('publicSharePanel.createdBy')" width="150">
-          <template #default="{ row }">
-            <span class="muted-text">{{ row.created_by || '-' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('publicSharePanel.submissionCount')" width="130" align="center">
-          <template #default="{ row }">
-            <div class="count-cell">
-              <div>{{ row.use_count }}</div>
-              <span>{{ usageLimitText(row.max_uses) }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('publicSharePanel.expirationTime')" width="190">
-          <template #default="{ row }">
-            <div class="time-cell">
-              <div>{{ row.expires_at ? formatDate(row.expires_at) : t('publicSharePanel.permanent') }}</div>
-              <span>{{ row.expires_at ? expiryHint(row.expires_at) : t('publicSharePanel.neverExpires') }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('publicSharePanel.createdAt')" width="180">
-          <template #default="{ row }">
-            <div class="time-cell">
-              <div>{{ formatDate(row.created_at) }}</div>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column :label="t('common.operation')" width="190" align="right" fixed="right">
-          <template #default="{ row }">
-            <div class="action-cell">
-              <el-button text @click="copyLink(publicLink(row))">{{ t('publicSharePanel.copy') }}</el-button>
-              <el-button text @click="openQrDialog(row)">{{ t('publicSharePanel.qrCode') }}</el-button>
-              <el-button
-                v-if="row.enabled"
-                text
-                type="danger"
-                :loading="disablingId === row.share_id"
-                @click="disableShare(row.share_id)"
-              >
-                {{ t('publicSharePanel.close') }}
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
     </div>
 
     <PublicShareCreateDialog
@@ -228,17 +137,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import QRCode from 'qrcode'
-import { Refresh, Search } from '@element-plus/icons-vue'
+import { CopyDocument, Link, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import PublicShareCreateDialog from '@/architecture/presentation/components/PublicShareCreateDialog.vue'
 import {
   disablePublicShare,
   listPublicShares,
   type PublicShareItem,
 } from '@/architecture/presentation/context/api/publicShare'
+import { getErrorMessage } from '@/architecture/shared/apiError'
 import type { FunctionDetail, ServiceTree } from '@/architecture/domain/types'
 
 const props = defineProps<{
@@ -249,6 +159,8 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const loading = ref(false)
+const loadError = ref('')
+let loadGeneration = 0
 const disablingId = ref('')
 const selectedShares = ref<PublicShareItem[]>([])
 const bulkClosing = ref(false)
@@ -263,6 +175,8 @@ const filters = reactive({
   createdBy: '',
   status: '',
 })
+
+const hasFilters = computed(() => !!(filters.keyword || filters.createdBy || filters.status))
 
 const qrDialogWidth = computed(() => 'min(420px, calc(100vw - 32px))')
 
@@ -285,9 +199,12 @@ function usageLimitText(maxUses: number) {
 }
 
 async function load() {
-  if (!fullCodePath.value) {
-    return
-  }
+  const generation = ++loadGeneration
+  shares.value = []
+  selectedShares.value = []
+  loadError.value = ''
+  loading.value = false
+  if (!fullCodePath.value) return
   loading.value = true
   try {
     const resp = await listPublicShares({
@@ -296,10 +213,11 @@ async function load() {
       created_by: filters.createdBy,
       status: filters.status,
     })
-    shares.value = resp.items || []
-    selectedShares.value = []
+    if (generation === loadGeneration) shares.value = resp.items || []
+  } catch (error) {
+    if (generation === loadGeneration) loadError.value = getErrorMessage(error, t('publicSharePanel.loadFailed'))
   } finally {
-    loading.value = false
+    if (generation === loadGeneration) loading.value = false
   }
 }
 
@@ -314,8 +232,8 @@ function openCreateDialog() {
   dialogVisible.value = true
 }
 
-function handleShareCreated(share: PublicShareItem) {
-  shares.value = [share, ...shares.value]
+function handleShareCreated() {
+  void load()
 }
 
 async function disableShare(shareId: string) {
@@ -324,6 +242,8 @@ async function disableShare(shareId: string) {
     await disablePublicShare(shareId)
     await load()
     ElMessage.success(t('publicSharePanel.closeSuccess'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, t('publicSharePanel.closeFailed')))
   } finally {
     disablingId.value = ''
   }
@@ -356,8 +276,12 @@ async function copyLink(link: string) {
   if (!link) {
     return
   }
-  await navigator.clipboard.writeText(link)
-  ElMessage.success(t('publicSharePanel.linkCopied'))
+  try {
+    await navigator.clipboard.writeText(link)
+    ElMessage.success(t('publicSharePanel.linkCopied'))
+  } catch {
+    ElMessage.error(t('publicSharePanel.copyFailed'))
+  }
 }
 
 const currentQrLink = computed(() => {
@@ -437,193 +361,61 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString()
 }
 
-onMounted(load)
-watch(fullCodePath, load)
+watch(fullCodePath, load, { immediate: true })
+onBeforeUnmount(() => { loadGeneration++ })
 </script>
 
 <style scoped lang="scss">
-.public-share-panel {
-  height: 100%;
-  min-height: 0;
-  padding: 0;
-}
+.public-share-panel :deep(.el-button) { box-shadow: none; }
 
-.history-card {
-  overflow: hidden;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 12px;
-  background: var(--el-bg-color);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+.public-share-panel { min-width: 0; container-type: inline-size; }
+.history-card { min-width: 0; }
+.section-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 4px 0 24px; }
+.section-heading { min-width: 0; }
+.section-title { font-size: 20px; font-weight: 600; color: var(--el-text-color-primary); }
+.section-subtitle { margin-top: 8px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-secondary); }
+.form-history-toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(100px, 150px) minmax(110px, 140px) auto auto; align-items: center; gap: 10px; }
+.form-history-toolbar > * { min-width: 0; width: 100%; }
+.form-history-toolbar .el-button { margin: 0; }
+.share-list-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 16px 0; color: var(--el-text-color-secondary); font-size: 12px; }
+.share-bulk-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; margin-bottom: 12px; border-radius: 8px; background: var(--el-fill-color-light); }
+.share-list { min-height: 180px; border: 1px solid var(--el-border-color-lighter); border-radius: 12px; overflow: hidden; background: var(--el-bg-color); }
+.share-row { display: grid; grid-template-columns: minmax(220px, 1fr) 110px 180px 126px; align-items: center; gap: 24px; padding: 24px; }
+.share-row + .share-row { border-top: 1px solid var(--el-border-color-lighter); }
+.share-row:hover { background: var(--el-fill-color-lighter); }
+.share-identity { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
+.share-identity > .el-checkbox { flex: none; height: 26px; }
+.share-information { min-width: 0; }
+.share-title-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.share-title-line h3 { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; color: var(--el-text-color-primary); }
+.link-description { margin: 6px 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; color: var(--el-text-color-regular); }
+.url-cell { display: flex; align-items: center; gap: 6px; max-width: 100%; margin: 8px 0; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; color: var(--el-color-primary); cursor: pointer; }
+.url-cell .el-icon { flex: none; }
+.url-cell span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-origin { display: flex; flex-wrap: wrap; gap: 6px; color: var(--el-text-color-placeholder); font-size: 11px; line-height: 1.6; }
+.share-metric, .share-expiry { display: flex; flex-direction: column; align-self: center; gap: 7px; min-width: 0; }
+.metric-label, .metric-hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.5; }
+.share-metric strong { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--el-text-color-primary); }
+.share-metric small { font-size: 12px; font-weight: 400; color: var(--el-text-color-secondary); }
+.share-expiry strong { font-size: 13px; font-weight: 500; line-height: 1.6; color: var(--el-text-color-primary); }
+.share-actions { display: flex; flex-direction: column; gap: 8px; }
+.share-secondary-actions { display: flex; justify-content: center; }
+.share-secondary-actions .el-button { margin: 0; }
+button:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 3px; }
+@container (max-width: 980px) {
+  .share-row { grid-template-columns: minmax(0, 1fr) 150px; gap: 20px; }
+  .share-identity { grid-column: 1 / -1; }
+  .share-metric { padding-left: 28px; }
+  .share-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; border-top: 1px solid var(--el-border-color-extra-light); padding-top: 12px; }
 }
-
-.section-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px 14px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-  background: var(--el-fill-color-blank);
+@container (max-width: 640px) {
+  .section-header { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .form-history-toolbar { grid-template-columns: 1fr 1fr; }
+  .history-search { grid-column: 1 / -1; }
+  .share-row { padding: 18px 14px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .share-metric { padding-left: 0; }
+  .share-list-caption { line-height: 1.6; }
 }
-
-.section-heading {
-  min-width: 0;
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--el-text-color-primary);
-}
-
-.section-subtitle {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--el-text-color-secondary);
-}
-
-.form-history-toolbar {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(150px, 190px) minmax(140px, 170px) auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
-}
-
-.history-search {
-  min-width: 0;
-}
-
-.history-action-select,
-.history-user-select {
-  width: 100%;
-  min-width: 0;
-}
-
-.form-history-toolbar > .el-button {
-  min-width: 78px;
-  height: 36px;
-  border-radius: 10px;
-  font-weight: 600;
-  box-shadow: none;
-}
-
-.form-history-toolbar :deep(.el-input__wrapper),
-.form-history-toolbar :deep(.el-select__wrapper) {
-  min-height: 36px;
-  border-radius: 10px;
-  background: var(--app-shell-panel-bg-strong, var(--el-bg-color));
-  box-shadow: 0 0 0 1px var(--app-shell-panel-border, var(--el-border-color-light)) inset;
-  transition: box-shadow 0.18s ease, background-color 0.18s ease;
-}
-
-.form-history-toolbar :deep(.el-input__wrapper:hover),
-.form-history-toolbar :deep(.el-select__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.28) inset;
-}
-
-.form-history-toolbar :deep(.el-input__wrapper.is-focus),
-.form-history-toolbar :deep(.el-select__wrapper.is-focused) {
-  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.45) inset, 0 0 0 3px rgba(var(--el-color-primary-rgb), 0.1);
-}
-
-.form-history-toolbar :deep(.el-input__inner),
-.form-history-toolbar :deep(.el-select__placeholder),
-.form-history-toolbar :deep(.el-select__selected-item) {
-  font-size: 13px;
-}
-
-.history-table {
-  width: 100%;
-}
-
-.mobile-share-list {
-  display: none;
-}
-
-.history-table :deep(.el-table__inner-wrapper::before) {
-  display: none;
-}
-
-.history-table :deep(.el-table__header th.el-table__cell) {
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-secondary);
-  font-weight: 700;
-}
-
-.history-table :deep(.el-table__cell) {
-  vertical-align: top;
-}
-
-.history-table :deep(.cell) {
-  padding-top: 5px;
-  padding-bottom: 5px;
-}
-
-.title-cell {
-  min-width: 0;
-}
-
-.title-name {
-  line-height: 1.25;
-  color: var(--el-text-color-primary);
-  font-weight: 600;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.url-cell {
-  display: block;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--el-color-primary);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.25;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.link-description,
-.muted-text,
-.count-cell span,
-.time-cell span {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.link-description {
-  margin-top: 2px;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.count-cell,
-.time-cell {
-  line-height: 1.28;
-  font-size: 13px;
-}
-
-.action-cell {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
 .qr-dialog-body {
   display: flex;
   flex-direction: column;
@@ -718,195 +510,10 @@ watch(fullCodePath, load)
   margin-left: 0;
 }
 
-.custom-expire-picker,
-.max-uses-input {
-  display: block;
-  width: 100%;
-  margin-top: 12px;
-}
-
-@media (max-width: 820px) {
-  .public-share-panel {
-    overflow-x: hidden;
-  }
-
-  .history-card {
-    border-radius: 8px;
-  }
-
-  .section-header,
-  .form-history-toolbar {
-    align-items: stretch;
-  }
-
-  .form-history-toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .history-search {
-    grid-column: 1 / -1;
-  }
-
-  .section-header {
-    gap: 12px;
-    padding: 14px;
-  }
-
-  .section-header .el-button {
-    width: 100%;
-  }
-
-  .form-history-toolbar {
-    padding: 12px;
-  }
-
-  .form-history-toolbar > .el-button {
-    width: 100%;
-  }
-
-  .history-table {
-    display: none;
-  }
-
-  .mobile-share-list {
-    display: grid;
-    gap: 10px;
-    padding: 12px;
-    background: var(--el-fill-color-lighter);
-  }
-
-  .mobile-share-card {
-    min-width: 0;
-    padding: 12px;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 8px;
-    background: var(--el-bg-color);
-  }
-
-  .mobile-share-head,
-  .mobile-share-foot {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-  }
-
-  .mobile-share-title {
-    min-width: 0;
-    flex: 1;
-  }
-
-  .mobile-share-url {
-    display: block;
-    width: 100%;
-    margin: 10px 0 0;
-    padding: 8px;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 6px;
-    background: var(--el-fill-color-light);
-    color: var(--el-color-primary);
-    font: inherit;
-    font-size: 12px;
-    line-height: 1.45;
-    text-align: left;
-    word-break: break-all;
-    cursor: pointer;
-  }
-
-  .mobile-share-meta {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  .mobile-share-meta > div {
-    min-width: 0;
-    padding: 8px;
-    border-radius: 6px;
-    background: var(--el-fill-color-lighter);
-  }
-
-  .mobile-share-meta span,
-  .mobile-share-meta em,
-  .mobile-share-foot > span {
-    display: block;
-    color: var(--el-text-color-secondary);
-    font-size: 11px;
-    font-style: normal;
-    line-height: 1.4;
-    overflow-wrap: anywhere;
-  }
-
-  .mobile-share-meta strong {
-    display: block;
-    margin: 2px 0;
-    color: var(--el-text-color-primary);
-    font-size: 13px;
-    line-height: 1.4;
-    overflow-wrap: anywhere;
-  }
-
-  .mobile-share-foot {
-    align-items: center;
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid var(--el-border-color-extra-light);
-  }
-
-  .mobile-share-actions {
-    display: flex;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    flex: 0 0 auto;
-  }
-
-  .mobile-share-actions :deep(.el-button + .el-button) {
-    margin-left: 0;
-  }
-
-  .public-share-dialog :deep(.el-dialog__body),
-  .public-share-qr-dialog :deep(.el-dialog__body) {
-    padding: 14px 16px;
-  }
-
-  .public-share-dialog :deep(.el-dialog__footer),
-  .public-share-qr-dialog :deep(.el-dialog__footer) {
-    padding: 0 16px 16px;
-  }
-
-  .public-share-dialog :deep(.el-dialog__footer .el-button) {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .public-share-dialog :deep(.el-dialog__footer .el-button + .el-button) {
-    margin-top: 8px;
-  }
-
-  .qr-box {
-    width: min(288px, calc(100vw - 80px));
-    min-height: min(288px, calc(100vw - 80px));
-    padding: 12px;
-  }
-
-  .qr-image {
-    width: min(256px, calc(100vw - 104px));
-    height: min(256px, calc(100vw - 104px));
-  }
-
-  .qr-footer-actions {
-    justify-content: stretch;
-  }
-
-  .qr-footer-actions .el-button {
-    width: 100%;
-  }
-}
 
 @media (max-width: 520px) {
-  .form-history-toolbar {
-    grid-template-columns: 1fr;
-  }
+  .qr-box { width: min(288px, calc(100vw - 80px)); min-height: auto; padding: 12px; box-sizing: border-box; }
+  .qr-image { width: 100%; height: auto; }
+  .qr-footer-actions { justify-content: center; }
 }
 </style>

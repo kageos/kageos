@@ -34,22 +34,26 @@ const (
 )
 
 type LogArchiveConfig struct {
-	Enabled       bool
-	RetentionDays int
-	BatchSize     int
-	MaxBatches    int
-	CronExpr      string
-	Timezone      string
+	Enabled                       bool
+	ScheduledSuccessRetentionDays int
+	MinRecords                    int
+	RetentionDays                 int
+	BatchSize                     int
+	MaxBatches                    int
+	CronExpr                      string
+	Timezone                      string
 }
 
 func DefaultLogArchiveConfig() LogArchiveConfig {
 	return LogArchiveConfig{
-		Enabled:       envBool("KAGEOS_LOG_ARCHIVE_ENABLED", true),
-		RetentionDays: envInt("KAGEOS_LOG_ARCHIVE_RETENTION_DAYS", 90, 7, 3650),
-		BatchSize:     envInt("KAGEOS_LOG_ARCHIVE_BATCH_SIZE", 10000, 100, 100000),
-		MaxBatches:    envInt("KAGEOS_LOG_ARCHIVE_MAX_BATCHES", 20, 1, 1000),
-		CronExpr:      envString("KAGEOS_LOG_ARCHIVE_CRON", "20 3 * * *"),
-		Timezone:      envString("KAGEOS_LOG_ARCHIVE_TIMEZONE", "Asia/Shanghai"),
+		ScheduledSuccessRetentionDays: envInt("KAGEOS_LOG_ARCHIVE_SCHEDULED_RETENTION_DAYS", 7, 1, 3650),
+		MinRecords:                    envInt("KAGEOS_LOG_ARCHIVE_MIN_RECORDS", 1000, 1, 1000000),
+		Enabled:                       envBool("KAGEOS_LOG_ARCHIVE_ENABLED", true),
+		RetentionDays:                 envInt("KAGEOS_LOG_ARCHIVE_RETENTION_DAYS", 90, 7, 3650),
+		BatchSize:                     envInt("KAGEOS_LOG_ARCHIVE_BATCH_SIZE", 10000, 100, 100000),
+		MaxBatches:                    envInt("KAGEOS_LOG_ARCHIVE_MAX_BATCHES", 1000, 1, 1000),
+		CronExpr:                      envString("KAGEOS_LOG_ARCHIVE_CRON", "20 3 * * *"),
+		Timezone:                      envString("KAGEOS_LOG_ARCHIVE_TIMEZONE", "Asia/Shanghai"),
 	}
 }
 
@@ -63,39 +67,59 @@ func NewLogArchiveService(repo *repository.LogArchiveRepository, cfg LogArchiveC
 	return &LogArchiveService{repo: repo, config: cfg, httpClient: &http.Client{Timeout: 2 * time.Minute}}
 }
 
-func (s *LogArchiveService) List(ctx context.Context, page, pageSize int) ([]*model.LogArchiveBatch, int64, error) {
-	return s.repo.List(ctx, page, pageSize)
+func (s *LogArchiveService) List(ctx context.Context, page, pageSize int, paths ...string) ([]*model.LogArchiveBatch, int64, error) {
+	return s.repo.List(ctx, page, pageSize, paths...)
 }
 
 func (s *LogArchiveService) Config() LogArchiveConfig { return s.config }
 
 type archiveRunSummary struct {
-	Batches int   `json:"batches"`
-	Records int64 `json:"records"`
+	Batches       int    `json:"batches"`
+	Records       int64  `json:"records"`
+	FailedBatches int    `json:"failed_batches"`
+	StopReason    string `json:"stop_reason"`
 }
 
 func (s *LogArchiveService) RunScheduled(ctx context.Context, event scheduledsdk.ExecutionRequestedEvent) (*scheduledsdk.ExecutionResult, error) {
 	if !s.config.Enabled {
 		return &scheduledsdk.ExecutionResult{OutputSummary: "log archive disabled"}, nil
 	}
-	workerCtx, err := scheduledauth.WithExecutionToken(ctx, event, 2*time.Hour)
+	progress := &model.LogArchiveProgress{ExecutionID: event.ExecutionID, Phase: "selecting", StartedAt: time.Now()}
+	ctx = context.WithValue(ctx, archiveProgressKey{}, progress)
+	s.saveProgress(ctx)
+	// A large backlog can outlive one token. Renew between batches instead of
+	// issuing an unnecessarily long-lived credential for the entire run.
+	summary, err := s.runWithContext(ctx, func(ctx context.Context) (context.Context, error) {
+		return scheduledauth.WithExecutionToken(ctx, event, 2*time.Hour)
+	})
+	progress.Records, progress.Batches, progress.FailedBatches = summary.Records, summary.Batches, summary.FailedBatches
+	progress.StopReason = summary.StopReason
+	progress.Phase = "finished"
 	if err != nil {
-		return nil, fmt.Errorf("create archive worker token: %w", err)
+		progress.Phase = "failed"
 	}
-	summary, err := s.Run(workerCtx)
+	finished := time.Now()
+	progress.FinishedAt = &finished
+	s.saveProgress(context.WithoutCancel(ctx))
 	payload, _ := json.Marshal(summary)
 	result := &scheduledsdk.ExecutionResult{OutputSummary: fmt.Sprintf("archived %d logs in %d batches", summary.Records, summary.Batches), ResultPayload: payload}
 	return result, err
 }
 
 func (s *LogArchiveService) Run(ctx context.Context) (archiveRunSummary, error) {
+	return s.runWithContext(ctx, nil)
+}
+
+func (s *LogArchiveService) runWithContext(ctx context.Context, renew func(context.Context) (context.Context, error)) (archiveRunSummary, error) {
 	var out archiveRunSummary
 	err := s.repo.Exclusive(ctx, func(repo *repository.LogArchiveRepository) error {
 		worker := *s
 		worker.repo = repo
 		var err error
-		out, err = worker.run(ctx)
-		return err
+		out, err = worker.run(ctx, renew)
+		// A legacy batch reserves an ID range. Once it finishes, migrate any
+		// unselected scheduled rows that were temporarily covered by that range.
+		return errors.Join(err, repo.MoveLegacyScheduledLogs(ctx))
 	})
 	return out, err
 }
@@ -113,11 +137,15 @@ func (s *LogArchiveService) Retry(ctx context.Context, id int64) error {
 		if batch.Status == model.LogArchiveStatusCompleted {
 			return nil
 		}
-		return worker.attempt(ctx, batch)
+		if err := worker.attempt(ctx, batch); err != nil {
+			return err
+		}
+		return repo.MoveLegacyScheduledLogs(ctx)
 	})
 }
 
 func (s *LogArchiveService) attempt(ctx context.Context, batch *model.LogArchiveBatch) error {
+	s.setPhase(ctx, "exporting", batch)
 	batch.Attempts++
 	batch.NextRetryAt = nil
 	if err := s.repo.Save(ctx, batch); err != nil {
@@ -130,20 +158,44 @@ func (s *LogArchiveService) attempt(ctx context.Context, batch *model.LogArchive
 	return nil
 }
 
-func (s *LogArchiveService) run(ctx context.Context) (archiveRunSummary, error) {
+func (s *LogArchiveService) run(ctx context.Context, renew func(context.Context) (context.Context, error)) (archiveRunSummary, error) {
 	var out archiveRunSummary
+	out.StopReason = "interrupted"
 	cutoff := time.Now().AddDate(0, 0, -s.config.RetentionDays)
 	var failures []error
+	failedIDs := make(map[int64]struct{})
 	for attempts := 0; attempts < s.config.MaxBatches; attempts++ {
-		batch, err := s.nextBatch(ctx, cutoff)
+		if err := ctx.Err(); err != nil {
+			return out, errors.Join(append(failures, err)...)
+		}
+		batchCtx := ctx
+		if renew != nil {
+			var err error
+			batchCtx, err = renew(ctx)
+			if err != nil {
+				return out, errors.Join(append(failures, fmt.Errorf("renew archive worker token: %w", err))...)
+			}
+		}
+		batch, err := s.nextBatch(batchCtx, cutoff)
 		if repository.IsArchiveNotFound(err) {
+			out.StopReason = "no_eligible_logs"
+			pending, pendingErr := s.repo.HasPending(ctx)
+			if pendingErr != nil {
+				return out, pendingErr
+			}
+			if pending {
+				out.StopReason = "retry_pending"
+			}
 			return out, errors.Join(failures...)
 		}
 		if err != nil {
 			return out, err
 		}
-		if err := s.attempt(ctx, batch); err != nil {
+		if err := s.attempt(batchCtx, batch); err != nil {
 			failures = append(failures, err)
+			failedIDs[batch.ID] = struct{}{}
+			out.FailedBatches = len(failedIDs)
+			s.updateRunProgress(ctx, out)
 			if ctx.Err() != nil {
 				return out, errors.Join(failures...)
 			}
@@ -151,7 +203,9 @@ func (s *LogArchiveService) run(ctx context.Context) (archiveRunSummary, error) 
 		}
 		out.Batches++
 		out.Records += batch.RecordCount
+		s.updateRunProgress(ctx, out)
 	}
+	out.StopReason = "batch_limit"
 	return out, errors.Join(failures...)
 }
 
@@ -161,11 +215,14 @@ func (s *LogArchiveService) nextBatch(ctx context.Context, cutoff time.Time) (*m
 	} else if !repository.IsArchiveNotFound(err) {
 		return nil, err
 	}
-	tenantUser, app, err := s.repo.NextScope(ctx, cutoff)
-	if err != nil {
-		return nil, err
+	kind := "scheduled_execution"
+	repo := s.repo.ForType(kind)
+	tenantUser, app, ids, err := repo.SelectArchiveIDs(ctx, s.scheduledSuccessCutoff(cutoff), 1, s.config.BatchSize)
+	if repository.IsArchiveNotFound(err) {
+		kind = logArchiveTypeOperate
+		repo = s.repo.ForType(kind)
+		tenantUser, app, ids, err = repo.SelectArchiveIDs(ctx, cutoff, s.config.MinRecords, s.config.BatchSize)
 	}
-	ids, err := s.repo.SelectIDs(ctx, tenantUser, app, cutoff, s.config.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -173,18 +230,26 @@ func (s *LogArchiveService) nextBatch(ctx context.Context, cutoff time.Time) (*m
 		return nil, gorm.ErrRecordNotFound
 	}
 	batch := &model.LogArchiveBatch{
-		ArchiveKey:  archiveBatchKey(tenantUser, app, ids[0], ids[len(ids)-1]),
-		ArchiveType: logArchiveTypeOperate,
+		ArchiveKey:  kind + "-" + archiveBatchKey(tenantUser, app, ids[0], ids[len(ids)-1]),
+		ArchiveType: kind,
 		TenantUser:  tenantUser,
 		App:         app,
 		MinLogID:    ids[0], MaxLogID: ids[len(ids)-1], RecordCount: int64(len(ids)),
 		Status: model.LogArchiveStatusExporting,
 	}
+	rows, loadErr := repo.LoadIDs(ctx, ids[:1])
+	if loadErr != nil {
+		return nil, loadErr
+	}
+	if len(rows) != 1 {
+		return nil, fmt.Errorf("selected log disappeared")
+	}
+	batch.ResourcePath = rows[0].ResourcePath
 	batch.SelectedIDsJSON, err = json.Marshal(ids)
 	if err != nil {
 		return nil, err
 	}
-	start, end, err := s.repo.SelectedStats(ctx, ids)
+	start, end, err := repo.SelectedStats(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -222,8 +287,9 @@ func (s *LogArchiveService) processBatch(ctx context.Context, batch *model.LogAr
 		file.Close()
 		return err
 	}
-	fileName := fmt.Sprintf("operate-logs-%s-%s-%d-%d.jsonl.gz", safeName(batch.TenantUser), safeName(batch.App), batch.MinLogID, batch.MaxLogID)
+	fileName := fmt.Sprintf("%s-%s-%s-%d-%d.jsonl.gz", batch.ArchiveType, safeName(batch.TenantUser), safeName(batch.App), batch.MinLogID, batch.MaxLogID)
 	archivePath := archiveRouter(batch)
+	s.setPhase(ctx, "uploading", batch)
 	tokens, err := apicall.BatchGetUploadToken(ctx, &dto.BatchGetUploadTokenReq{
 		UploadSource: dto.UploadSourceServer,
 		Files:        []dto.GetUploadTokenReq{{FileName: fileName, ContentType: "application/gzip", FileSize: stat.Size(), Router: archivePath, Hash: hash, UploadSource: dto.UploadSourceServer}},
@@ -253,6 +319,7 @@ func (s *LogArchiveService) processBatch(ctx context.Context, batch *model.LogAr
 	if uploaded.Size != stat.Size() || uploaded.Hash != hash {
 		return fmt.Errorf("archive upload result mismatch")
 	}
+	s.setPhase(ctx, "verifying", batch)
 	if err := s.verifyUploadedObject(ctx, uploaded.ServerDownloadURL, stat.Size(), hash); err != nil {
 		return err
 	}
@@ -270,6 +337,7 @@ func (s *LogArchiveService) processBatch(ctx context.Context, batch *model.LogAr
 	batch.ObjectBucket, batch.ObjectKey, batch.ObjectRef = token.Bucket, uploaded.Key, complete.Results[0].Ref
 	batch.FileName, batch.FileSize, batch.SHA256 = fileName, stat.Size(), hash
 	batch.SummaryJSON = summary
+	batch.ResourcePath = batch.SingleResourcePath()
 	batch.ObjectVerifiedAt, batch.ArchivedAt = &now, &now
 	batch.Status, batch.ErrorMessage = model.LogArchiveStatusUploaded, ""
 	if err := s.repo.Save(ctx, batch); err != nil {
@@ -288,6 +356,7 @@ func (s *LogArchiveService) exportBatch(ctx context.Context, batch *model.LogArc
 	gz := gzip.NewWriter(file)
 	encoder := json.NewEncoder(gz)
 	resourceCounts := map[string]int64{}
+	statusCounts := map[string]int64{}
 	var written int64
 	var selectedIDs []int64
 	if err := json.Unmarshal(batch.SelectedIDsJSON, &selectedIDs); err != nil {
@@ -298,7 +367,7 @@ func (s *LogArchiveService) exportBatch(ctx context.Context, batch *model.LogArc
 		if to > len(selectedIDs) {
 			to = len(selectedIDs)
 		}
-		rows, err := s.repo.LoadIDs(ctx, selectedIDs[offset:to])
+		rows, err := s.repo.ForType(batch.ArchiveType).LoadIDs(ctx, selectedIDs[offset:to])
 		if err != nil {
 			gz.Close()
 			return cleanup(err)
@@ -309,6 +378,7 @@ func (s *LogArchiveService) exportBatch(ctx context.Context, batch *model.LogArc
 				return cleanup(err)
 			}
 			resourceCounts[row.ResourcePath]++
+			statusCounts[row.Status]++
 			written++
 		}
 	}
@@ -324,6 +394,14 @@ func (s *LogArchiveService) exportBatch(ctx context.Context, batch *model.LogArc
 		return "", nil, err
 	}
 	summary, err := buildArchiveSummary(resourceCounts)
+	if err == nil {
+		var values map[string]any
+		_ = json.Unmarshal(summary, &values)
+		values["status_counts"] = statusCounts
+		values["format_version"] = 1
+		values["log_type"] = batch.ArchiveType
+		summary, err = json.Marshal(values)
+	}
 	if err != nil {
 		os.Remove(path)
 		return "", nil, err
@@ -332,6 +410,7 @@ func (s *LogArchiveService) exportBatch(ctx context.Context, batch *model.LogArc
 }
 
 func (s *LogArchiveService) deleteArchivedSource(ctx context.Context, batch *model.LogArchiveBatch) error {
+	s.setPhase(ctx, "deleting", batch)
 	if batch.ObjectVerifiedAt == nil || batch.ObjectRef == "" || batch.SHA256 == "" {
 		return fmt.Errorf("refuse to delete unverified archive batch %s", batch.ArchiveKey)
 	}
@@ -482,4 +561,41 @@ func truncate(value string, max int) string {
 		return value
 	}
 	return value[:max]
+}
+
+func (s *LogArchiveService) scheduledSuccessCutoff(fallback time.Time) time.Time {
+	if s.config.ScheduledSuccessRetentionDays <= 0 {
+		return fallback
+	}
+	return time.Now().AddDate(0, 0, -s.config.ScheduledSuccessRetentionDays)
+}
+
+// DownloadURL resolves a short-lived browser URL only after checking archive state.
+func (s *LogArchiveService) DownloadURL(ctx context.Context, id int64) (string, error) {
+	batch, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if batch.ObjectVerifiedAt == nil || batch.ObjectRef == "" {
+		return "", fmt.Errorf("archive is not verified yet")
+	}
+	refs, err := apicall.ResolveFileRefs(ctx, &dto.ResolveFileRefsReq{Refs: []string{batch.ObjectRef}, Audience: "browser"})
+	if err != nil {
+		return "", err
+	}
+	if refs == nil || len(refs.Files) != 1 || refs.Files[0].DownloadURL == "" {
+		return "", fmt.Errorf("archive download unavailable")
+	}
+	return refs.Files[0].DownloadURL, nil
+}
+
+func (s *LogArchiveService) ArchiveResourcePath(ctx context.Context, id int64) (string, error) {
+	batch, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if path := batch.SingleResourcePath(); path != "" {
+		return path, nil
+	}
+	return "/" + batch.TenantUser + "/" + batch.App, nil
 }

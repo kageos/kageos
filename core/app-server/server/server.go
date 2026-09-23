@@ -16,18 +16,19 @@ import (
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/maintenance"
 	middleware2 "github.com/kageos/kageos/pkg/middleware"
 	"github.com/kageos/kageos/pkg/natsx"
 	"github.com/kageos/kageos/pkg/scheduledsdk"
 	"github.com/kageos/kageos/pkg/serverx"
 	"github.com/kageos/kageos/pkg/waiter"
 	"github.com/nats-io/nats.go"
-	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
 // Server app-server 服务器
 type Server struct {
+	maintenanceCancel context.CancelFunc
 	// 配置
 	cfg *config.AppServerConfig
 
@@ -54,8 +55,8 @@ type Server struct {
 	scheduledFuncWorker           *scheduledsdk.Worker
 	logArchiveWorker              *scheduledsdk.Worker
 	scheduledTaskReconciler       *service.ScheduledTaskReconciler
-	scheduledTaskReconcileCron    *cron.Cron
 	platformStatsSub              *nats.Subscription
+	taskAuditSub                  *nats.Subscription
 
 	// 上游服务
 	natsConnPool *service.NATSConnPool
@@ -75,6 +76,10 @@ func newBaseServer(cfg *config.AppServerConfig) *Server {
 func (s *Server) initSharedComponents(ctx context.Context) error {
 	if err := s.initDatabase(ctx); err != nil {
 		return fmt.Errorf("failed to init database: %w", err)
+	}
+
+	if err := repository.NewLogArchiveRepository(s.db).Exclusive(ctx, func(repo *repository.LogArchiveRepository) error { return repo.MoveLegacyScheduledLogs(ctx) }); err != nil {
+		return fmt.Errorf("migrate scheduled execution logs: %w", err)
 	}
 
 	if err := s.initNATS(ctx); err != nil {
@@ -106,6 +111,14 @@ func NewServer(cfg *config.AppServerConfig) (*Server, error) {
 
 // Start 启动服务器
 func (s *Server) Start(ctx context.Context) (startErr error) {
+	if err := s.startTaskAuditConsumer(); err != nil {
+		return err
+	}
+	defer func() {
+		if startErr != nil && s.taskAuditSub != nil {
+			_ = s.taskAuditSub.Unsubscribe()
+		}
+	}()
 	logger.Infof(ctx, "[Server] Starting app-server...")
 	if err := s.startPlatformStatsResponder(); err != nil {
 		return fmt.Errorf("start platform stats responder: %w", err)
@@ -187,39 +200,12 @@ func (s *Server) startSystemWorkspaceInit(ctx context.Context) {
 const scheduledTaskOrphanReconcileCronExpr = "30 4 * * *"
 
 func (s *Server) startScheduledTaskOrphanReconcile(ctx context.Context) {
-	if s.scheduledTaskReconciler == nil {
-		return
+	ctx, s.maintenanceCancel = context.WithCancel(ctx)
+	err := maintenance.Start(ctx, s.natsConn,
+		maintenance.Job{Key: "platform.orphan_tasks", Title: "孤立定时任务清理", Description: "清理已删除目录和函数遗留的定时任务", Schedule: maintenance.Cron(scheduledTaskOrphanReconcileCronExpr), Handler: func(ctx context.Context) (any, error) { return s.scheduledTaskReconciler.ReconcileOrphans(ctx) }})
+	if err != nil {
+		logger.Warnf(ctx, "[Maintenance] start: %v", err)
 	}
-	run := func() error {
-		result, err := s.scheduledTaskReconciler.ReconcileOrphans(ctx)
-		if err != nil {
-			logger.Warnf(ctx, "[ScheduledTaskReconcile] failed: %v", err)
-			return err
-		}
-		logger.Infof(ctx, "[ScheduledTaskReconcile] completed: checked=%d deleted=%d skipped=%d", result.Checked, result.Deleted, result.Skipped)
-		return nil
-	}
-
-	go func() {
-		for attempt := 1; attempt <= 10; attempt++ {
-			if err := run(); err == nil {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(15 * time.Second):
-			}
-		}
-	}()
-	s.scheduledTaskReconcileCron = cron.New(cron.WithLocation(time.Local))
-	if _, err := s.scheduledTaskReconcileCron.AddFunc(scheduledTaskOrphanReconcileCronExpr, func() { _ = run() }); err != nil {
-		logger.Warnf(ctx, "[ScheduledTaskReconcile] add cron failed: %v", err)
-		s.scheduledTaskReconcileCron = nil
-		return
-	}
-	s.scheduledTaskReconcileCron.Start()
-	logger.Infof(ctx, "[ScheduledTaskReconcile] scheduled: cron=%s timezone=%s", scheduledTaskOrphanReconcileCronExpr, time.Local.String())
 }
 
 func (s *Server) StartHTTP(ctx context.Context) error {
@@ -244,21 +230,19 @@ func (s *Server) StartHTTP(ctx context.Context) error {
 
 // Stop 停止服务器（优雅关闭）
 func (s *Server) Stop(ctx context.Context) error {
+	if s.taskAuditSub != nil {
+		_ = s.taskAuditSub.Unsubscribe()
+		s.taskAuditSub = nil
+	}
 	logger.Infof(ctx, "[Server] Stopping server...")
 	var stopErr error
+	if s.maintenanceCancel != nil {
+		s.maintenanceCancel()
+	}
 	if s.platformStatsSub != nil {
 		_ = s.platformStatsSub.Unsubscribe()
 		s.platformStatsSub = nil
 	}
-	if s.scheduledTaskReconcileCron != nil {
-		cronStopped := s.scheduledTaskReconcileCron.Stop()
-		select {
-		case <-cronStopped.Done():
-		case <-ctx.Done():
-		}
-		s.scheduledTaskReconcileCron = nil
-	}
-
 	if s.httpRuntime != nil {
 		if err := s.httpRuntime.Shutdown(ctx); err != nil {
 			logger.Warnf(ctx, "[Server] HTTP server shutdown failed: %v", err)

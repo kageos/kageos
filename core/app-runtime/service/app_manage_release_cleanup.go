@@ -18,9 +18,10 @@ type releaseBinaryCleanupStats struct {
 	skipped int
 }
 
-func (s *AppManageService) releaseBinaryCleanup(ctx context.Context) {
+func (s *AppManageService) releaseBinaryCleanup(ctx context.Context) (runErr error) {
 	apps, err := s.getAllApps(ctx)
 	if err != nil {
+		runErr = errors.Join(runErr, err)
 		logger.Errorf(ctx, "[ReleaseBinaryCleanup] 获取应用列表失败: %v", err)
 		return
 	}
@@ -29,6 +30,7 @@ func (s *AppManageService) releaseBinaryCleanup(ctx context.Context) {
 	for _, app := range apps {
 		stats, err := s.cleanupReleaseBinariesForApp(ctx, app.User, app.App, maxKeepVersions)
 		if err != nil {
+			runErr = errors.Join(runErr, err)
 			logger.Warnf(ctx, "[ReleaseBinaryCleanup] 清理失败: %s/%s err=%v", app.User, app.App, err)
 			continue
 		}
@@ -42,6 +44,7 @@ func (s *AppManageService) releaseBinaryCleanup(ctx context.Context) {
 		logger.Infof(ctx, "[ReleaseBinaryCleanup] 完成 | 扫描=%d 保留=%d 删除=%d 跳过=%d",
 			total.scanned, total.kept, total.removed, total.skipped)
 	}
+	return runErr
 }
 
 func (s *AppManageService) cleanupReleaseBinariesForApp(ctx context.Context, user, app string, keepLatest int) (releaseBinaryCleanupStats, error) {

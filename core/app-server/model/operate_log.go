@@ -8,6 +8,8 @@ import (
 
 type OperateLog struct {
 	models.Base
+	OriginalLogID         *int64          `json:"original_log_id,omitempty" gorm:"index"`
+	EventID               *string         `json:"event_id,omitempty" gorm:"size:160;uniqueIndex:idx_operate_log_event_id"`
 	TenantUser            string          `json:"tenant_user" gorm:"type:varchar(100);not null;index:idx_operate_log_scope;comment:workspace 所属用户"`
 	App                   string          `json:"app" gorm:"type:varchar(100);not null;index:idx_operate_log_scope;comment:应用代码"`
 	ActorUser             string          `json:"actor_user" gorm:"type:varchar(100);not null;index:idx_operate_log_actor;comment:实际操作者"`

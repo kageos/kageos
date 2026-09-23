@@ -19,6 +19,7 @@ import (
 	"github.com/kageos/kageos/pkg/config"
 	"github.com/kageos/kageos/pkg/dbx"
 	"github.com/kageos/kageos/pkg/logger"
+	"github.com/kageos/kageos/pkg/maintenance"
 	"github.com/kageos/kageos/pkg/natsx"
 	"github.com/kageos/kageos/pkg/subjects"
 	"github.com/nats-io/nats.go"
@@ -28,7 +29,8 @@ import (
 // Server app-runtime 服务器
 // 负责管理所有服务的生命周期和依赖关系
 type Server struct {
-	cfg *config.AppRuntimeConfig
+	maintenanceCancel context.CancelFunc
+	cfg               *config.AppRuntimeConfig
 
 	// 基础设施
 	natsConn *nats.Conn
@@ -187,6 +189,7 @@ func (s *Server) closeNATS(ctx context.Context) {
 
 // initServices 初始化所有业务服务
 func (s *Server) initServices(ctx context.Context) error {
+	ctx, s.maintenanceCancel = context.WithCancel(ctx)
 
 	// 初始化容器服务
 	s.containerService = service.NewDefaultContainerOperator()
@@ -203,7 +206,17 @@ func (s *Server) initServices(ctx context.Context) error {
 	}
 	s.appDatabaseService = appDatabaseService
 	logger.Infof(ctx, "[Server] App database service enabled=%v", appDatabaseService.IsEnabled())
-	go appDatabaseService.StartSoftDeleteCleanup(ctx)
+	if appDatabaseService.IsEnabled() {
+		if err := maintenance.Start(ctx, s.natsConn, maintenance.Job{Key: "platform.soft_delete_cleanup", Title: "应用数据库软删除清理", Description: "遵循部署及逐表保留策略，包含 dry_run，统计候选、删除和失败数量", Schedule: maintenance.Every(int64(s.cfg.GetAppDatabaseConfig().SoftDeleteCleanup.IntervalMinutes) * 60), Handler: func(ctx context.Context) (any, error) {
+			report, err := appDatabaseService.RunSoftDeleteCleanup(ctx)
+			if err == nil && report != nil {
+				err = maintenance.FailedItems(report.FailedTables)
+			}
+			return report, err
+		}}); err != nil {
+			return err
+		}
+	}
 
 	// 初始化应用发现服务（需要在 AppManageService 之前）
 	runtimeID := s.cfg.GetRuntimeInstanceID()
@@ -304,6 +317,9 @@ func (s *Server) handleAppCloseFromDiscovery(user, app, version string) {
 
 // stopServices 停止所有业务服务
 func (s *Server) stopServices(ctx context.Context) {
+	if s.maintenanceCancel != nil {
+		s.maintenanceCancel()
+	}
 	if s.appDiscoveryService != nil {
 		s.appDiscoveryService.Stop()
 		logger.Infof(ctx, "[Server] App discovery service stopped")

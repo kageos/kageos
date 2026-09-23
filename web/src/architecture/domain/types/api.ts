@@ -15,6 +15,7 @@ export interface UserInfo {
   gender?: string            // 性别: 'male' | 'female' | 'other' | ''
   email_verified: boolean
   status: string
+  last_login_at?: string | null
   created_at: string
   department_full_path?: string      // 部门完整路径（可选）
   department_name?: string           // 部门名称（可选，用于显示）

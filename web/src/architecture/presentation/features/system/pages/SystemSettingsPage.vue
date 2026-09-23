@@ -587,74 +587,8 @@
             <SystemBackupPanel ref="backupPanel" />
           </div>
 
-          <div v-else-if="activeTab === 'backups'" v-loading="archivesLoading" class="section-pane backup-pane">
-            <el-alert :title="t('systemSettings.archiveFallbackNote')" type="info" show-icon :closable="false" />
-            <div class="archive-summary-row">
-              <div class="archive-policy-item">
-                <span>{{ t('systemSettings.archiveRetentionLabel') }}</span>
-                <strong>{{ t('systemSettings.archiveRetentionValue', { days: archiveRetentionDays }) }}</strong>
-                <small>{{ t('systemSettings.archiveRetentionHint') }}</small>
-              </div>
-              <div class="archive-policy-item">
-                <span>{{ t('systemSettings.archiveScheduleLabel') }}</span>
-                <strong>{{ archiveScheduleFriendly }}</strong>
-                <small :title="t('systemSettings.archiveSchedule', { cron: archiveCronExpr, timezone: archiveTimezone })">{{ archiveTimezone }}</small>
-              </div>
-            </div>
-            <el-table v-if="archiveBatches.length" :data="archiveBatches" size="small" class="archive-table">
-              <el-table-column type="expand" width="44">
-                <template #default="{ row }">
-                  <div class="archive-detail-grid">
-                    <div><span>{{ t('systemSettings.archiveKey') }}</span><code>{{ row.archive_key || '-' }}</code></div>
-                    <div><span>{{ t('systemSettings.archiveObjectRef') }}</span><code>{{ row.object_ref || '-' }}</code></div>
-                    <div><span>SHA256</span><code>{{ row.sha256 || '-' }}</code></div>
-                    <div v-if="row.error_message"><span>{{ t('systemSettings.archiveError') }}</span><strong class="archive-error">{{ row.error_message }}</strong></div>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveScope')" min-width="210">
-                <template #default="{ row }">
-                  <div class="archive-primary-cell">
-                    <strong>{{ row.tenant_user }}/{{ row.app }}</strong>
-                    <small>{{ formatArchiveTime(row.range_started_at) }} — {{ formatArchiveTime(row.range_ended_at) }}</small>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveData')" width="150">
-                <template #default="{ row }">
-                  <div class="archive-primary-cell">
-                    <strong>{{ t('systemSettings.archiveRecordValue', { count: row.record_count }) }}</strong>
-                    <small>{{ formatFileSize(row.file_size) }}</small>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveSummary')" min-width="260">
-                <template #default="{ row }"><span class="archive-resource-summary">{{ archiveResourceSummary(row) }}</span></template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveRetry')" min-width="190">
-                <template #default="{ row }">
-                  <div class="archive-primary-cell">
-                    <small>{{ t('systemSettings.archiveAttempts', { count: row.attempts || 0 }) }}</small>
-                    <small v-if="row.next_retry_at">{{ t('systemSettings.archiveNextRetry') }} {{ formatArchiveTime(row.next_retry_at) }}</small>
-                    <el-button v-if="row.status !== 'completed'" type="primary" plain size="small" :loading="retryingArchive === row.id" :disabled="retryingArchive !== null && retryingArchive !== row.id" @click="retryArchive(row)">{{ t('systemSettings.archiveRetry') }}</el-button>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column :label="t('systemSettings.archiveStatus')" width="110" align="right">
-                <template #default="{ row }"><el-tag :type="archiveStatusType(row.status)" size="small">{{ archiveStatusLabel(row.status) }}</el-tag></template>
-              </el-table-column>
-            </el-table>
-            <el-empty v-else-if="!archivesLoading" :description="t('systemSettings.noArchives')" />
-            <el-pagination
-              v-if="archiveTotal > archivePageSize"
-              v-model:current-page="archivePage"
-              :page-size="archivePageSize"
-              :total="archiveTotal"
-              layout="prev, pager, next"
-              @current-change="loadArchives"
-            />
-          </div>
-
+          <OperateLogSection v-else-if="activeTab === 'auditLogs'" :key="auditPanelKey" full-code-path="/" :row-id="0" scope="directory" embedded auto-load show-refresh :title="t('managementLog.systemTitle')" />
+          <SystemScheduledTasks v-else-if="activeTab === 'scheduledTasks'" ref="scheduledPanel" @backup-settings="selectSettingsSection('dataBackup')" />
           <div v-else-if="activeTab === 'appearance'" class="section-pane">
             <div class="preference-grid">
               <button
@@ -713,6 +647,8 @@
 </template>
 
 <script setup lang="ts">
+import SystemScheduledTasks from '../components/SystemScheduledTasks.vue'
+import OperateLogSection from '@/architecture/presentation/components/OperateLogSection.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -730,6 +666,7 @@ import {
   Lock,
   Message,
   Monitor,
+  Timer,
   QuestionFilled,
   Reading,
   Refresh,
@@ -759,8 +696,6 @@ import {
   getSystemResourceDatabases,
   getSystemResourceDiagnostics,
   listAuthLoginProviders,
-  listLogArchiveBatches,
-  retryLogArchiveBatch,
   type SystemDatabaseSize,
   updateSystemSettings,
   updateLoginAnnouncementConfig,
@@ -769,14 +704,13 @@ import {
   testSystemEmail,
   type AuthLoginProviderField,
   type AuthLoginProviderInfo,
-  type LogArchiveBatch,
   type LoginAnnouncement,
   type SystemResourceOverview,
   type SystemResourceSummary,
   type SystemSettings
 } from '@/architecture/presentation/context/api/system-settings'
 
-type SettingsTab = 'operations' | 'fileAssets' | 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'dataBackup' | 'backups' | 'appearance' | 'language'
+type SettingsTab = 'auditLogs' | 'scheduledTasks' | 'operations' | 'fileAssets' | 'email' | 'login' | 'connectors' | 'openapi' | 'users' | 'dataBackup' | 'appearance' | 'language'
 type OperationsTab = 'overview' | 'usage' | 'trends' | 'storage' | 'databases' | 'diagnostics'
 
 interface SettingsSection {
@@ -798,6 +732,8 @@ const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
 const testEmail = ref('')
+const auditPanelKey = ref(0)
+const scheduledPanel = ref<InstanceType<typeof SystemScheduledTasks> | null>(null)
 const defaultSettingsTab: SettingsTab = 'operations'
 const activeTab = ref<SettingsTab>(defaultSettingsTab)
 const connectorPanelKey = ref(0)
@@ -806,39 +742,17 @@ const usersPanelKey = ref(0)
 const backupPanel = ref<InstanceType<typeof SystemBackupPanel> | null>(null)
 const usagePanelKey = ref(0)
 const storageAssetsPanelKey = ref(0)
-const archivesLoading = ref(false)
-const archiveBatches = ref<LogArchiveBatch[]>([])
-const retryingArchive = ref<number | null>(null)
 const databaseHistoryDays = ref(7)
 const databaseHistoryName = ref('')
 const databaseHistoryOptions = ref<SystemDatabaseSize[]>([])
 let databaseRequestId = 0
 let lastDatabaseHistoryKey = ''
 const databaseLoadError = ref('')
-async function retryArchive(batch: LogArchiveBatch) {
-  if (retryingArchive.value !== null) return
-  retryingArchive.value = batch.id
-  try {
-    await retryLogArchiveBatch(batch.id)
-    ElMessage.success(t('systemSettings.archiveRetrySucceeded'))
-  } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.archiveRetryFailed'))
-  } finally {
-    retryingArchive.value = null
-    await loadArchives()
-  }
-}
 function changeDatabaseHistory(days: number, name: string) {
  databaseHistoryDays.value = days
  databaseHistoryName.value = name
  void loadResourceDatabases()
 }
-const archivePage = ref(1)
-const archivePageSize = 20
-const archiveTotal = ref(0)
-const archiveRetentionDays = ref(90)
-const archiveCronExpr = ref('20 3 * * *')
-const archiveTimezone = ref('Asia/Shanghai')
 const resourcesLoading = ref(false)
 const resourceOverview = ref<SystemResourceOverview | null>(null)
 const operationsTab = ref<OperationsTab>('overview')
@@ -870,13 +784,14 @@ const localeStore = useLocaleStore()
 const themeStore = useThemeStore()
 
 const allSettingsSections = computed<SettingsSection[]>(() => [
+  { key: 'auditLogs', title: t('managementLog.systemTitle'), desc: t('managementLog.systemHint'), icon: Document },
+ { key: 'scheduledTasks', title: t('maintenance.title'), desc: t('maintenance.desc'), icon: Timer },
   { key: 'operations', title: t('systemSettings.sections.operationsTitle'), desc: t('systemSettings.sections.operationsDesc'), icon: Monitor },
   { key: 'fileAssets', title: t('systemSettings.sections.fileAssetsTitle'), desc: t('systemSettings.sections.fileAssetsDesc'), icon: FolderOpened },
   { key: 'email', title: t('systemSettings.sections.emailTitle'), desc: t('systemSettings.sections.emailDesc'), icon: Message },
   { key: 'login', title: t('systemSettings.sections.loginTitle'), desc: t('systemSettings.sections.loginDesc'), icon: Lock },
   { key: 'users', title: t('systemSettings.sections.usersTitle'), desc: t('systemSettings.sections.usersDesc'), icon: User },
   { key: 'dataBackup', title: t('systemSettings.sections.dataBackupTitle'), desc: t('systemSettings.sections.dataBackupDesc'), icon: Coin },
-  { key: 'backups', title: t('systemSettings.sections.backupsTitle'), desc: t('systemSettings.sections.backupsDesc'), icon: Document },
   { key: 'openapi', title: t('systemSettings.sections.openapiTitle'), desc: t('systemSettings.sections.openapiDesc'), icon: Key },
   { key: 'connectors', title: t('systemSettings.sections.connectorsTitle'), desc: t('systemSettings.sections.connectorsDesc'), icon: Connection },
   { key: 'appearance', title: t('systemSettings.sections.appearanceTitle'), desc: t('systemSettings.sections.appearanceDesc'), icon: Brush },
@@ -895,9 +810,9 @@ const settingsSections = computed<SettingsSection[]>(() => {
 const settingsNavigationGroups = computed<SettingsNavigationGroup[]>(() => {
   const availableSections = new Map(settingsSections.value.map((section) => [section.key, section]))
   const groups: Array<{ key: SettingsGroupKey; title: string; keys: SettingsTab[] }> = [
-    { key: 'system', title: t('systemSettings.navigationGroups.system'), keys: ['operations', 'fileAssets'] },
+    { key: 'system', title: t('systemSettings.navigationGroups.system'), keys: ['operations', 'scheduledTasks', 'auditLogs', 'fileAssets'] },
     { key: 'access', title: t('systemSettings.navigationGroups.access'), keys: ['login', 'users'] },
-    { key: 'integrations', title: t('systemSettings.navigationGroups.integrations'), keys: ['dataBackup', 'backups', 'email', 'openapi', 'connectors'] },
+    { key: 'integrations', title: t('systemSettings.navigationGroups.integrations'), keys: ['dataBackup', 'email', 'openapi', 'connectors'] },
     { key: 'preferences', title: t('systemSettings.navigationGroups.preferences'), keys: ['appearance', 'language'] },
   ]
 
@@ -907,15 +822,16 @@ const settingsNavigationGroups = computed<SettingsNavigationGroup[]>(() => {
 })
 
 const settingsDocSlugMap: Record<SettingsTab, KageosDocSlug> = {
-  operations: 'runtime',
+  auditLogs: 'runtime',
+  scheduledTasks: 'automation',
+  operations: 'operations',
   fileAssets: 'runtime',
   email: 'runtime',
   login: 'login',
   connectors: 'connectors',
   openapi: 'api',
-  users: 'runtime',
+  users: 'permissions',
   dataBackup: 'data-backup',
-  backups: 'runtime',
   appearance: 'docs',
   language: 'docs',
 }
@@ -1031,20 +947,6 @@ const loadStatusType = computed<'success' | 'warning' | 'danger' | 'info'>(() =>
   return 'success'
 })
 const loadStatusLabel = computed(() => t(`systemSettings.resources.loadStatuses.${loadStatusType.value}`))
-const archiveScheduleFriendly = computed(() => {
-  const parts = archiveCronExpr.value.trim().split(/\s+/)
-  if (parts.length === 5 && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
-    const minute = Number(parts[0])
-    const hour = Number(parts[1])
-    if (Number.isInteger(minute) && Number.isInteger(hour) && minute >= 0 && minute < 60 && hour >= 0 && hour < 24) {
-      return t('systemSettings.archiveDailyAt', {
-        time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
-      })
-    }
-  }
-  return t('systemSettings.archiveCustomSchedule')
-})
-
 function isProviderExpanded(code: string) {
   return expandedProviderCodes.value.includes(code)
 }
@@ -1134,6 +1036,8 @@ async function saveLoginAnnouncement() {
 }
 
 async function refreshActiveTab() {
+  if (activeTab.value === 'auditLogs') { auditPanelKey.value += 1; return }
+ if (activeTab.value === 'scheduledTasks') { await scheduledPanel.value?.refresh(); return }
   if (activeTab.value === 'operations') {
 		if (operationsTab.value === 'usage') {
 			usagePanelKey.value += 1
@@ -1166,10 +1070,6 @@ async function refreshActiveTab() {
     await backupPanel.value?.refresh()
     return
   }
-  if (activeTab.value === 'backups') {
-    await loadArchives()
-    return
-  }
   if (activeTab.value === 'appearance' || activeTab.value === 'language') {
     return
   }
@@ -1182,9 +1082,6 @@ function handleTabChange(tabName: string | number) {
   }
   if (tabName === 'login' && !authProviders.value.length) {
     loadAuthProviders()
-  }
-  if (tabName === 'backups' && !archiveBatches.value.length) {
-    loadArchives()
   }
 }
 
@@ -1512,49 +1409,12 @@ function formatDurationMillis(value: number) {
   return `${(value / 1000).toFixed(1)} s`
 }
 
-async function loadArchives() {
-  archivesLoading.value = true
-  try {
-    const resp = await listLogArchiveBatches(archivePage.value, archivePageSize)
-    archiveBatches.value = resp.list || []
-    archiveTotal.value = resp.total || 0
-    archiveRetentionDays.value = resp.retention_days || 90
-    archiveCronExpr.value = resp.cron_expr || '20 3 * * *'
-    archiveTimezone.value = resp.timezone || 'Asia/Shanghai'
-  } catch (error: any) {
-    ElMessage.error(error?.response?.data?.msg || error?.message || t('systemSettings.loadArchivesFailed'))
-  } finally {
-    archivesLoading.value = false
-  }
-}
 
-function formatArchiveTime(value?: string) {
-  if (!value) return '-'
-  const date = new Date(value.replace(' ', 'T'))
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
-}
 
-function formatFileSize(size: number) {
-  if (!size) return '-'
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
-  return `${(size / 1024 / 1024).toFixed(1)} MB`
-}
 
-function archiveStatusType(status: string) {
-  if (status === 'completed') return 'success'
-  if (status === 'failed') return 'danger'
-  return 'warning'
-}
 
-function archiveStatusLabel(status: string) {
-  return t(`systemSettings.archiveStatuses.${status}`)
-}
 
-function archiveResourceSummary(batch: LogArchiveBatch) {
-  const paths = batch.summary_json?.top_resource_paths || []
-  if (!paths.length) return '-'
-  return paths.slice(0, 3).map((item) => `${item.resource_path || '/'} (${item.count})`).join('；')
-}
+
 
 function isSettingsTab(value: unknown): value is SettingsTab {
   return typeof value === 'string' && settingsSections.value.some((section) => section.key === value)
@@ -2020,76 +1880,6 @@ onBeforeUnmount(() => {
 .settings-form {
   max-width: 760px;
 }
-
-.archive-summary-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 260px));
-  gap: 12px;
-  margin: 16px 0 18px;
-}
-
-.archive-policy-item {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-base);
-  background: var(--bg-tertiary);
-}
-
-.archive-policy-item span,
-.archive-policy-item small {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.archive-policy-item strong {
-  color: var(--text-primary);
-  font-size: 15px;
-}
-
-.archive-table {
-  margin-bottom: 16px;
-}
-
-.archive-primary-cell {
-  display: grid;
-  gap: 4px;
-}
-
-.archive-primary-cell strong {
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-.archive-primary-cell small,
-.archive-resource-summary {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.archive-detail-grid {
-  display: grid;
-  gap: 10px;
-  padding: 8px 18px 12px 44px;
-}
-
-.archive-detail-grid > div {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 12px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.archive-detail-grid code {
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-
-.archive-error { color: var(--el-color-danger); }
-.backup-pane :deep(.el-pagination) { justify-content: flex-end; }
 
 .test-row {
   width: 100%;
@@ -2610,11 +2400,7 @@ onBeforeUnmount(() => {
     width: 100%;
   }
 
-  .archive-summary-row {
-    grid-template-columns: 1fr;
-  }
-
-  .provider-body { padding-left: 16px; }
+.provider-body { padding-left: 16px; }
 
   .resource-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2662,8 +2448,7 @@ onBeforeUnmount(() => {
 
   .provider-logo { width: 32px; height: 32px; border-radius: 8px; }
 
-  .archive-detail-grid { padding-left: 8px; }
-  .archive-detail-grid > div { grid-template-columns: 1fr; gap: 4px; }
+.archive-detail-grid > div { grid-template-columns: 1fr; gap: 4px; }
 }
 
 .operations-pane { --dashboard-accent:#5985ed; }
@@ -2682,8 +2467,8 @@ onBeforeUnmount(() => {
 .database-size-table :deep(.el-table__cell) { padding:14px 0; }
 .database-size-table :deep(.cell) { font-size:12px; }
 .database-source { display:block; color:var(--text-secondary); font-size:10px; margin-top:3px; }
-.archive-table :deep(.el-table__cell) { padding:16px 0; }
-.archive-policy-item { border-radius:14px; background:var(--bg-primary); padding:24px; }
+
+
 .monitoring-policy-strip { font-size:11px; opacity:.8; }
 .overview-trends :deep(.trend-card) { border-radius:14px; background:var(--bg-primary); }
 @media (max-width:720px) { .database-inventory { padding:12px; } .database-toolbar { flex-direction:column; align-items:stretch; } }

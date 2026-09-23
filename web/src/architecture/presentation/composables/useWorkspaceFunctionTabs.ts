@@ -9,7 +9,7 @@ import {
   clearScheduledRouteQuery,
 } from '@/architecture/shared/routing/platformRouteParams'
 
-type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'scheduledTask'
+type FunctionTabName = 'content' | 'permission' | 'notification' | 'publicShare' | 'operateLog' | 'logArchives' | 'scheduledTask'
 
 type FunctionFormViewRef = Record<string, unknown>
 
@@ -46,6 +46,7 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   })
 
   const getFunctionTabQueryValue = () => {
+    if (functionActiveTab.value === 'logArchives') return 'logArchives'
     if (functionActiveTab.value === 'permission') return 'permission'
     if (functionActiveTab.value === 'notification') return 'notification'
     if (functionActiveTab.value === 'publicShare') return 'publicShare'
@@ -82,7 +83,8 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   }
 
   const handleFunctionTabChange = (tabName: string) => {
-    if (tabName === 'permission') functionActiveTab.value = 'permission'
+    if (tabName === 'logArchives' && featureFlags.operateLogs) functionActiveTab.value = 'logArchives'
+    else if (tabName === 'permission') functionActiveTab.value = 'permission'
     else if (tabName === 'notification') functionActiveTab.value = 'notification'
     else if (tabName === 'publicShare') functionActiveTab.value = 'publicShare'
     else if (tabName === 'operateLog' && featureFlags.operateLogs) functionActiveTab.value = 'operateLog'
@@ -93,6 +95,8 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
 
   const applyFunctionPanelQuery = (tab: LocationQueryValue | LocationQueryValue[] | undefined) => {
     const normalizedTab = normalizePanelQuery(tab)
+
+    if (normalizedTab === 'logArchives' && featureFlags.operateLogs && currentFunction.value?.type === 'function') {functionActiveTab.value = 'logArchives'; return}
 
     if (normalizedTab === 'permission' && currentFunction.value?.type === 'function') {
       functionActiveTab.value = 'permission'
@@ -140,9 +144,9 @@ export function useWorkspaceFunctionTabs(options: UseWorkspaceFunctionTabsOption
   )
 
   watch(
-    () => route.query._panel,
-    (tab) => {
-      applyFunctionPanelQuery(tab)
+    () => [route.query._panel, currentFunction.value?.full_code_path],
+    () => {
+      applyFunctionPanelQuery(route.query._panel)
     },
     { immediate: true }
   )

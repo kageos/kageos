@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/core/app-server/repository"
@@ -32,7 +33,24 @@ func newServiceTreeCopyService(
 	}
 }
 
-func (h *serviceTreeCopyService) CopyServiceTree(ctx context.Context, req *dto.CopyDirectoryReq) (*dto.CopyDirectoryResp, error) {
+func (h *serviceTreeCopyService) CopyServiceTree(ctx context.Context, req *dto.CopyDirectoryReq) (resp *dto.CopyDirectoryResp, resultErr error) {
+	if req == nil {
+		return nil, fmt.Errorf("copy request required")
+	}
+	audit, err := beginManagementAudit(ctx, h.appRepo.GetDB(), "directory.copied", "directory", req.TargetDirectoryPath, req.TargetDirectoryName, "", nil, map[string]any{"source_path": req.SourceDirectoryPath, "replace_existing": req.ReplaceExisting})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if resultErr == nil {
+			audit.details["stage"] = "completed"
+		}
+		audit.finish(ctx, resp, &resultErr)
+	}()
+	defer audit.capturePanic(&resultErr)
+	if err := audit.stage(ctx, "copying_directory"); err != nil {
+		return nil, err
+	}
 	return copyServiceTreeImpl(h, ctx, req)
 }
 

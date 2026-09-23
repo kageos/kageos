@@ -18,6 +18,7 @@ const (
 // Archived content intentionally remains outside the online query path.
 type LogArchiveBatch struct {
 	models.Base
+	ResourcePath     string          `json:"resource_path" gorm:"type:varchar(500);index"`
 	ArchiveKey       string          `json:"archive_key" gorm:"type:varchar(160);not null;uniqueIndex"`
 	ArchiveType      string          `json:"archive_type" gorm:"type:varchar(40);not null;index"`
 	TenantUser       string          `json:"tenant_user" gorm:"type:varchar(100);not null;index:idx_log_archive_scope"`
@@ -45,3 +46,20 @@ type LogArchiveBatch struct {
 }
 
 func (LogArchiveBatch) TableName() string { return "log_archive_batches" }
+
+// LogArchiveProgress is a durable snapshot of one scheduler execution.
+type LogArchiveProgress struct {
+	ExecutionID   int64      `json:"execution_id" gorm:"primaryKey;autoIncrement:false"`
+	Phase         string     `json:"phase"`
+	BatchID       int64      `json:"batch_id"`
+	BatchRecords  int64      `json:"batch_records"`
+	Records       int64      `json:"records"`
+	Batches       int        `json:"batches"`
+	FailedBatches int        `json:"failed_batches"`
+	StopReason    string     `json:"stop_reason"`
+	StartedAt     time.Time  `json:"started_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty"`
+}
+
+func (LogArchiveProgress) TableName() string { return "log_archive_progress" }

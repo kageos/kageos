@@ -908,13 +908,14 @@ func capabilityFileKey(packagePath, filePath string) string {
 	return path.Join(packagePath, filePath)
 }
 
-func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context.Context, opts *dto.InstallCapabilityOptions, bundle *dto.CapabilityBundle) (*dto.InstallCapabilityBundleResp, error) {
+func (s *serviceTreeCapabilityBundleService) installCapabilityBundle(ctx context.Context, opts *dto.InstallCapabilityOptions, bundle *dto.CapabilityBundle) (*dto.InstallCapabilityBundleResp, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("安装选项不能为空")
 	}
 	if err := validateCapabilityBundle(bundle); err != nil {
 		return nil, err
 	}
+	recordCapabilityBundleIdentity(ctx, bundle)
 	installBundle := bundle
 	if strings.TrimSpace(opts.BundleSubpath) != "" {
 		filtered, err := filterCapabilityBundleBySubpath(bundle, opts.BundleSubpath)
@@ -942,6 +943,9 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		}
 	}
 
+	if err := capabilityAuditStage(ctx, "creating_directories"); err != nil {
+		return nil, err
+	}
 	var createdPaths []string
 	if len(plan.directoryItems) > 0 {
 		resp, err := executeBatchCreateDirectoryTree(ctx, s.serviceTreeRepo, s.runtimeWorkspace, &dto.BatchCreateDirectoryTreeReq{
@@ -954,9 +958,13 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		}
 		if resp != nil {
 			createdPaths = resp.CreatedPaths
+			capabilityAuditDetail(ctx, "created_paths", createdPaths)
 		}
 	}
 
+	if err := capabilityAuditStage(ctx, "writing_files"); err != nil {
+		return nil, err
+	}
 	var writtenPaths []string
 	var oldVersion, newVersion string
 	var warnings []string
@@ -977,9 +985,15 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 			oldVersion = resp.OldVersion
 			newVersion = resp.NewVersion
 			warnings = resp.Warnings
+			capabilityAuditDetail(ctx, "written_paths", writtenPaths)
+			capabilityAuditDetail(ctx, "new_version", newVersion)
+			capabilityAuditDetail(ctx, "warnings", warnings)
 		}
 	}
 
+	if err := capabilityAuditStage(ctx, "installing_docs"); err != nil {
+		return nil, err
+	}
 	createdDocPaths := make([]string, 0)
 	if len(plan.docItems) > 0 {
 		createdDocPaths, err = s.installCapabilityBundleDocs(ctx, targetApp, plan.docItems, opts.Overwrite)
@@ -989,6 +1003,9 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		createdPaths = append(createdPaths, createdDocPaths...)
 	}
 
+	if err := capabilityAuditStage(ctx, "installing_tasks"); err != nil {
+		return nil, err
+	}
 	createdAgentTaskRefs := make([]string, 0)
 	createdScheduledFunctionRefs := make([]string, 0)
 	if len(installBundle.ScheduledFunctions) > 0 {
@@ -1004,6 +1021,9 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 		}
 	}
 
+	if err := capabilityAuditStage(ctx, "updating_workspace"); err != nil {
+		return nil, err
+	}
 	if len(plan.fileItems) == 0 && s.appService != nil {
 		resp, err := s.appService.UpdateApp(ctx, &dto.UpdateAppReq{
 			ResourcePath:      fmt.Sprintf("/%s/%s", targetApp.User, targetApp.Code),
@@ -1017,6 +1037,9 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundle(ctx context
 			oldVersion = resp.OldVersion
 			newVersion = resp.NewVersion
 			warnings = resp.Warnings
+			capabilityAuditDetail(ctx, "written_paths", writtenPaths)
+			capabilityAuditDetail(ctx, "new_version", newVersion)
+			capabilityAuditDetail(ctx, "warnings", warnings)
 		}
 	}
 
@@ -1340,7 +1363,7 @@ func buildCapabilityBundleAgentTaskRequest(ctx context.Context, targetFullCodePa
 	}, nil
 }
 
-func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromFile(ctx context.Context, opts *dto.InstallCapabilityOptions, filePath string) (*dto.InstallCapabilityBundleResp, error) {
+func (s *serviceTreeCapabilityBundleService) installCapabilityBundleFromFile(ctx context.Context, opts *dto.InstallCapabilityOptions, filePath string) (*dto.InstallCapabilityBundleResp, error) {
 	bundle, err := readCapabilityBundleFile(filePath)
 	if err != nil {
 		return nil, err
@@ -1348,7 +1371,7 @@ func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromFile(ctx
 	return s.InstallCapabilityBundle(ctx, opts, bundle)
 }
 
-func (s *serviceTreeCapabilityBundleService) InstallCapabilityBundleFromURL(ctx context.Context, opts *dto.InstallCapabilityOptions, bundleURL, installKey string) (*dto.InstallCapabilityBundleResp, error) {
+func (s *serviceTreeCapabilityBundleService) installCapabilityBundleFromURL(ctx context.Context, opts *dto.InstallCapabilityOptions, bundleURL, installKey string) (*dto.InstallCapabilityBundleResp, error) {
 	bundle, installReportURL, err := downloadCapabilityBundle(ctx, bundleURL, installKey)
 	if err != nil {
 		return nil, err

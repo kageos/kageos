@@ -26,7 +26,7 @@ export interface UseMiniWorkstationUploadsOptions {
   inputRef: Ref<{
     focus: () => void
     focusAtEnd?: () => void
-    insertWorkspaceResources?: (paths: string[]) => void
+    insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string }>) => void
   } | undefined>
 }
 
@@ -206,7 +206,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
           .filter(Boolean)
         if (paths.length > 0) {
           if (inputRef.value?.insertWorkspaceResources) {
-            inputRef.value.insertWorkspaceResources(paths)
+            inputRef.value.insertWorkspaceResources(paths, payloads)
             return
           }
           inputText.value = appendWorkspaceResourceTokens(inputText.value, paths, fullCodePath.value)

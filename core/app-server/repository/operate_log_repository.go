@@ -31,6 +31,13 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	var total int64
 
 	query := r.db.WithContext(ctx).Model(&model.OperateLog{})
+	if req.LogKind == "scheduled" {
+		query = query.Table("scheduled_execution_logs")
+	}
+	if req.TaskID > 0 {
+		ref := fmt.Sprintf("timer_task:%d", req.TaskID)
+		query = query.Where("(source_ref = ? OR source_ref LIKE ?)", ref, ref+":execution:%")
+	}
 	if req.ID > 0 {
 		query = query.Where("id = ?", req.ID)
 	}
@@ -53,7 +60,8 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 		query = query.Where("resource_path = ?", req.ResourcePath)
 	}
 	if req.ResourcePathPrefix != "" {
-		query = query.Where("(resource_path = ? OR resource_path LIKE ?)", req.ResourcePathPrefix, req.ResourcePathPrefix+"/%")
+		escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(req.ResourcePathPrefix)
+		query = query.Where("(resource_path = ? OR resource_path LIKE ? ESCAPE '!')", req.ResourcePathPrefix, escaped+"/%")
 	}
 	if req.Action != "" {
 		query = query.Where("action = ?", req.Action)
@@ -94,9 +102,10 @@ func (r *OperateLogRepository) GetOperateLogs(ctx context.Context, req *dto.GetO
 	if req.RowID > 0 {
 		query = query.Where("target_id = ?", fmt.Sprintf("%d", req.RowID))
 	}
-	if req.ExcludeScheduledTasks {
-		query = query.Where("COALESCE(source, '') <> ? AND COALESCE(source_type, '') <> ? AND COALESCE(executor_type, '') <> ?", "scheduled_task", "scheduled_task", "scheduled_function")
+	if req.LogKind != "scheduled" {
+		query = query.Where("NOT (COALESCE(resource_type, '') IN ? AND (COALESCE(source, '') = ? OR COALESCE(source_type, '') = ? OR COALESCE(executor_type, '') = ?))", []string{"form", "function", "table"}, "scheduled_task", "scheduled_task", "scheduled_function")
 	}
+
 	if req.Keyword != "" {
 		keyword := strings.TrimSpace(req.Keyword)
 		likeKeyword := "%" + keyword + "%"
@@ -146,6 +155,12 @@ func normalizeOperateLogOrderBy(orderBy string) string {
 func (r *OperateLogRepository) CreateOperateLog(ctx context.Context, log *model.OperateLog) error {
 	if log == nil {
 		return nil
+	}
+	if IsScheduledExecution(log) {
+		row := model.ScheduledExecutionLog(*log)
+		err := r.db.WithContext(ctx).Create(&row).Error
+		*log = model.OperateLog(row)
+		return err
 	}
 	return r.db.WithContext(ctx).Create(log).Error
 }

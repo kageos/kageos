@@ -471,6 +471,11 @@ func convertUserToDTOWithDetails(user *model.User, deptMap map[string]*model.Dep
 		CreatedAt:     time.Time(user.CreatedAt).Format(time.RFC3339),
 	}
 
+	if user.LastLoginAt != nil {
+		lastLoginAt := time.Time(*user.LastLoginAt).Format(time.RFC3339)
+		userInfo.LastLoginAt = &lastLoginAt
+	}
+
 	// 组织架构信息（如果存在）
 	if user.DepartmentFullPath != "" {
 		userInfo.DepartmentFullPath = user.DepartmentFullPath

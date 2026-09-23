@@ -27,7 +27,7 @@ func (r *TimerOutboxRepository) Create(event *model.TimerOutboxEvent) error {
 func (r *TimerOutboxRepository) ListReady(now time.Time, limit int) ([]*model.TimerOutboxEvent, error) {
 	query := r.db.
 		Where("status IN ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?)", []string{"pending", "retry"}, now).
-		Order("created_at ASC, id ASC")
+		Order("CASE WHEN event_type = 'timer.task.audit' THEN 1 ELSE 0 END, created_at ASC, id ASC")
 	if limit > 0 {
 		query = query.Limit(limit)
 	}

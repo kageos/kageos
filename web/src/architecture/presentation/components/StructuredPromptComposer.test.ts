@@ -61,14 +61,14 @@ function mountComposer(modelValue: string) {
 }
 
 describe('StructuredPromptComposer', () => {
-  it('browses the current directory on bare slash and filters types and other directories', async () => {
+  it('searches both directory groups and keeps current resources first', async () => {
     vi.useFakeTimers()
     const result = { items: [
       { id: 1, name: '订单表', code: 'orders', type: 'function' as const, template_type: 'table', full_code_path: '/system/app/orders.table' },
       { id: 2, name: '新增订单', code: 'create', type: 'function' as const, template_type: 'form', full_code_path: '/system/app/create.form' },
       { id: 3, name: '外部订单', code: 'orders', type: 'function' as const, template_type: 'table', full_code_path: '/system/app2/orders.table' },
     ], total: 3, page: 1, page_size: 100 }
-    vi.mocked(searchResources).mockResolvedValueOnce(result)
+    vi.mocked(searchResources).mockResolvedValueOnce(result).mockResolvedValueOnce(result)
     vi.mocked(searchFunctions).mockResolvedValueOnce({ functions: result.items.map(item => ({ ...item, description: '', app_id: 1, app_user: 'system', app_code: 'app' })), total: 3, page: 1, page_size: 100 }).mockResolvedValueOnce({ functions: result.items.map(item => ({ ...item, description: '', app_id: 1, app_user: 'system', app_code: 'app' })), total: 3, page: 1, page_size: 100 })
     const wrapper = mountComposer('')
     try {
@@ -77,34 +77,69 @@ describe('StructuredPromptComposer', () => {
       editor.element.textContent = '/'
       await editor.trigger('input')
       await vi.advanceTimersByTimeAsync(230)
-      expect(searchResources).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: '', full_code_path: '/system/app' }))
+      expect(searchResources).toHaveBeenCalledWith(expect.objectContaining({ keyword: '', full_code_path: '/system/app' }))
+      expect(searchResources).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: '', full_code_path: '' }))
       const panel = () => document.querySelector('[data-testid="structured-prompt-mention-panel"]')!
       expect(panel().textContent).toContain('订单表')
       expect(Array.from(panel().querySelectorAll('[role="tab"]')).map(tab => tab.textContent)).toEqual(['全部', '文档', '目录', '数据表', '表单', '图表', '其他'])
-      expect(Array.from(panel().querySelectorAll('.spc-mention-type')).map(tag => tag.textContent)).toEqual(['数据表', '表单'])
-      expect(panel().textContent).not.toContain('外部订单')
+      expect(Array.from(panel().querySelectorAll('.spc-mention-type')).map(tag => tag.textContent)).toEqual(['数据表', '表单', '数据表'])
+      expect(panel().textContent).toContain('外部订单')
+      expect(panel().querySelector('.spc-resource-scopes')).toBeNull()
+      expect(Array.from(panel().querySelectorAll('.spc-mention-group-heading')).map(el => el.textContent)).toEqual(['当前目录（含子目录） 2', '其他目录 1'])
       const formTab = Array.from(panel().querySelectorAll<HTMLButtonElement>('[role="tab"]')).find(button => button.textContent === '表单')!
       formTab.click()
       await vi.advanceTimersByTimeAsync(230)
       expect(panel().textContent).toContain('新增订单')
       expect(panel().textContent).not.toContain('订单表')
-      const other = Array.from(panel().querySelectorAll<HTMLButtonElement>('.spc-resource-scopes button'))[1]!
-      other.click()
-      await vi.advanceTimersByTimeAsync(230)
-      expect(searchFunctions).toHaveBeenLastCalledWith(expect.objectContaining({ full_code_path: '', template_type: 'form' }))
-      expect(panel().textContent).not.toContain('新增订单')
       // A fresh slash session resets scope and type.
       await editor.trigger('keydown', { key: 'Escape' })
       editor.element.textContent = '/'
       await editor.trigger('input')
       await vi.advanceTimersByTimeAsync(230)
-      expect(searchResources).toHaveBeenLastCalledWith(expect.objectContaining({ full_code_path: '/system/app', resource_type: 'all' }))
+      expect(searchResources).toHaveBeenLastCalledWith(expect.objectContaining({ full_code_path: '', resource_type: 'all' }))
       await editor.trigger('keydown', { key: 'Enter' })
       expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('</system/app/orders.table> ')
     } finally {
       wrapper.unmount()
       vi.useRealTimers()
     }
+  })
+
+  it('appends dropped resources and uses the supplied name even with the caret at the start', async () => {
+    const wrapper = mount(StructuredPromptComposer, { attachTo: document.body, props: { modelValue: '分析这些内容' } })
+    try {
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]').element as HTMLElement
+      editor.focus()
+      const range = document.createRange()
+      range.selectNodeContents(editor)
+      range.collapse(true)
+      window.getSelection()!.removeAllRanges()
+      window.getSelection()!.addRange(range)
+      wrapper.vm.insertWorkspaceResources(['/system/customers'], [{ full_code_path: '/system/customers', name: '客户管理' }])
+      await nextTick()
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('分析这些内容 </system/customers>')
+      expect(editor.querySelector('.spc-editor-token-label')?.textContent).toBe('客户管理')
+      expect(editor.textContent).toBe('分析这些内容 客户管理')
+    } finally { wrapper.unmount() }
+  })
+
+  it('refreshes a resource name while focused without replacing the editable DOM', async () => {
+    vi.useFakeTimers()
+    vi.stubEnv('MODE', 'development')
+    vi.mocked(getServiceTreeDetail).mockResolvedValueOnce({
+      id: 1, name: '客户管理', code: 'customers', type: 'package', full_code_path: '/system/customers',
+      description: '', tags: '', app_id: 1, ref_id: 0, created_at: '', updated_at: '',
+    })
+    const wrapper = mount(StructuredPromptComposer, { attachTo: document.body, props: { modelValue: '查看 </system/customers> 内容' } })
+    try {
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]')
+      const firstNode = editor.element.firstChild
+      ;(editor.element as HTMLElement).focus()
+      await editor.trigger('focus')
+      await vi.advanceTimersByTimeAsync(600)
+      expect(editor.find('.spc-editor-token-label').text()).toBe('客户管理')
+      expect(editor.element.firstChild).toBe(firstNode)
+    } finally { wrapper.unmount(); vi.useRealTimers(); vi.unstubAllEnvs() }
   })
 
   it('keeps the trailing empty line and middle caret stable when typing newlines', async () => {

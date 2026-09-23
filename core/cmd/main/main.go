@@ -184,7 +184,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	fmt.Println("\n========================================")
-	fmt.Println("  所有服务已启动")
+	fmt.Println("  正在启动服务，等待就绪…")
 	fmt.Println("  按 Ctrl+C 停止所有服务")
 	fmt.Println("========================================")
 

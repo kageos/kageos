@@ -68,8 +68,10 @@ func InitTables(db *gorm.DB) error {
 		&FileSnapshot{},
 		// 平台级操作审计日志
 		&OperateLog{},
+		&ScheduledExecutionLog{},
 		// 操作日志离线归档批次摘要
 		&LogArchiveBatch{},
+		&LogArchiveProgress{},
 		// 轻量团队授权表
 		&WorkspaceRoleAssignment{},
 		// 权限申请与审批状态；实际权限仍落在 WorkspaceRoleAssignment
@@ -89,8 +91,26 @@ func InitTables(db *gorm.DB) error {
 		return err
 	}
 
+	if err := backfillLogArchiveScopes(db); err != nil {
+		return err
+	}
+
 	if err := ensureOperateLogQueryIndexes(db); err != nil {
 		return err
+	}
+
+	for _, index := range []operateLogIndexSpec{
+		{name: "idx_scheduled_created_id", columns: []string{"created_at", "id"}},
+		{name: "idx_scheduled_path_created", columns: []string{"resource_path", "created_at", "id"}},
+		{name: "idx_scheduled_ref_created", columns: []string{"source_ref", "created_at", "id"}},
+	} {
+		if db.Migrator().HasIndex(&ScheduledExecutionLog{}, index.name) {
+			continue
+		}
+		statement := strings.Replace(buildOperateLogCreateIndexSQL(db.Dialector.Name(), index), "operate_logs", "scheduled_execution_logs", 1)
+		if err := db.Exec(statement).Error; err != nil {
+			return err
+		}
 	}
 
 	// 创建默认的NATS和Host记录

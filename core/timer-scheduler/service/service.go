@@ -131,7 +131,10 @@ func scheduledTaskMetadataWithContext(ctx context.Context, metadata map[string]s
 	return out
 }
 
-func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskRequest) (*scheduledsdk.Task, error) {
+func (s *Service) createTask(ctx context.Context, req scheduledsdk.CreateTaskRequest) (*scheduledsdk.Task, error) {
+	if (req.ResourceScope == "system" || strings.HasPrefix(req.ExecutorKey, "platform.")) && contextx.GetRequestUser(ctx) != "system" {
+		return nil, fmt.Errorf("system administrator required")
+	}
 	if err := validateCreateTaskRequest(req, s.opts.PayloadLimitBytes); err != nil {
 		return nil, err
 	}
@@ -154,8 +157,8 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 	if requestUserDept == "" {
 		requestUserDept = strings.TrimSpace(contextx.GetRequestDepartmentFullPath(ctx))
 	}
-	if requestUserDept == "" {
-		if claims, err := auth.NewJWTService().ValidateAccessToken(strings.TrimSpace(contextx.GetToken(ctx))); err == nil && claims != nil && claims.DepartmentFullPath != nil {
+	if token := strings.TrimSpace(contextx.GetToken(ctx)); requestUserDept == "" && token != "" {
+		if claims, err := auth.NewJWTService().ValidateAccessToken(token); err == nil && claims != nil && claims.DepartmentFullPath != nil {
 			requestUserDept = strings.TrimSpace(*claims.DepartmentFullPath)
 		}
 	}
@@ -170,6 +173,9 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		taskRepo := s.taskRepo.WithDB(tx)
 		if existing, err := taskRepo.GetByIdempotencyKey(req.IdempotencyKey); err == nil {
+			if (existing.ResourceScope == "system" || strings.HasPrefix(existing.ExecutorKey, "platform.")) && contextx.GetRequestUser(ctx) != "system" {
+				return fmt.Errorf("system administrator required")
+			}
 			if !isTerminalTaskStatus(existing.Status) {
 				created = existing
 				return nil
@@ -222,7 +228,13 @@ func (s *Service) CreateTask(ctx context.Context, req scheduledsdk.CreateTaskReq
 	return taskToSDK(created), nil
 }
 
-func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk.UpdateTaskRequest) (*scheduledsdk.Task, error) {
+func (s *Service) updateTask(ctx context.Context, taskID int64, req scheduledsdk.UpdateTaskRequest) (*scheduledsdk.Task, error) {
+	if req.ResourceScope != nil && *req.ResourceScope == "system" && contextx.GetRequestUser(ctx) != "system" {
+		return nil, fmt.Errorf("system administrator required")
+	}
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return nil, err
+	}
 	task, err := s.taskRepo.GetByID(taskID)
 	if err != nil {
 		return nil, err
@@ -322,7 +334,10 @@ func (s *Service) UpdateTask(ctx context.Context, taskID int64, req scheduledsdk
 	return taskToSDK(task), nil
 }
 
-func (s *Service) PauseTask(ctx context.Context, taskID int64) error {
+func (s *Service) pauseTask(ctx context.Context, taskID int64) error {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return err
+	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.taskRepo.WithDB(tx).Pause(taskID); err != nil {
 			return err
@@ -331,7 +346,10 @@ func (s *Service) PauseTask(ctx context.Context, taskID int64) error {
 	})
 }
 
-func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
+func (s *Service) resumeTask(ctx context.Context, taskID int64) error {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return err
+	}
 	task, err := s.taskRepo.GetByID(taskID)
 	if err != nil {
 		return err
@@ -346,7 +364,10 @@ func (s *Service) ResumeTask(ctx context.Context, taskID int64) error {
 	return s.taskRepo.Resume(taskID, nextRunAt)
 }
 
-func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
+func (s *Service) cancelTask(ctx context.Context, taskID int64) error {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return err
+	}
 	task, err := s.taskRepo.GetByID(taskID)
 	if err != nil {
 		return err
@@ -362,7 +383,10 @@ func (s *Service) CancelTask(ctx context.Context, taskID int64) error {
 	})
 }
 
-func (s *Service) DeleteTask(ctx context.Context, taskID int64) error {
+func (s *Service) deleteTask(ctx context.Context, taskID int64) error {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return err
+	}
 	task, err := s.taskRepo.GetByID(taskID)
 	if err != nil {
 		return err
@@ -415,7 +439,10 @@ func canManageBuiltinTaskDefinition(ctx context.Context) bool {
 	}
 }
 
-func (s *Service) RunNow(ctx context.Context, taskID int64) (*scheduledsdk.Execution, error) {
+func (s *Service) runNow(ctx context.Context, taskID int64) (*scheduledsdk.Execution, error) {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return nil, err
+	}
 	task, err := s.taskRepo.GetByID(taskID)
 	if err != nil {
 		return nil, err
@@ -428,6 +455,9 @@ func (s *Service) RunNow(ctx context.Context, taskID int64) (*scheduledsdk.Execu
 }
 
 func (s *Service) GetTask(ctx context.Context, taskID int64) (*scheduledsdk.Task, error) {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return nil, err
+	}
 	task, err := s.taskRepo.GetByID(taskID)
 	if err != nil {
 		return nil, err
@@ -438,6 +468,7 @@ func (s *Service) GetTask(ctx context.Context, taskID int64) (*scheduledsdk.Task
 func (s *Service) ListTasks(ctx context.Context, req scheduledsdk.ListTasksRequest) (*scheduledsdk.ListTasksResponse, error) {
 	page, pageSize := normalizePage(req.Page, req.PageSize)
 	list, total, err := s.taskRepo.List(repository.ListTasksFilter{
+		ExcludeSystem:     contextx.GetRequestUser(ctx) != "system",
 		ExecutorKey:       req.ExecutorKey,
 		Status:            req.Status,
 		Category:          req.Category,
@@ -461,6 +492,9 @@ func (s *Service) ListTasks(ctx context.Context, req scheduledsdk.ListTasksReque
 }
 
 func (s *Service) GetExecution(ctx context.Context, taskID, executionID int64) (*scheduledsdk.Execution, error) {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return nil, err
+	}
 	exec, err := s.executionRepo.GetByID(taskID, executionID)
 	if err != nil {
 		return nil, err
@@ -469,6 +503,9 @@ func (s *Service) GetExecution(ctx context.Context, taskID, executionID int64) (
 }
 
 func (s *Service) ListExecutions(ctx context.Context, taskID int64, req scheduledsdk.ListExecutionsRequest) (*scheduledsdk.ListExecutionsResponse, error) {
+	if err := s.checkSystemTaskAccess(ctx, taskID); err != nil {
+		return nil, err
+	}
 	page, pageSize := normalizePage(req.Page, req.PageSize)
 	list, total, err := s.executionRepo.ListByTaskID(taskID, req.Status, (page-1)*pageSize, pageSize)
 	if err != nil {
@@ -735,10 +772,19 @@ func (s *Service) PublishPendingOutbox(ctx context.Context, publisher OutboxPubl
 		return 0, err
 	}
 	published := 0
+	auditAttempted := false
 	for _, event := range events {
+		// An unavailable audit consumer must not stall execution delivery for an
+		// entire batch. Audit rows remain durable and retry on subsequent ticks.
+		if event.Subject == dto.TaskAuditSubject {
+			if auditAttempted {
+				continue
+			}
+			auditAttempted = true
+		}
 		if err := publisher.Publish(ctx, event.Subject, event.Payload); err != nil {
 			attempts := event.Attempts + 1
-			if attempts >= s.opts.MaxOutboxAttempts {
+			if attempts >= s.opts.MaxOutboxAttempts && event.Subject != dto.TaskAuditSubject {
 				if markErr := s.outboxRepo.MarkDeadLetter(event.ID, attempts, err.Error()); markErr != nil {
 					return published, markErr
 				}
@@ -1108,4 +1154,16 @@ func isTerminalTaskStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func (s *Service) checkSystemTaskAccess(ctx context.Context, id int64) error {
+	var task model.TimerTask
+	err := s.db.WithContext(ctx).Unscoped().First(&task, id).Error
+	if err != nil {
+		return err
+	}
+	if (task.ResourceScope == "system" || strings.HasPrefix(task.ExecutorKey, "platform.")) && contextx.GetRequestUser(ctx) != "system" {
+		return fmt.Errorf("system administrator required")
+	}
+	return nil
 }

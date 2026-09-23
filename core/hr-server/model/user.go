@@ -6,6 +6,7 @@ import (
 )
 
 type User struct {
+	LastLoginAt     *models.Time   `json:"last_login_at" gorm:"column:last_login_at"` // 最近成功登录时间；历史未知时为空
 	ID              int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	CreatedAt       models.Time    `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt       models.Time    `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`

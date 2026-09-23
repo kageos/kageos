@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/kageos/kageos/dto"
 	"strings"
 	"time"
 
@@ -27,6 +28,18 @@ func (p *NATSOutboxPublisher) Publish(ctx context.Context, subject string, paylo
 	}
 	if strings.TrimSpace(subject) == "" {
 		return fmt.Errorf("timer-scheduler: outbox subject is empty")
+	}
+	if subject == dto.TaskAuditSubject {
+		requestCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		resp, err := p.conn.RequestWithContext(requestCtx, subject, payload)
+		if err != nil {
+			return err
+		}
+		if string(resp.Data) != "ok" {
+			return fmt.Errorf("task audit not acknowledged")
+		}
+		return nil
 	}
 	if err := p.conn.Publish(subject, payload); err != nil {
 		return err

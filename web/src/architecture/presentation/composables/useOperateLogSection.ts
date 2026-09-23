@@ -11,6 +11,8 @@ import type { FunctionDetail } from '@/architecture/domain/types'
 import { Logger } from '@/architecture/shared/logger'
 import { getFormRequestFields, getTableAllFields } from '@/architecture/domain/utils/functionSchemaSelectors'
 import { translate } from '@/architecture/shared/i18n'
+import { isManagementAction, managementActions, managementActionKey } from './managementLog'
+import { workspaceUpdateHasWarnings, workspaceUpdateSummary, workspaceUpdateTitle } from './workspaceUpdateLog'
 
 type OperateLogScope = 'row' | 'function' | 'directory'
 export type OperateLogEntry = {
@@ -28,6 +30,7 @@ export type OperateLogEntry = {
   trace_id?: string
   version?: string
   created_at: string
+  resource_name?: string
   resource_type?: string
   target_user?: string
   target_id?: string
@@ -73,6 +76,8 @@ interface OperateLogMetaEntry {
 const OPERATE_LOG_PAGE_SIZE = 12
 
 interface UseOperateLogSectionOptions {
+ scheduled?: Ref<boolean | undefined>
+ taskId?: Ref<number | undefined>
   fullCodePath: Ref<string>
   rowId: Ref<number>
   functionDetail: Ref<any>
@@ -92,6 +97,8 @@ export function useOperateLogSection({
   focusLogId,
   focusTraceId,
   onApplyFormLog,
+  scheduled,
+  taskId,
 }: UseOperateLogSectionOptions) {
   const t = translate
   const userInfoStore = useUserInfoStore()
@@ -101,7 +108,6 @@ export function useOperateLogSection({
   const keyword = ref('')
   const actionFilter = ref('')
   const sourceFilter = ref('')
-  const showScheduledTasks = ref(false)
   const userFilter = ref('')
   const userOptions = ref<Array<{ label: string; value: string; userInfo?: UserInfo }>>([])
   const userFilterLoading = ref(false)
@@ -124,9 +130,10 @@ export function useOperateLogSection({
     { label: t('operateLog.allActions'), value: '' },
     ...(isFormOperateLog.value ? [{ label: t('operateLog.submit'), value: 'form_submit' }] : []),
     ...(isFormOperateLog.value ? [{ label: t('operateLog.publicSubmit'), value: 'public_form_submit' }] : []),
-    { label: t('operateLog.scheduledExecute'), value: 'scheduled_function_execute' },
+    ...(scheduled?.value ? [{ label: t('operateLog.scheduledExecute'), value: 'scheduled_function_execute' }] : []),
     ...(currentScope() === 'directory'
       ? [
+          ...managementActions.map(action => ({ label: t(managementActionKey(action)), value: action })),
           { label: t('operateLog.resourceCreate'), value: 'service_tree.node.created' },
           { label: t('operateLog.resourceUpdate'), value: 'service_tree.node.updated' },
           { label: t('operateLog.resourceDelete'), value: 'service_tree.node.deleted' },
@@ -152,7 +159,7 @@ export function useOperateLogSection({
     { label: t('operateLog.sourceOpenAPI'), value: 'openapi' },
     { label: t('operateLog.sourceAgent'), value: 'agent' },
     { label: t('operateLog.sourcePublicShare'), value: 'public_share' },
-    { label: t('operateLog.sourceScheduledTask'), value: 'scheduled_task' },
+    ...(scheduled?.value ? [{ label: t('operateLog.sourceScheduledTask'), value: 'scheduled_task' }] : []),
     { label: t('operateLog.sourceUnknown'), value: 'unknown' },
   ])
 
@@ -366,9 +373,8 @@ export function useOperateLogSection({
       const focusedLogID = readPositiveID(focusLogId?.value)
       const focusedTraceID = (focusTraceId?.value || '').trim()
       const effectiveKeyword = keyword.value.trim()
-      const hasFocusedLog = Boolean(focusedLogID || focusedTraceID)
-      const explicitlySelectedScheduledSource = sourceFilter.value === 'scheduled_task'
       const response = await getOperateLogs({
+        ...(scheduled?.value ? {log_kind: 'scheduled' as const, task_id: taskId?.value} : {}),
         ...(focusedLogID ? { id: focusedLogID } : {}),
         ...(!focusedLogID && focusedTraceID ? { trace_id: focusedTraceID } : {}),
         ...(resourceType ? { resource_type: resourceType } : {}),
@@ -378,7 +384,6 @@ export function useOperateLogSection({
         ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
         ...(userFilter.value ? { actor_user: userFilter.value } : {}),
         ...(effectiveKeyword ? { keyword: effectiveKeyword } : {}),
-        ...(!hasFocusedLog && !explicitlySelectedScheduledSource ? { exclude_scheduled_tasks: !showScheduledTasks.value } : {}),
         page: currentPage.value,
         page_size: pageSize.value,
         order_by: 'created_at DESC',
@@ -436,6 +441,7 @@ export function useOperateLogSection({
     trace_id: log.trace_id,
     version: log.details_json?.version || log.new_values_json?.version,
     created_at: log.created_at,
+    resource_name: log.resource_name,
     resource_type: log.resource_type,
     target_user: log.target_user,
     target_id: log.target_id,
@@ -547,6 +553,7 @@ export function useOperateLogSection({
   }
 
   const getActionLabel = (action: string): string => {
+    if (isManagementAction(action)) return t(managementActionKey(action))
     switch (action) {
       case 'OnTableAddRow':
         return t('operateLog.add')
@@ -839,8 +846,9 @@ export function useOperateLogSection({
   }
 
   const getLogTitle = (log: OperateLogEntry): string => {
+    if (isManagementAction(log.action)) return t(managementActionKey(log.action))
     if (log.action === 'workspace.updated') {
-      return log.status === 'failed' ? t('operateLog.workspaceUpdateFailed') : t('operateLog.workspaceUpdated')
+      return workspaceUpdateTitle(log, t)
     }
     if (log.action === 'workspace.settings.updated') {
       return log.status === 'failed' ? t('operateLog.workspaceSettingsUpdateFailed') : t('operateLog.workspaceSettingsUpdated')
@@ -907,6 +915,8 @@ export function useOperateLogSection({
   }
 
   const getLogSummary = (log: OperateLogEntry): string => {
+    if (isManagementAction(log.action)) return log.resource_name || log.full_code_path
+    if (log.action === 'workspace.updated') return workspaceUpdateSummary(log, t)
     if (isFormSubmitAction(log.action) && log.summary) {
       return log.summary
     }
@@ -982,10 +992,15 @@ export function useOperateLogSection({
   }
 
   const getLogStatusLabel = (log: OperateLogEntry): string => {
+    if (log.status === 'pending') return t('managementLog.pending')
+    if (isManagementAction(log.action) && log.status !== 'failed' && log.details_json?.warnings?.length) return t('workspaceUpdateLog.warning')
+    if (log.action === 'workspace.updated' && log.status !== 'failed' && workspaceUpdateHasWarnings(log)) return t('workspaceUpdateLog.warning')
     return log.status === 'failed' ? t('operateLog.failed') : t('operateLog.success')
   }
 
   const getLogStatusTagType = (log: OperateLogEntry): TagProps['type'] => {
+    if (log.status === 'pending' || (isManagementAction(log.action) && log.status !== 'failed' && log.details_json?.warnings?.length)) return 'warning'
+    if (log.action === 'workspace.updated' && log.status !== 'failed' && workspaceUpdateHasWarnings(log)) return 'warning'
     return log.status === 'failed' ? 'danger' : 'success'
   }
 
@@ -1089,9 +1104,6 @@ export function useOperateLogSection({
     resetAndLoad()
   }
 
-  const handleScheduledTasksChange = () => {
-    resetAndLoad()
-  }
 
   const handleUserChange = () => {
     resetAndLoad()
@@ -1176,7 +1188,6 @@ export function useOperateLogSection({
     keyword,
     actionFilter,
     sourceFilter,
-    showScheduledTasks,
     userFilter,
     userOptions,
     userFilterLoading,
@@ -1218,7 +1229,6 @@ export function useOperateLogSection({
     handleSearch,
     handleActionChange,
     handleSourceChange,
-    handleScheduledTasksChange,
     handleUserChange,
     searchUserOptions,
     handlePageChange,

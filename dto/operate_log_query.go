@@ -4,6 +4,8 @@ import "encoding/json"
 
 // GetOperateLogsReq 查询通用操作日志请求。
 type GetOperateLogsReq struct {
+	LogKind               string `json:"log_kind" form:"log_kind"`
+	TaskID                int64  `json:"task_id" form:"task_id"`
 	ID                    int64  `json:"id" form:"id"`
 	TenantUser            string `json:"tenant_user" form:"tenant_user"`
 	ActorUser             string `json:"actor_user" form:"actor_user"`

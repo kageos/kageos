@@ -81,7 +81,7 @@ func collectAppUsageStats(db *gorm.DB, now time.Time) (dto.SystemUsageSnapshot, 
 		FailedLast30    int64 `gorm:"column:failed_last_30"`
 	}
 	var counts operationCounts
-	if err := db.Model(&model.OperateLog{}).Where("created_at >= ?", thirtyDays).Select(`
+	if err := db.Table("(SELECT created_at, status FROM operate_logs WHERE deleted_at IS NULL UNION ALL SELECT created_at, status FROM scheduled_execution_logs WHERE deleted_at IS NULL) AS usage_logs").Where("created_at >= ?", thirtyDays).Select(`
 		COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) AS today,
 		COALESCE(SUM(CASE WHEN created_at >= ? AND created_at < ? THEN 1 ELSE 0 END), 0) AS yesterday,
 		COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) AS last_7_days,

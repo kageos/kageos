@@ -162,7 +162,7 @@ import MiniWorkstationResourceIdentity from './MiniWorkstationResourceIdentity.v
 interface FocusableInput {
   focus: () => void
   focusAtEnd?: () => void
-  insertWorkspaceResources?: (paths: string[]) => void
+  insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string }>) => void
 }
 
 const props = withDefaults(defineProps<{

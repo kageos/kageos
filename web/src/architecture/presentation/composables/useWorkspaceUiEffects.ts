@@ -10,6 +10,7 @@ interface TableDetailRowPayload {
 
 interface UseWorkspaceUiEffectsOptions {
   showLeftSidebar: Ref<boolean>
+  isNarrowWorkspace?: Readonly<Ref<boolean>>
   openDetailDrawer: (row: Record<string, any>, index?: number, tableData?: any[], initialMode?: 'read' | 'edit') => Promise<void> | void
   setupUrlWatch: () => (() => void) | null | void
   handleWorkspaceOpenWorkstation: (payload: any) => void
@@ -23,7 +24,9 @@ export function useWorkspaceUiEffects(options: UseWorkspaceUiEffectsOptions) {
 
   onMounted(() => {
     const savedLeft = localStorage.getItem('workspace-left-sidebar')
-    if (savedLeft !== null) {
+    if (options.isNarrowWorkspace?.value) {
+      options.showLeftSidebar.value = false
+    } else if (savedLeft !== null) {
       options.showLeftSidebar.value = savedLeft === 'true'
     }
 

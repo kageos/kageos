@@ -8,6 +8,7 @@ import (
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/ginx/response"
 	"github.com/kageos/kageos/pkg/logger"
+	"strings"
 )
 
 // OperateLog 操作日志相关API
@@ -67,6 +68,10 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 		response.FailWithMessage(c, "参数绑定失败: "+err.Error())
 		return
 	}
+	if req.LogKind != "" && req.LogKind != "operate" && req.LogKind != "scheduled" {
+		response.FailWithMessage(c, "无效日志类型")
+		return
+	}
 	if req.Page <= 0 {
 		req.Page = 1
 	}
@@ -84,16 +89,26 @@ func (o *OperateLog) GetOperateLogs(c *gin.Context) {
 		response.FailWithMessage(c, "resource_path 或 resource_path_prefix 不能为空")
 		return
 	}
+	isGlobalScope := strings.TrimSpace(auditResourcePath) == "/"
 	auditResourcePath = access.NormalizeResourcePath(auditResourcePath)
-	if err := requireAccess(c, o.permissionService, auditResourcePath, access.ActionRead); err != nil {
-		response.FailWithMessage(c, err.Error())
-		return
-	}
-	if req.ResourcePath != "" {
-		req.ResourcePath = auditResourcePath
-	}
-	if req.ResourcePathPrefix != "" {
-		req.ResourcePathPrefix = auditResourcePath
+	if isGlobalScope {
+		if contextx.GetRequestUser(contextx.ToContext(c)) != "system" {
+			response.FailWithMessage(c, "system administrator required for global operation history")
+			return
+		}
+		// Root is an explicit system-only view, including deleted workspaces.
+		req.ResourcePath, req.ResourcePathPrefix = "", ""
+	} else {
+		if err := requireAccess(c, o.permissionService, auditResourcePath, access.ActionRead); err != nil {
+			response.FailWithMessage(c, err.Error())
+			return
+		}
+		if req.ResourcePath != "" {
+			req.ResourcePath = auditResourcePath
+		}
+		if req.ResourcePathPrefix != "" {
+			req.ResourcePathPrefix = auditResourcePath
+		}
 	}
 
 	ctx := contextx.ToContext(c)

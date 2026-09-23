@@ -156,11 +156,11 @@ go run ./cmd/kagectl restore <archive> --force --keep-rollback
 
 系统设置 → 数据备份 → 查看文档使用专用页面：
 
-- 中文：https://kageos.ai/zh/docs/data-backup
-- 英文：https://kageos.ai/docs/data-backup
-- 中文官网同路径：https://kageos.com/zh/docs/data-backup
+- 中文：https://kageos.com/zh/docs/data-backup/
+- 英文：https://kageos.ai/docs/data-backup/
+- 旧中文地址继续可用：https://kageos.ai/zh/docs/data-backup/
 
-前端通过 `getKageosDocsURL('data-backup', locale)` 统一生成地址，沿用现有官网域名策略。官网对应 `src/pages/zh/docs/data-backup.astro` 和 `src/pages/docs/data-backup.astro`，正文集中在 `src/components/DataBackupGuide.astro`。
+前端通过 `getKageosDocsURL('data-backup', locale)` 统一生成地址，沿用现有官网域名策略。官网对应 `src/pages/zh/docs/data-backup.astro` 和 `src/pages/docs/data-backup.astro`，正文维护在 `src/content/docs/zh/data-backup.md` 与 `src/content/docs/en/data-backup.md`。
 
 此地址是产品帮助入口的长期契约。七牛云及其他服务商的配置、连接排障和恢复说明后续在该页补充，不改产品链接，不跳转通用运行环境页面。若未来文档迁移，必须保留旧地址并重定向到对应备份文档。
 

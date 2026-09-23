@@ -77,6 +77,11 @@
           {{ row.department_full_name_path || row.department_full_path || '-' }}
         </template>
       </el-table-column>
+      <el-table-column :label="t('systemUser.lastLoginAt')" width="190">
+        <template #default="{ row }">
+          {{ row.last_login_at ? formatDateTime(row.last_login_at) : t('systemUser.noLoginRecord') }}
+        </template>
+      </el-table-column>
       <el-table-column :label="t('systemUser.createdAt')" width="170">
         <template #default="{ row }">
           {{ formatDateTime(row.created_at) }}

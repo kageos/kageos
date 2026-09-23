@@ -1487,8 +1487,8 @@ func TestPublishPendingOutboxRetriesBeforePublished(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if published != 1 {
-		t.Fatalf("published = %d, want 1", published)
+	if published != 2 {
+		t.Fatalf("published = %d, want 2 (execution and task creation audit)", published)
 	}
 	if err := db.First(&event, event.ID).Error; err != nil {
 		t.Fatal(err)

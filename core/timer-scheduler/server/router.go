@@ -66,6 +66,11 @@ func listTasks(service *timerservice.Service) gin.HandlerFunc {
 			Page:              queryInt(c, "page"),
 			PageSize:          queryInt(c, "page_size"),
 		})
+		if err == nil && c.Query("resource_scope") == "system" {
+			summaries, summaryErr := service.TaskExecutionSummaries(requestContext(c), resp.List)
+			writeResult(c, gin.H{"list": resp.List, "total": resp.Total, "last_executions": summaries}, summaryErr)
+			return
+		}
 		writeResult(c, resp, err)
 	}
 }

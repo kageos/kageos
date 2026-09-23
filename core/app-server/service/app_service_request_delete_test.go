@@ -25,7 +25,7 @@ func newAppServiceRequestDeleteTestDeps(t *testing.T) (*repository.AppRepository
 		t.Fatalf("get sql db: %v", err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.App{}, &model.ServiceTree{}); err != nil {
+	if err := db.AutoMigrate(&model.App{}, &model.ServiceTree{}, &model.OperateLog{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return repository.NewAppRepository(db), repository.NewServiceTreeRepository(db), db

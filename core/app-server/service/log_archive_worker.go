@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/kageos/kageos/pkg/maintenance"
 
 	"github.com/kageos/kageos/pkg/contextx"
 	"github.com/kageos/kageos/pkg/logger"
@@ -26,13 +27,19 @@ func NewLogArchiveWorker(natsConn *nats.Conn, archive *LogArchiveService) (*sche
 }
 
 func (s *LogArchiveService) ReconcileSchedule(ctx context.Context) error {
+	client, err := maintenance.NewManagementClient()
+	if err != nil {
+		return err
+	}
+	managedCtx := contextx.WithRequestInfo(ctx, contextx.RequestInfo{RequestUser: SystemUsername, ClientSource: scheduledTaskSourceManifest})
+	if err := retireLogGroupSchedules(managedCtx, client); err != nil {
+		return err
+	}
 	if !s.config.Enabled {
 		return nil
 	}
-	client := newAppScheduleClient()
-	managedCtx := contextx.WithClientSource(ctx, scheduledTaskSourceManifest)
 	req := scheduledsdk.CreateTaskRequest{
-		Title: "操作日志离线归档", Description: "每日将超过保留期的操作日志压缩归档到对象存储", Category: "platform_maintenance",
+		Title: "操作日志离线归档", Description: "每日归档超过保留期的任务调用日志；普通操作日志达到数量门槛才归档", Category: "platform_maintenance",
 		Tags: []string{"platform", "maintenance", "log_archive"}, IdempotencyKey: "platform-operate-log-archive-v1",
 		ExecutorKey:   LogArchiveExecutorKey,
 		Metadata:      map[string]string{"kind": "log_archive", "managed_by": "app_manifest", "origin": scheduledTaskOriginManifest, "default_enabled": "true"},
@@ -50,4 +57,31 @@ func (s *LogArchiveService) ReconcileSchedule(ctx context.Context) error {
 	}
 	_, err = client.UpdateTask(managedCtx, task.ID, updateTaskRequestFromCreate(req))
 	return err
+}
+
+// Retire the old projection schedules as well as removing their workers.
+func retireLogGroupSchedules(ctx context.Context, client *scheduledsdk.Client) error {
+	for _, key := range []string{"platform.log_groups", "platform.log_groups_reconcile"} {
+		for page := 1; ; page++ {
+			result, err := client.ListTasks(ctx, scheduledsdk.ListTasksRequest{ExecutorKey: key, ResourceScope: "system", Page: page, PageSize: 100})
+			if err != nil {
+				return err
+			}
+			if result == nil {
+				return fmt.Errorf("missing maintenance task list")
+			}
+			for _, task := range result.List {
+				if task.Status == scheduledsdk.TaskStatusCancelled || task.Status == scheduledsdk.TaskStatusDone {
+					continue
+				}
+				if err := client.CancelTask(ctx, task.ID); err != nil {
+					return err
+				}
+			}
+			if int64(page*100) >= result.Total {
+				break
+			}
+		}
+	}
+	return nil
 }

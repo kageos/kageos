@@ -96,7 +96,7 @@ describe('appendWorkspaceResourceTokens', () => {
 })
 
 describe('workspace node drop', () => {
-  it('lets the composer insert dragged resources at its remembered caret', async () => {
+  it('passes resource names to the composer for appending', async () => {
     const inputText = ref('分析 ')
     const insertWorkspaceResources = vi.fn()
     const uploads = useMiniWorkstationUploads({
@@ -108,12 +108,12 @@ describe('workspace node drop', () => {
     await uploads.onDrop({
       dataTransfer: {
         types: ['application/x-workspace-node'],
-        getData: () => JSON.stringify({ full_code_path: '/system/sales/customers.table' }),
+        getData: () => JSON.stringify({ full_code_path: '/system/sales/customers.table', name: '客户资料' }),
         files: [],
       },
     } as unknown as DragEvent)
 
     expect(inputText.value).toBe('分析 ')
-    expect(insertWorkspaceResources).toHaveBeenCalledWith(['/system/sales/customers.table'])
+    expect(insertWorkspaceResources).toHaveBeenCalledWith(['/system/sales/customers.table'], [{ full_code_path: '/system/sales/customers.table', name: '客户资料' }])
   })
 })

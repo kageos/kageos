@@ -158,6 +158,7 @@
     >
       <div
         class="spc-mention-panel"
+        :style="{ maxHeight: `${mentionPanelMaxHeight}px` }"
         data-testid="structured-prompt-mention-panel"
         @mousedown.prevent="cancelMentionClose"
       >
@@ -166,27 +167,27 @@
           <span>{{ mentionModeLabel }}</span>
         </div>
         <template v-if="mentionQuery?.kind === 'resource'">
-          <div class="spc-resource-scopes" aria-label="资源范围">
-            <button type="button" :disabled="!currentDirectory" :aria-pressed="resourceScope === 'current' && !!currentDirectory" @click="changeResourceFilter('current', resourceType)">当前目录</button>
-            <button type="button" :aria-pressed="resourceScope === 'other' || !currentDirectory" @click="changeResourceFilter('other', resourceType)">{{ currentDirectory ? '其他目录' : '全部目录' }}</button>
-          </div>
-          <div class="spc-resource-location" :title="currentDirectory">{{ resourceScope === 'current' && currentDirectory ? `${currentDirectory} · 含子目录` : currentDirectory ? '搜索有权访问的其他目录资源' : '搜索所有有权访问的目录资源' }}</div>
+          <div class="spc-resource-location">同时搜索所有可访问资源 · 当前目录优先</div>
           <div class="spc-resource-tabs" role="tablist" aria-label="资源类型">
-            <button v-for="item in resourceTypes" :key="item.value" type="button" role="tab" :aria-selected="resourceType === item.value" @click="changeResourceFilter(resourceScope, item.value)">{{ item.label }}</button>
+            <button v-for="item in resourceTypes" :key="item.value" type="button" role="tab" :aria-selected="resourceType === item.value" @click="changeResourceFilter(item.value)">{{ item.label }}</button>
           </div>
         </template>
         <div v-if="mentionLoading" class="spc-mention-state">搜索中...</div>
         <div v-else-if="mentionOptions.length === 0" class="spc-mention-state">
           {{ mentionEmptyText }}
         </div>
-        <div v-else class="spc-mention-list">
+        <div v-else class="spc-mention-list" :class="{ 'is-resource-list': mentionQuery?.kind === 'resource' }">
+          <section v-for="group in mentionGroups" :key="group.label" class="spc-mention-group">
+          <div v-if="group.label" class="spc-mention-group-heading">{{ group.label }} <span>{{ group.options.length }}</span></div>
+          <div v-if="!group.options.length" class="spc-mention-group-empty">暂无匹配资源</div>
+          <div v-else class="spc-mention-group-list">
           <button
-            v-for="(option, index) in mentionOptions"
+            v-for="option in group.options"
             :key="option.key"
             type="button"
-            :class="['spc-mention-option', { 'is-active': index === highlightedMentionIndex }]"
-            :data-testid="`structured-prompt-mention-option-${index}`"
-            @mouseenter="highlightedMentionIndex = index"
+            :class="['spc-mention-option', { 'is-active': mentionOptions.indexOf(option) === highlightedMentionIndex }]"
+            :data-testid="`structured-prompt-mention-option-${mentionOptions.indexOf(option)}`"
+            @mouseenter="highlightedMentionIndex = mentionOptions.indexOf(option)"
             @mousedown.prevent="applyMentionOption(option)"
           >
             <span :class="['spc-mention-icon', `is-${option.kind}`, option.iconClass]">
@@ -223,6 +224,8 @@
             </span>
             <span class="spc-mention-type">{{ option.typeLabel }}</span>
           </button>
+          </div>
+          </section>
         </div>
         <div class="spc-mention-footer">
           <span>↑ ↓ 选择 · Enter 插入 · Esc 关闭</span>
@@ -489,7 +492,6 @@ const focused = ref(false)
 const currentText = ref(props.modelValue)
 const mentionQuery = ref<MiniComposerMentionQuery | null>(null)
 const rawMentionOptions = ref<StructuredMentionOption[]>([])
-const resourceScope = ref<'current' | 'other'>('current')
 const resourceType = ref('all')
 const resourceTypes = [
   { value: 'all', label: '全部' }, { value: 'docs', label: '文档' },
@@ -507,15 +509,22 @@ let mentionPage = 1
 let mentionRetryPage = 1
 const mentionOptions = computed(() => rawMentionOptions.value.filter(option => {
   if (option.kind === 'user') return true
-  const local = !!currentDirectory.value && (option.value === currentDirectory.value || option.value.startsWith(`${currentDirectory.value}/`))
-  if (currentDirectory.value && (resourceScope.value === 'current' ? !local : local)) return false
   const kind = option.resourceType === 'function'
     ? (option.resourceMeta?.templateType || option.value.split('.').pop() || '')
     : option.resourceType
   return resourceType.value === 'all' || (resourceType.value === 'other'
     ? !['docs', 'package', 'table', 'form', 'chart'].includes(kind || '')
     : kind === resourceType.value)
-}))
+}).sort((a, b) => Number(isCurrentDirectoryResource(b)) - Number(isCurrentDirectoryResource(a))))
+const mentionGroups = computed(() => mentionQuery.value?.kind === 'user'
+  ? [{ label: '', options: mentionOptions.value }]
+  : [
+    ...(currentDirectory.value ? [{ label: '当前目录（含子目录）', options: mentionOptions.value.filter(isCurrentDirectoryResource) }] : []),
+    { label: currentDirectory.value ? '其他目录' : '全部目录', options: mentionOptions.value.filter(option => !isCurrentDirectoryResource(option)) },
+  ])
+function isCurrentDirectoryResource(option: StructuredMentionOption) {
+  return option.kind === 'resource' && !!currentDirectory.value && (option.value === currentDirectory.value || option.value.startsWith(`${currentDirectory.value}/`))
+}
 const mentionLoading = ref(false)
 const highlightedMentionIndex = ref(0)
 const mentionAnchorRect = ref<DOMRect>(createVirtualRect())
@@ -545,6 +554,11 @@ const mentionPopoverPlacement = computed(() => props.mentionPanelPlacement === '
 const mentionPopoverWidth = computed(() => {
   const rootWidth = rootRef.value?.getBoundingClientRect().width || 360
   return mentionQuery.value?.kind === 'resource' ? Math.min(720, window.innerWidth - 24) : Math.max(300, Math.min(rootWidth, 520))
+})
+const mentionPanelMaxHeight = computed(() => {
+  const anchor = mentionAnchorRect.value
+  const available = Math.max(anchor.top - 16, window.innerHeight - anchor.bottom - 16)
+  return Math.min(720, Math.max(200, available), window.innerHeight - 24)
 })
 const mentionVirtualRef = {
   getBoundingClientRect: () => mentionAnchorRect.value,
@@ -1028,14 +1042,30 @@ function insertTextAtCaret(text: string, preferredOffset?: number) {
   handleEditorInput()
 }
 
-function insertWorkspaceResources(paths: string[]) {
+function insertWorkspaceResources(paths: string[], resources: Array<{ full_code_path?: string; name?: string }> = []) {
   if (props.disabled || paths.length === 0) return
+  resources.forEach(resource => {
+    const path = normalizeResourcePathForMeta(resource.full_code_path || '')
+    if (path && resource.name) {
+      resourceMetaByPath.value[path] = { ...createFallbackResourceMeta(path), label: resource.name }
+    }
+  })
   const editor = editorRef.value
   const source = editor ? serializeEditorContent(editor) : currentText.value
-  const offset = editor ? getActiveOrRememberedCaretOffset(editor, source.length) : source.length
-  const result = insertWorkspaceResourceTokensAtOffset(source, paths, offset, props.fullCodePath)
+  const result = insertWorkspaceResourceTokensAtOffset(source, paths, source.length, props.fullCodePath)
   if (!result.insertedText) return
-  insertTextAtCaret(result.insertedText, offset)
+  mode.value = 'edit'
+  commitText(result.value)
+  renderEditorContent(result.value)
+  lastCaretOffset = result.cursor
+  closeMentionPanel()
+  void nextTick(() => {
+    if (!editor) return
+    editor.focus()
+    restoreCaretTextOffset(editor, result.cursor)
+    keepCaretVisible(editor)
+  })
+  scheduleMetadataHydration()
 }
 
 function isRangeInside(root: HTMLElement, range: Range) {
@@ -1189,7 +1219,6 @@ function updateMentionFromEditor() {
   const previousSearchKey = mentionQuery.value ? getMentionSearchKey(mentionQuery.value) : ''
   const nextSearchKey = query ? getMentionSearchKey(query) : ''
   if (query?.kind === 'resource' && mentionQuery.value?.kind !== 'resource') {
-    resourceScope.value = 'current'
     resourceType.value = 'all'
   }
   if (query) {
@@ -1224,7 +1253,7 @@ function resetMentionSearch() {
 }
 
 function getMentionSearchKey(query: MiniComposerMentionQuery) {
-  return `${query.kind}:${query.query.trim()}:${query.kind === 'resource' ? `${currentDirectory.value}:${resourceScope.value}:${resourceType.value}` : ''}`
+  return `${query.kind}:${query.query.trim()}:${query.kind === 'resource' ? `${currentDirectory.value}:${resourceType.value}` : ''}`
 }
 
 function scheduleMentionSearch(query: MiniComposerMentionQuery) {
@@ -1262,9 +1291,9 @@ async function runMentionSearch(query: MiniComposerMentionQuery, searchKey: stri
         ...(!keyword ? { typeLabel: '我自己' } : {}),
       }))
     } else {
-      const scopePath = resourceScope.value === 'current' ? currentDirectory.value : ''
+      const searchScope = async (scopePath: string) => {
       const functionType = ['table', 'form', 'chart'].includes(resourceType.value)
-      const response = functionType
+      return functionType
         ? await searchFunctions({ user: '', app: '', keyword: query.query.trim(), full_code_path: scopePath,
           template_type: resourceType.value, page, page_size: 100 }).then(result => ({
           items: (result.functions || []).map(item => ({ ...item, type: 'function' as const })),
@@ -1275,11 +1304,16 @@ async function runMentionSearch(query: MiniComposerMentionQuery, searchKey: stri
           resource_type: resourceType.value === 'docs' || resourceType.value === 'package' ? resourceType.value : resourceType.value === 'all' ? 'all' : 'function',
           page, page_size: 100,
         })
+      }
+      const responses = await Promise.all([
+        ...(currentDirectory.value ? [searchScope(currentDirectory.value)] : []),
+        searchScope(''),
+      ])
       if (currentSeq !== mentionSearchSeq || activeMentionSearchKey !== searchKey) return
-      const options = (response.items || []).map(mapResourceMentionOption)
-      rawMentionOptions.value = page === 1 ? options : Array.from(new Map([...rawMentionOptions.value, ...options].map(option => [option.key, option])).values())
+      const options = responses.flatMap(response => response.items || []).map(mapResourceMentionOption)
+      rawMentionOptions.value = Array.from(new Map([...(page === 1 ? [] : rawMentionOptions.value), ...options].map(option => [option.key, option])).values())
       mentionPage = page
-      mentionHasMore.value = (response.items || []).length === 100
+      mentionHasMore.value = responses.some(response => (response.items || []).length === 100)
     }
   } catch {
     if (currentSeq === mentionSearchSeq && activeMentionSearchKey === searchKey) {
@@ -1295,8 +1329,7 @@ async function runMentionSearch(query: MiniComposerMentionQuery, searchKey: stri
   }
 }
 
-function changeResourceFilter(scope: 'current' | 'other', type: string) {
-  resourceScope.value = scope
+function changeResourceFilter(type: string) {
   resourceType.value = type
   highlightedMentionIndex.value = 0
   if (mentionQuery.value) scheduleMentionSearch(mentionQuery.value)
@@ -1308,7 +1341,7 @@ function loadMoreMentions() {
 }
 
 watch(currentDirectory, () => {
-  if (mentionQuery.value?.kind === 'resource') changeResourceFilter('current', 'all')
+  if (mentionQuery.value?.kind === 'resource') changeResourceFilter('all')
 })
 
 function queueMentionCommit() {
@@ -1393,8 +1426,8 @@ function moveMentionHighlight(delta: number) {
 
 function scrollHighlightedMentionIntoView() {
   const panel = document.querySelector<HTMLElement>('[data-testid="structured-prompt-mention-panel"]')
-  const list = panel?.querySelector<HTMLElement>('.spc-mention-list')
   const option = panel?.querySelector<HTMLElement>('.spc-mention-option.is-active')
+  const list = option?.closest<HTMLElement>('.spc-mention-group-list')
   if (!list || !option) return
 
   const optionTop = option.offsetTop
@@ -1578,7 +1611,10 @@ async function hydrateResourceMetadata(paths: string[], seq: number) {
       next[meta.path] = meta
     })
     resourceMetaByPath.value = next
-    if (!focused.value) renderEditorContentPreservingCaret(currentText.value)
+    editorRef.value?.querySelectorAll<HTMLElement>('.spc-editor-token.is-resource').forEach(chip => {
+      const label = chip.querySelector('.spc-editor-token-label')
+      if (label) label.textContent = getResourceDisplayLabel(chip.dataset.path || '')
+    })
   } catch {
     // Metadata is display-only. Keep raw tokens if lookup fails.
   }
@@ -2403,7 +2439,7 @@ defineExpose({
 
 .spc-mention-panel {
   width: 100%;
-  max-height: min(520px, 65vh);
+  max-height: min(720px, 80vh);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2483,7 +2519,15 @@ defineExpose({
   font-size: 12px;
 }
 
+.spc-mention-group { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.spc-mention-list.is-resource-list { height: min(580px, calc(80vh - 150px)); }
+.is-resource-list .spc-mention-group { flex: 1 1 0; }
+.spc-mention-group-heading { padding: 8px; font-size: 12px; font-weight: 600; color: var(--el-text-color-secondary); flex-shrink: 0; }
+.spc-mention-group-empty { padding: 12px; color: var(--el-text-color-secondary); font-size: 12px; }
+.spc-mention-group-list { overflow-y: auto; min-height: 0; max-height: 270px; position: relative; }
 .spc-mention-list {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overscroll-behavior: contain;
   overflow-y: auto;

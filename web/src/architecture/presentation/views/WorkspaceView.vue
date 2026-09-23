@@ -40,8 +40,10 @@
         </el-button>
       </div>
 
+      <button v-if="isNarrowWorkspace && showLeftSidebar" class="sidebar-backdrop" :aria-label="t('workspace.hideDirectory')" @click="toggleLeftSidebar" />
+
       <!-- 左侧：服务目录树 -->
-      <div v-if="!workspaceAccessError" class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }">
+      <div v-if="!workspaceAccessError" class="left-sidebar" :class="{ 'sidebar-collapsed': !showLeftSidebar }" :inert="!showLeftSidebar">
         <div class="left-sidebar-tree" data-testid="workspace-service-tree">
           <ServiceTreePanel
             ref="serviceTreePanelRef"
@@ -368,6 +370,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, ArrowRight, Key, Lock, Refresh, Switch as SwitchIcon } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
@@ -693,7 +696,14 @@ const nodeInboxRef = ref<InstanceType<typeof WorkspaceInbox> | null>(null)
 const messageCountsByPath = ref<Record<string, MessageInboxSourceCount>>({})
 
 // 左侧服务目录树显示状态
-const showLeftSidebar = ref(true)
+const isNarrowWorkspace = useMediaQuery('(max-width: 760px)')
+const showLeftSidebar = ref(!isNarrowWorkspace.value)
+watch(isNarrowWorkspace, (narrow) => {
+  showLeftSidebar.value = !narrow && localStorage.getItem('workspace-left-sidebar') !== 'false'
+})
+watch(() => route.fullPath, () => {
+  if (isNarrowWorkspace.value) showLeftSidebar.value = false
+})
 
 const {
   functionActiveTab,
@@ -746,7 +756,7 @@ useWorkspaceViewLifecycle({
 const toggleLeftSidebar = () => {
   showLeftSidebar.value = !showLeftSidebar.value
   // 保存到 localStorage 持久化
-  localStorage.setItem('workspace-left-sidebar', String(showLeftSidebar.value))
+  if (!isNarrowWorkspace.value) localStorage.setItem('workspace-left-sidebar', String(showLeftSidebar.value))
 }
 
 /** 工作台上下文：点击什么节点就用什么节点的 full_code_path */
@@ -1128,6 +1138,7 @@ const handleDeleteApp = async (app: AppType): Promise<void> => {
 
 useWorkspaceUiEffects({
   showLeftSidebar,
+  isNarrowWorkspace,
   openDetailDrawer,
   setupUrlWatch,
   handleWorkspaceOpenWorkstation,
@@ -1425,6 +1436,7 @@ useWorkspaceUiEffects({
 }
 
 .function-renderer {
+  min-width: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1620,5 +1632,15 @@ useWorkspaceUiEffects({
 
 .function-renderer :deep(.package-detail-view .detail-tabs .el-tabs__item.is-active) {
   font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .workspace-view { gap: 0; }
+  .left-sidebar { position: absolute; inset: 0 auto 0 0; z-index: 2400; width: min(300px, calc(100vw - 64px)); min-width: 0; }
+  .left-sidebar.sidebar-collapsed { width: 0; margin: 0; pointer-events: none; }
+  .sidebar-backdrop { position: absolute; inset: 0; z-index: 2399; border: 0; background: rgba(0, 0, 0, .35); }
+  .sidebar-toggle-bottom-left { z-index: 2401; bottom: 18px; left: 8px; }
+  .mini-workstation-taskbar { left: 62px; right: 12px; max-width: none; transform: none; }
+  .function-renderer { width: 100%; }
 }
 </style>

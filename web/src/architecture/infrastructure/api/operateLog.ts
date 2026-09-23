@@ -34,6 +34,8 @@ export interface OperateLog {
 }
 
 export interface GetOperateLogsParams {
+  log_kind?: 'operate' | 'scheduled'
+  task_id?: number
   id?: number
   tenant_user?: string
   actor_user?: string

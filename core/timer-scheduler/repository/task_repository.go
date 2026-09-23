@@ -17,6 +17,7 @@ type TimerTaskRepository struct {
 }
 
 type ListTasksFilter struct {
+	ExcludeSystem     bool
 	ExecutorKey       string
 	Status            string
 	Category          string
@@ -95,6 +96,9 @@ func releasedIdempotencyKey(id int64, key string) string {
 
 func (r *TimerTaskRepository) List(req ListTasksFilter) ([]*model.TimerTask, int64, error) {
 	query := r.db.Model(&model.TimerTask{})
+	if req.ExcludeSystem {
+		query = query.Where("resource_scope <> ? AND executor_key NOT LIKE ?", "system", "platform.%")
+	}
 	if req.ExecutorKey != "" {
 		query = query.Where("executor_key = ?", req.ExecutorKey)
 	}

@@ -14,7 +14,7 @@
       >
         <template #extra>
           <el-button :icon="Refresh" @click="loadShare">{{ t('common.refresh') }}</el-button>
-          <el-button class="submission-entry-button" round plain :icon="Clock" @click="openSubmissionDrawer">
+          <el-button class="submission-entry-button" plain :icon="Clock" @click="openSubmissionDrawer">
             查看我的提交记录
           </el-button>
         </template>
@@ -31,7 +31,7 @@
             <div v-if="metaItems.length" class="public-share-meta">
               <span v-for="item in metaItems" :key="item">{{ item }}</span>
             </div>
-            <el-button class="submission-entry-button" round plain :icon="Clock" @click="openSubmissionDrawer">
+            <el-button class="submission-entry-button" plain :icon="Clock" @click="openSubmissionDrawer">
               提交记录<span v-if="submissionsTotal > 0">（{{ submissionsTotal }}）</span>
             </el-button>
           </div>
@@ -57,7 +57,7 @@
     <el-drawer
       v-model="submissionDrawerVisible"
       title="我的提交记录"
-      :size="isMobile ? '100%' : '560px'"
+      :size="isMobile ? '100%' : 'min(760px, 90vw)'"
       append-to-body
       class="public-submission-drawer"
     >
@@ -303,11 +303,11 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .public-share-page {
-  height: 100vh;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 16px 18px 18px;
+  padding: 32px 24px;
   overflow: hidden;
   background: var(--app-shell-bg, var(--el-bg-color-page));
   background-attachment: fixed;
@@ -317,12 +317,15 @@ onBeforeUnmount(() => {
 .public-share-shell {
   flex: 1;
   min-height: 0;
-  width: min(1180px, 100%);
+  width: min(960px, 100%);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
   overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 16px;
+  background: var(--el-bg-color);
 }
 
 .public-share-state,
@@ -336,10 +339,11 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 24px;
   padding: 28px 32px;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 24px;
+  border: 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-radius: 0;
   background: var(--app-shell-panel-bg, var(--el-bg-color));
-  box-shadow: var(--app-shell-panel-shadow-soft, var(--box-shadow-base));
+  box-shadow: none;
   position: relative;
   overflow: hidden;
 }
@@ -367,11 +371,13 @@ onBeforeUnmount(() => {
 
 .public-share-header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 26px;
   line-height: 1.25;
   letter-spacing: 0;
   color: var(--el-text-color-primary);
 }
+
+.public-share-header > div:first-child { min-width: 0; overflow-wrap: anywhere; }
 
 .public-share-description {
   margin: 10px 0 0;
@@ -417,10 +423,10 @@ onBeforeUnmount(() => {
 
 .public-share-function-panel {
   position: relative;
-  border: 1px solid var(--app-shell-panel-border, var(--el-border-color-lighter));
-  border-radius: 24px;
+  border: 0;
+  border-radius: 0;
   background: var(--app-shell-panel-bg, var(--el-bg-color));
-  box-shadow: var(--app-shell-panel-shadow, var(--box-shadow-base));
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -429,7 +435,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 28px;
+  padding: 28px 32px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -450,6 +456,14 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+.submission-list :deep(.el-collapse-item) {
+  margin-bottom: 12px;
+  padding: 0 18px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
 .submission-list {
   min-width: 0;
   border-top: none;
@@ -459,7 +473,7 @@ onBeforeUnmount(() => {
   height: auto;
   min-height: 64px;
   min-width: 0;
-  padding: 10px 0;
+  padding: 16px 0;
   line-height: 1.4;
 }
 
@@ -588,6 +602,9 @@ onBeforeUnmount(() => {
   }
 
   .public-share-shell {
+    border: 0;
+    background: transparent;
+    border-radius: 0;
     width: min(460px, 100%);
     flex: 0 0 auto;
     gap: 12px;
@@ -676,7 +693,7 @@ onBeforeUnmount(() => {
   .public-share-renderer :deep(.section-title) {
     margin-bottom: 18px;
     font-size: 18px;
-    text-align: center;
+    text-align: left;
   }
 
   .public-share-renderer :deep(.form-actions-row) {

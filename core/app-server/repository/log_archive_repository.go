@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,11 +13,14 @@ import (
 	"gorm.io/gorm"
 )
 
-type LogArchiveRepository struct{ db *gorm.DB }
+type LogArchiveRepository struct {
+	db      *gorm.DB
+	logType string
+}
 
 func NewLogArchiveRepository(db *gorm.DB) *LogArchiveRepository { return &LogArchiveRepository{db: db} }
 
-func (r *LogArchiveRepository) List(ctx context.Context, page, pageSize int) ([]*model.LogArchiveBatch, int64, error) {
+func (r *LogArchiveRepository) List(ctx context.Context, page, pageSize int, paths ...string) ([]*model.LogArchiveBatch, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -28,6 +32,17 @@ func (r *LogArchiveRepository) List(ctx context.Context, page, pageSize int) ([]
 	}
 	var total int64
 	q := r.db.WithContext(ctx).Model(&model.LogArchiveBatch{})
+	if len(paths) > 0 && paths[0] != "" {
+		path := paths[0]
+		escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(path)
+		parts := strings.Split(strings.Trim(path, "/"), "/")
+		if len(parts) == 2 {
+			q = q.Where("(resource_path = ? OR resource_path LIKE ? ESCAPE '!' OR (COALESCE(resource_path,'') = '' AND tenant_user = ? AND app = ?))", path, escaped+"/%", parts[0], parts[1])
+		} else {
+			q = q.Where("(resource_path = ? OR resource_path LIKE ? ESCAPE '!')", path, escaped+"/%")
+		}
+	}
+
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -55,68 +70,32 @@ func (r *LogArchiveRepository) Save(ctx context.Context, batch *model.LogArchive
 	return r.db.WithContext(ctx).Save(batch).Error
 }
 
-// NextScope returns the oldest workspace scope with logs older than cutoff.
-func (r *LogArchiveRepository) NextScope(ctx context.Context, cutoff time.Time) (string, string, error) {
-	var row struct{ TenantUser, App string }
-	err := r.db.WithContext(ctx).Model(&model.OperateLog{}).
-		Select("tenant_user, app").Where("created_at < ?", cutoff).
-		Where(unclaimedArchiveLogs).
-		Order("created_at ASC, id ASC").Limit(1).Scan(&row).Error
-	if err != nil {
-		return "", "", err
-	}
-	if row.TenantUser == "" && row.App == "" {
-		return "", "", gorm.ErrRecordNotFound
-	}
-	return row.TenantUser, row.App, nil
-}
-
-func (r *LogArchiveRepository) SelectIDs(ctx context.Context, tenantUser, app string, cutoff time.Time, limit int) ([]int64, error) {
-	var ids []int64
-	err := r.db.WithContext(ctx).Model(&model.OperateLog{}).Select("id").
-		Where("tenant_user = ? AND app = ? AND created_at < ?", tenantUser, app, cutoff).
-		Where(unclaimedArchiveLogs).
-		Order("id ASC").Limit(limit).Scan(&ids).Error
-	return ids, err
-}
-
 func (r *LogArchiveRepository) LoadIDs(ctx context.Context, ids []int64) ([]*model.OperateLog, error) {
 	var rows []*model.OperateLog
-	err := r.db.WithContext(ctx).Where("id IN ?", ids).Order("id ASC").Find(&rows).Error
+	err := r.db.WithContext(ctx).Table(r.sourceTable()).Where("id IN ?", ids).Order("id ASC").Find(&rows).Error
 	return rows, err
 }
 
 func (r *LogArchiveRepository) SelectedStats(ctx context.Context, ids []int64) (time.Time, time.Time, error) {
 	var start, end time.Time
-	var total int64
-	for offset := 0; offset < len(ids); offset += 1000 {
-		to := offset + 1000
-		if to > len(ids) {
-			to = len(ids)
+	for offset := 0; offset < len(ids); offset += 500 {
+		to := min(offset+500, len(ids))
+		var rows []model.OperateLog
+		if err := r.db.WithContext(ctx).Table(r.sourceTable()).Select("id, created_at").Where("id IN ?", ids[offset:to]).Find(&rows).Error; err != nil {
+			return start, end, err
 		}
-		var row struct {
-			Count                      int64
-			MinCreatedAt, MaxCreatedAt *time.Time
+		if len(rows) != to-offset {
+			return start, end, fmt.Errorf("selected archive logs changed")
 		}
-		err := r.db.WithContext(ctx).Model(&model.OperateLog{}).
-			Select("COUNT(*) AS count, MIN(created_at) AS min_created_at, MAX(created_at) AS max_created_at").
-			Where("id IN ?", ids[offset:to]).Scan(&row).Error
-		if err != nil {
-			return time.Time{}, time.Time{}, err
+		for _, row := range rows {
+			at := time.Time(row.CreatedAt)
+			if start.IsZero() || at.Before(start) {
+				start = at
+			}
+			if end.IsZero() || at.After(end) {
+				end = at
+			}
 		}
-		if row.Count != int64(to-offset) || row.MinCreatedAt == nil || row.MaxCreatedAt == nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("selected archive logs changed")
-		}
-		if start.IsZero() || row.MinCreatedAt.Before(start) {
-			start = *row.MinCreatedAt
-		}
-		if end.IsZero() || row.MaxCreatedAt.After(end) {
-			end = *row.MaxCreatedAt
-		}
-		total += row.Count
-	}
-	if total != int64(len(ids)) {
-		return time.Time{}, time.Time{}, fmt.Errorf("selected archive log count changed")
 	}
 	return start, end, nil
 }
@@ -135,7 +114,7 @@ func (r *LogArchiveRepository) DeleteRange(ctx context.Context, batch *model.Log
 		if to > len(selectedIDs) {
 			to = len(selectedIDs)
 		}
-		result := r.db.WithContext(ctx).Unscoped().Where("id IN ?", selectedIDs[offset:to]).Delete(&model.OperateLog{})
+		result := r.db.WithContext(ctx).Table(archiveSourceTable(batch.ArchiveType)).Unscoped().Where("id IN ?", selectedIDs[offset:to]).Delete(&model.OperateLog{})
 		if result.Error != nil {
 			return total, result.Error
 		}
@@ -180,6 +159,56 @@ func (r *LogArchiveRepository) Get(ctx context.Context, id int64) (*model.LogArc
 
 const unclaimedArchiveLogs = `NOT EXISTS (
  SELECT 1 FROM log_archive_batches b WHERE b.deleted_at IS NULL
- AND b.status <> 'completed' AND b.tenant_user = operate_logs.tenant_user
+ AND b.status <> 'completed' AND COALESCE(NULLIF(b.archive_type, ''), 'operate_log') = 'operate_log' AND b.tenant_user = operate_logs.tenant_user
  AND b.app = operate_logs.app AND operate_logs.id BETWEEN b.min_log_id AND b.max_log_id
 )`
+
+func (r *LogArchiveRepository) SaveProgress(ctx context.Context, progress *model.LogArchiveProgress) error {
+	return r.db.WithContext(ctx).Save(progress).Error
+}
+func (r *LogArchiveRepository) Progress(ctx context.Context, executionID int64) (*model.LogArchiveProgress, error) {
+	var row model.LogArchiveProgress
+	err := r.db.WithContext(ctx).First(&row, "execution_id = ?", executionID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &row, err
+}
+
+func (r *LogArchiveRepository) HasPending(ctx context.Context) (bool, error) {
+	var id int64
+	err := r.db.WithContext(ctx).Model(&model.LogArchiveBatch{}).Where("status <> ?", model.LogArchiveStatusCompleted).Select("id").Limit(1).Scan(&id).Error
+	return id > 0, err
+}
+
+func archiveSourceTable(kind string) string {
+	if kind == "scheduled_execution" {
+		return "scheduled_execution_logs"
+	}
+	return "operate_logs"
+}
+func (r *LogArchiveRepository) sourceTable() string { return archiveSourceTable(r.logType) }
+func (r *LogArchiveRepository) ForType(kind string) *LogArchiveRepository {
+	return &LogArchiveRepository{db: r.db, logType: kind}
+}
+
+// Select one exact resource path; parent directories never absorb low-volume children.
+func (r *LogArchiveRepository) SelectArchiveIDs(ctx context.Context, cutoff time.Time, threshold, limit int) (string, string, []int64, error) {
+	table := r.sourceTable()
+	claimed := strings.ReplaceAll(unclaimedArchiveLogs, "operate_logs.", table+".")
+	claimed = strings.Replace(claimed, "= 'operate_log'", "= '"+r.logType+"'", 1)
+	q := r.db.WithContext(ctx).Model(&model.OperateLog{}).Table(table).Where("created_at < ? AND COALESCE(status,'') <> 'pending' AND COALESCE(resource_type,'') <> 'log_archive'", cutoff).Where(claimed)
+	var scope struct {
+		TenantUser, App, ResourcePath string
+		Records                       int64
+	}
+	if err := q.Session(&gorm.Session{}).Select("tenant_user, app, resource_path, COUNT(*) AS records").Group("tenant_user, app, resource_path").Having("COUNT(*) >= ?", max(threshold, 1)).Order("MIN(created_at)").Limit(1).Scan(&scope).Error; err != nil {
+		return "", "", nil, err
+	}
+	if scope.Records == 0 {
+		return "", "", nil, gorm.ErrRecordNotFound
+	}
+	var ids []int64
+	err := q.Where("tenant_user = ? AND app = ? AND resource_path = ?", scope.TenantUser, scope.App, scope.ResourcePath).Order("id").Limit(limit).Pluck("id", &ids).Error
+	return scope.TenantUser, scope.App, ids, err
+}

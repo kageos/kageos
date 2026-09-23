@@ -27,7 +27,7 @@ func newAppServiceOperateLogTest(t *testing.T) (*AppService, *gorm.DB) {
 		t.Fatalf("get sql db: %v", err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.App{}, &model.OperateLog{}); err != nil {
+	if err := db.AutoMigrate(&model.App{}, &model.OperateLog{}, &model.ScheduledExecutionLog{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	appRepo := repository.NewAppRepository(db)
@@ -261,7 +261,7 @@ func TestRecordTableActionLogUsesScheduledTaskAuditSource(t *testing.T) {
 	var log model.OperateLog
 	deadline := time.Now().Add(time.Second)
 	for {
-		queryErr := db.Where("trace_id = ?", "trace-scheduled-table").First(&log).Error
+		queryErr := db.Table("scheduled_execution_logs").Where("trace_id = ?", "trace-scheduled-table").First(&log).Error
 		if queryErr == nil {
 			break
 		}
@@ -312,7 +312,7 @@ func TestRecordTableActionLogMarksScheduledAgentAsAgentExecutor(t *testing.T) {
 	var log model.OperateLog
 	deadline := time.Now().Add(time.Second)
 	for {
-		queryErr := db.Where("trace_id = ?", "trace-scheduled-agent-table").First(&log).Error
+		queryErr := db.Table("scheduled_execution_logs").Where("trace_id = ?", "trace-scheduled-agent-table").First(&log).Error
 		if queryErr == nil {
 			break
 		}
@@ -412,7 +412,7 @@ func TestRecordFormOperateLogUsesScheduledTaskAuditSource(t *testing.T) {
 	var log model.OperateLog
 	deadline := time.Now().Add(time.Second)
 	for {
-		queryErr := db.Where("trace_id = ?", "trace-scheduled-form").First(&log).Error
+		queryErr := db.Table("scheduled_execution_logs").Where("trace_id = ?", "trace-scheduled-form").First(&log).Error
 		if queryErr == nil {
 			break
 		}
@@ -462,7 +462,7 @@ func TestRecordScheduledFunctionOperateLogPersistsGenericEntry(t *testing.T) {
 	}
 
 	var log model.OperateLog
-	if err := db.Where("trace_id = ?", "trace-scheduled-function").First(&log).Error; err != nil {
+	if err := db.Table("scheduled_execution_logs").Where("trace_id = ?", "trace-scheduled-function").First(&log).Error; err != nil {
 		t.Fatalf("log was not persisted: %v", err)
 	}
 	if log.Action != "scheduled_function_execute" || log.ResourceType != "function" {

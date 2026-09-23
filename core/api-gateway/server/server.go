@@ -195,7 +195,7 @@ func (s *Server) initNATS(ctx context.Context) error {
 	}
 
 	s.natsConn = conn
-	logger.Infof(ctx, "[Server] NATS connected: %s", conn.ConnectedUrl())
+	logger.Infof(ctx, "[Server] NATS connected: %s", conn.ConnectedAddr())
 	return nil
 }
 

@@ -12,7 +12,7 @@ import {
   readStringQuery,
 } from '@/architecture/shared/routing/platformRouteParams'
 
-export type PackageTabName = 'detail' | 'permission' | 'notification' | 'operateLog' | 'scheduledAgentTask'
+export type PackageTabName = 'detail' | 'permission' | 'notification' | 'operateLog' | 'logArchives' | 'scheduledAgentTask'
 
 export interface UsePackageDetailTabsOptions {
   route: RouteLocationNormalizedLoaded
@@ -33,6 +33,7 @@ function getDefaultPackageTab(): PackageTabName {
 }
 
 function normalizePackageTab(tabName: string | number): PackageTabName {
+  if (tabName === 'logArchives' && featureFlags.operateLogs) return 'logArchives'
   if (tabName === 'permission') return 'permission'
   if (tabName === 'notification') return 'notification'
   if (tabName === 'detail') return 'detail'
@@ -64,6 +65,7 @@ export function usePackageDetailTabs(options: UsePackageDetailTabsOptions) {
   const resolveTabFromRoute = (): PackageTabName => {
     const panel = normalizePanelQuery(route.query[PLATFORM_PANEL_QUERY_KEY])
 
+    if (panel === 'logArchives' && featureFlags.operateLogs) return 'logArchives'
     if (panel === 'permission') return 'permission'
     if (panel === 'notification') return 'notification'
     if (panel === 'detail') return 'detail'

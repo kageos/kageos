@@ -155,8 +155,17 @@ func (s *Server) setupRoutes() {
 
 	logArchive := apiV1.Group("/system/log_archives")
 	logArchive.Use(jwtAuth)
+	logArchive.GET("/progress", v1.NewLogArchive(s.logArchiveService).Progress)
 	logArchive.GET("", v1.NewLogArchive(s.logArchiveService).List)
+	logArchive.GET("/:id/download", v1.NewLogArchive(s.logArchiveService).Download)
 	logArchive.POST("/:id/retry", v1.NewLogArchive(s.logArchiveService).Retry)
+
+	resourceArchives := apiV1.Group("/log_archives")
+	resourceArchives.Use(jwtAuth)
+	resourceArchiveHandler := v1.NewLogArchive(s.logArchiveService, s.permissionService)
+	resourceArchives.GET("", resourceArchiveHandler.List)
+	resourceArchives.GET("/:id/download", resourceArchiveHandler.Download)
+	resourceArchives.POST("/:id/retry", resourceArchiveHandler.Retry)
 
 	// 目录更新历史路由（需要JWT验证）
 	directoryUpdateHistory := apiV1.Group("/directory_update_history")

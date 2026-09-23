@@ -2,9 +2,10 @@
   <el-dialog
     :model-value="modelValue"
     :title="createdShare ? t('publicSharePanel.createdDialogTitle') : t('publicSharePanel.createDialogTitle')"
-    width="min(560px, calc(100vw - 24px))"
+    width="min(720px, calc(100vw - 24px))"
     :close-on-click-modal="false"
     class="public-share-dialog"
+    top="8vh"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div v-if="createdShare" class="share-created-result">
@@ -42,7 +43,8 @@
       </div>
     </div>
 
-    <el-form v-else label-position="top">
+    <el-form v-else label-position="top" class="share-create-form">
+      <h3 class="form-section-title">{{ t('publicSharePanel.basicInfo') }}</h3>
       <el-form-item :label="t('publicSharePanel.shareTitle')" required>
         <el-input
           v-model="form.title"
@@ -63,6 +65,7 @@
         />
       </el-form-item>
 
+      <h3 class="form-section-title availability-title">{{ t('publicSharePanel.availability') }}</h3>
       <el-form-item :label="t('publicSharePanel.expirationTime')" required>
         <el-radio-group v-model="expireMode" class="expire-mode-group">
           <el-radio-button label="7d">{{ t('publicSharePanel.sevenDays') }}</el-radio-button>
@@ -107,10 +110,10 @@
 
     <template #footer>
       <div v-if="createdShare" class="created-footer">
-        <el-button @click="openLink">{{ t('publicSharePanel.openLink') }}</el-button>
+        <el-button text @click="openLink">{{ t('publicSharePanel.openLink') }}</el-button>
         <el-button :disabled="!qrDataUrl" @click="downloadQrCode">{{ t('publicSharePanel.downloadQr') }}</el-button>
         <el-button type="primary" @click="copyLink">{{ t('publicSharePanel.copyLink') }}</el-button>
-        <el-button @click="emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
+
       </div>
       <template v-else>
         <el-button @click="emit('update:modelValue', false)">{{ t('common.cancel') }}</el-button>
@@ -260,8 +263,12 @@ async function generateQrCode(): Promise<void> {
 
 async function copyLink(): Promise<void> {
   if (!publicLink.value) return
-  await navigator.clipboard.writeText(publicLink.value)
-  ElMessage.success(t('publicSharePanel.linkCopied'))
+  try {
+    await navigator.clipboard.writeText(publicLink.value)
+    ElMessage.success(t('publicSharePanel.linkCopied'))
+  } catch {
+    ElMessage.error(t('publicSharePanel.copyFailed'))
+  }
 }
 
 function openLink(): void {
@@ -479,5 +486,23 @@ function formatDate(value: string): string {
     width: 100%;
     margin-left: 0;
   }
+}
+@media (max-width: 640px) {
+  .created-content { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .qr-box { justify-self: center; width: 220px; box-sizing: border-box; }
+}
+
+.share-create-form { padding: 4px 8px; }
+.form-section-title { margin: 0 0 16px; font-size: 13px; font-weight: 600; color: var(--el-text-color-secondary); }
+.availability-title { padding-top: 22px; margin-top: 8px; border-top: 1px solid var(--el-border-color-lighter); }
+.share-create-form :deep(.el-form-item__content) { flex-direction: column; align-items: stretch; gap: 8px; }
+.share-create-form :deep(.el-radio-group) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.share-create-form :deep(.expire-mode-group) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.share-create-form :deep(.el-radio-button__inner) { width: 100%; border: 1px solid var(--el-border-color); border-radius: 8px; box-shadow: none; padding: 10px 8px; }
+.share-create-form :deep(.el-radio-button.is-active .el-radio-button__inner) { border-color: var(--el-color-primary); background: rgba(var(--el-color-primary-rgb), .14); color: var(--el-color-primary); box-shadow: none; }
+.share-create-form .form-tip { margin: 0; }
+:global(.public-share-dialog .el-button) { box-shadow: none !important; }
+@media (max-width: 520px) {
+  .share-create-form :deep(.expire-mode-group) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

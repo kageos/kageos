@@ -130,6 +130,7 @@ export interface ListTimerTasksParams {
 }
 
 export interface ListTimerTasksResponse {
+ last_executions?: Record<string, Pick<TimerExecution, 'id' | 'task_id' | 'status' | 'scheduled_at' | 'started_at' | 'finished_at' | 'heartbeat_at' | 'lease_until' | 'duration_millis'>>
   list: TimerTask[]
   total: number
 }

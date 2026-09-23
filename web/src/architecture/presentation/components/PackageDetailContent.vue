@@ -2,7 +2,7 @@
   <div class="detail-content">
     <div v-if="packageNode">
       <el-tabs
-        :model-value="activeTab"
+        :model-value="activeTab === 'logArchives' ? 'operateLog' : activeTab"
         class="detail-tabs"
         @tab-change="handlePackageTabChange"
       >
@@ -54,6 +54,13 @@
           name="operateLog"
         >
           <div class="tab-content operate-log-tab-content">
+            <ResourceLogsPanel
+              v-if="activeTab === 'operateLog' || activeTab === 'logArchives'"
+              :resource-path="packageNode.full_code_path || ''"
+              :can-manage-archives="canConfigurePackage"
+              :active-view="activeTab === 'logArchives' ? 'logArchives' : 'operateLog'"
+              @change="handlePackageTabChange"
+            >
             <OperateLogSection
               ref="operateLogSectionRef"
               :full-code-path="packageNode.full_code_path || ''"
@@ -65,6 +72,7 @@
               :title="t('packageDetail.directoryOperateLog')"
               :auto-load="activeTab === 'operateLog'"
             />
+            </ResourceLogsPanel>
           </div>
         </el-tab-pane>
 
@@ -101,6 +109,8 @@
 </template>
 
 <script setup lang="ts">
+import ResourceLogsPanel from './ResourceLogsPanel.vue'
+
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -196,7 +206,7 @@ watch(
 )
 
 watch([activeTab, canConfigurePackage, canWritePackage], ([tabName, canConfigure, canWriteAccess]) => {
-  if ((tabName === 'notification' && !canConfigure)
+  if (((tabName === 'notification' || tabName === 'logArchives') && !canConfigure)
     || (tabName === 'scheduledAgentTask' && !canWriteAccess)) {
     handlePackageTabChange('detail')
   }
