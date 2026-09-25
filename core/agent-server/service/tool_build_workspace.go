@@ -8,7 +8,6 @@ import (
 
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/apicall"
-	"github.com/kageos/kageos/pkg/buildtrace"
 	"github.com/kageos/kageos/pkg/logger"
 )
 
@@ -27,12 +26,11 @@ type buildWorkspaceResultData struct {
 	App              string                     `json:"app" schema_desc:"应用 code" schema_required:"true"`
 	OldVersion       string                     `json:"old_version,omitempty" schema_desc:"编译前版本"`
 	NewVersion       string                     `json:"new_version,omitempty" schema_desc:"编译后版本"`
-	GitCommitHash    string                     `json:"git_commit_hash,omitempty" schema_desc:"构建对应的 Git commit hash"`
 	Warnings         []string                   `json:"warnings,omitempty" schema_desc:"非阻断构建告警"`
-	BuildTrace       *dto.BuildTrace            `json:"build_trace,omitempty" schema_desc:"构建/更新阶段耗时追踪"`
+	ErrorCode        string                     `json:"error_code,omitempty" schema_desc:"错误类型"`
 	Error            string                     `json:"error,omitempty" schema_desc:"构建失败摘要"`
 	BuildDiagnostics *workspaceBuildDiagnostics `json:"build_diagnostics,omitempty" schema_desc:"构建失败诊断和修复策略"`
-	NextRole         string                     `json:"next_role" schema_desc:"构建结果要求立即进入的下一角色：成功为 qa_engineer，失败为 build_engineer" schema_required:"true"`
+	NextRole         string                     `json:"next_role,omitempty" schema_desc:"有后续阶段时返回：成功为 qa_engineer，业务代码错误为 build_engineer"`
 	AutoContinue     bool                       `json:"auto_continue" schema_desc:"是否无需用户确认、应在当前会话自动继续下一阶段" schema_required:"true"`
 }
 
@@ -66,7 +64,7 @@ var workspaceBuildFieldIssueRe = regexp.MustCompile(`field\s+([A-Za-z0-9_]+)\s+\
 
 var buildWorkspaceToolDef = toolDefinitionWithOutput[buildWorkspaceArgs, structuredToolResultSchema[buildWorkspaceResultData]](
 	"build_workspace",
-	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。调用前必须先由当前模型完成 build 前代码审查，并在参数中提交 pre_build_review 和 review_passed=true；审查重点包括 PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回、PRD 外擅自新增功能、数据库 SQL 参数化和写入/删除影响面。审查未通过、未审或发现问题时先修复，不得调用 build_workspace。构建成功后返回 agent_app_build 阶段产物，不等待用户确认，必须立即 change_role 到 qa_engineer 测试工程师并按目标目录函数 schema 自动测试；构建失败后返回 agent_app_build_failure 和 build_diagnostics，必须直接 change_role 到 build_engineer 继续修复，不等待用户确认，也不生成暂停交互。构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
+	"编译当前工作空间（Go 应用）。不写文件，仅基于当前已落盘的代码触发一次编译并部署。调用前必须先由当前模型完成 build 前代码审查，并在参数中提交 pre_build_review 和 review_passed=true；审查重点包括 PRD/用户需求对照、可见入口到后端逻辑闭环、伪代码/占位/开发中返回、PRD 外擅自新增功能、数据库 SQL 参数化和写入/删除影响面。审查未通过、未审或发现问题时先修复，不得调用 build_workspace。构建成功后返回 agent_app_build 阶段产物，不等待用户确认，必须立即 change_role 到 qa_engineer 测试工程师并按目标目录函数 schema 自动测试；业务源码构建失败时按 build_diagnostics 修复；平台构建服务失败时返回 platform_build_failed，不修改业务代码。构建失败时不要交接测试，也不要凭直觉反复重写。先完整阅读错误，按 router/字段/文件定位同类问题；不清楚 SDK schema、widget、callback、审计字段或 API 写法时，先 read_doc /system/prompt/sdk/reference/build-validation、SDK 主文档或匹配案例，再批量修复后重新 build。",
 )
 
 func (t *BuildWorkspaceTool) Definition() dto.ToolDef {
@@ -119,13 +117,18 @@ func runBuildWorkspaceTool(ctx context.Context, currentFullCodePath string) (bui
 	resp, err := apicall.UpdateAppBuild(ctx, user, app)
 	if err != nil {
 		logger.Errorf(ctx, "[WorkspaceBuild] UpdateAppBuild 失败: %v", err)
-		return buildWorkspaceFailureResult(workspacePath, err.Error()), "build_workspace 调用失败: " + enrichWorkspaceBuildError(err.Error(), workspacePath), true
+		result, content := workspaceBuildPublicFailure(workspacePath, err.Error())
+		return result, content, true
+	}
+	if resp == nil {
+		result, content := workspaceBuildPublicFailure(workspacePath, "empty build response")
+		return result, content, true
+	}
+	for _, warning := range resp.Warnings {
+		logger.Warnf(ctx, "[WorkspaceBuild] workspace=%s warning=%s", workspacePath, warning)
 	}
 	result := buildWorkspaceSuccessResult(workspacePath, resp)
 	content := fmt.Sprintf("工作空间已编译并部署: workspace=%s, app=%s, 旧版本=%s, 新版本=%s。下一步必须立即进入 qa_engineer 自动测试，不要等待用户确认。", workspacePath, resp.App, resp.OldVersion, resp.NewVersion)
-	if summary := buildtrace.Summary(resp.BuildTrace, 5); summary != "" {
-		content += " 构建耗时: " + summary + "。"
-	}
 	return result, content, false
 }
 
@@ -151,9 +154,9 @@ func buildWorkspaceSuccessResult(workspacePath string, resp *dto.UpdateAppResp) 
 	}
 	result.OldVersion = resp.OldVersion
 	result.NewVersion = resp.NewVersion
-	result.GitCommitHash = resp.GitCommitHash
-	result.Warnings = append([]string(nil), resp.Warnings...)
-	result.BuildTrace = resp.BuildTrace
+	if len(resp.Warnings) > 0 {
+		result.Warnings = []string{"构建已完成，存在平台告警，详情已保留在诊断记录中。"}
+	}
 	return result
 }
 

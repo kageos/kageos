@@ -6,9 +6,10 @@
     top="4vh"
     class="table-spreadsheet-import-dialog"
     destroy-on-close
+    :show-close="!importing"
     :close-on-click-modal="!importing"
     :close-on-press-escape="!importing"
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="updateVisibility"
     @closed="reset"
   >
     <div class="import-dialog-body">
@@ -22,7 +23,7 @@
 
       <div v-if="!preview" class="upload-placeholder" @click="selectFile">
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
-        <strong>选择 Excel 或 CSV 文件</strong>
+        <strong role="status">{{ parsing ? '正在解析文件…' : '选择 Excel 或 CSV 文件' }}</strong>
         <span>先解析并预览，确认后才会写入；单次最多 500 行、文件不超过 8 MB。</span>
         <el-button type="primary" plain>选择文件</el-button>
       </div>
@@ -33,7 +34,7 @@
             <el-icon class="file-icon"><Document /></el-icon>
             <div>
               <strong>{{ fileName }}</strong>
-              <span>已完成解析，请确认检查结果</span>
+              <span>{{ importResult ? '写入已完成，请查看导入结果' : '已完成解析，请确认检查结果' }}</span>
             </div>
           </div>
           <div class="preview-actions">
@@ -43,6 +44,7 @@
               label="只看错误行"
               :disabled="importing"
             />
+            <el-button v-if="invalidRows.length" :loading="downloadingErrors" :disabled="importing" @click="downloadErrors">下载错误明细</el-button>
             <el-button :disabled="importing" @click="selectFile">重新选择文件</el-button>
           </div>
         </div>
@@ -53,12 +55,12 @@
             <strong>{{ preview.rows.length }}</strong>
           </div>
           <div class="summary-card is-success">
-            <span>校验通过</span>
-            <strong>{{ validRows.length }}</strong>
+            <span>{{ importResult ? '导入成功' : '校验通过' }}</span>
+            <strong>{{ importResult ? importResult.createdCount : validRows.length }}</strong>
           </div>
           <div class="summary-card" :class="invalidRows.length ? 'is-danger' : 'is-muted'">
-            <span>需要修正</span>
-            <strong>{{ invalidRows.length }}</strong>
+            <span>{{ importResult ? '导入失败' : '需要修正' }}</span>
+            <strong>{{ importResult ? importResult.failedCount : invalidRows.length }}</strong>
           </div>
           <div class="summary-card" :class="validationIssueCount ? 'is-danger' : 'is-muted'">
             <span>问题数量</span>
@@ -74,7 +76,7 @@
           :title="preview.fatalErrors.join('；')"
         />
         <el-alert
-          v-else-if="invalidRows.length"
+          v-else-if="!importResult && invalidRows.length"
           type="error"
           :closable="false"
           show-icon
@@ -94,7 +96,10 @@
           :closable="false"
           show-icon
           :title="`导入完成：成功 ${importResult.createdCount} 行，失败 ${importResult.failedCount} 行`"
+          :description="importResult.failedCount ? '请下载错误明细，只修正并重新导入失败行，避免重复导入已成功的数据。' : undefined"
         />
+
+        <el-alert v-if="importResult?.refreshWarning" type="warning" :closable="false" show-icon :title="importResult.refreshWarning" />
 
         <el-table
           :data="displayRows"
@@ -129,12 +134,13 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <div v-if="preview && !importResult" class="footer-validation" :class="canImport ? 'is-success' : 'is-danger'">
+        <div v-if="importing" role="status" class="footer-validation">正在导入，请勿关闭页面…</div>
+        <div v-else-if="preview && !importResult" class="footer-validation" :class="canImport ? 'is-success' : 'is-danger'">
           <el-icon><CircleCheckFilled v-if="canImport" /><WarningFilled v-else /></el-icon>
           <span>{{ importStatusText }}</span>
         </div>
         <div class="footer-actions">
-          <el-button :disabled="importing" @click="emit('update:modelValue', false)">关闭</el-button>
+          <el-button :disabled="importing" @click="updateVisibility(false)">关闭</el-button>
           <el-button
             v-if="preview && !importResult"
             type="primary"
@@ -142,7 +148,7 @@
             :disabled="!canImport"
             @click="confirmImport"
           >
-            {{ canImport ? `确认导入 ${preview.rows.length} 行` : '校验通过后才能导入' }}
+            {{ importing ? '正在导入…' : canImport ? `确认导入 ${preview.rows.length} 行` : '校验通过后才能导入' }}
           </el-button>
         </div>
       </div>
@@ -151,11 +157,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { CircleCheckFilled, Document, UploadFilled, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { FieldConfig } from '@/architecture/domain/types'
 import {
+  downloadTableImportErrors,
   parseTableSpreadsheetFile
 } from '@/architecture/presentation/views/utils/tableSpreadsheetFile'
 import type {
@@ -165,6 +172,7 @@ import type {
 import { isTableImportPreviewSubmittable } from '@/architecture/presentation/views/utils/tableSpreadsheetRuntime'
 
 interface BatchImportResult {
+  refreshWarning?: string
   createdCount: number
   failedCount: number
   errors: Array<{ rowNumber: number, message: string }>
@@ -185,13 +193,20 @@ const fileInput = ref<HTMLInputElement>()
 const fileName = ref('')
 const preview = ref<TableImportPreview>()
 const importing = ref(false)
+const parsing = ref(false)
+let parseRequestId = 0
 const importResult = ref<BatchImportResult>()
 const parseError = ref('')
 const showOnlyErrors = ref(false)
+const downloadingErrors = ref(false)
 
-const validRows = computed(() => preview.value?.rows.filter((row) => row.errors.length === 0) || [])
-const invalidRows = computed(() => preview.value?.rows.filter((row) => row.errors.length > 0) || [])
-const validationIssueCount = computed(() => invalidRows.value.reduce((total, row) => total + row.errors.length, 0))
+const updateVisibility = (visible: boolean) => {
+  if (!importing.value) emit('update:modelValue', visible)
+}
+
+const validRows = computed(() => preview.value?.rows.filter((row) => rowErrors(row).length === 0) || [])
+const invalidRows = computed(() => preview.value?.rows.filter((row) => rowErrors(row).length > 0) || [])
+const validationIssueCount = computed(() => invalidRows.value.reduce((total, row) => total + rowErrors(row).length, 0))
 const displayRows = computed(() => showOnlyErrors.value ? invalidRows.value : (preview.value?.rows || []))
 const canImport = computed(() => (
   !importing.value
@@ -219,16 +234,21 @@ const handleFileChange = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   target.value = ''
-  if (!file) return
+  if (!file || importing.value) return
 
+  const requestId = ++parseRequestId
+  parsing.value = true
   fileName.value = file.name
   preview.value = undefined
   importResult.value = undefined
   parseError.value = ''
   try {
-    preview.value = await parseTableSpreadsheetFile(file, props.fields)
+    const parsed = await parseTableSpreadsheetFile(file, props.fields)
+    if (requestId !== parseRequestId) return
+    preview.value = parsed
     showOnlyErrors.value = preview.value.rows.some((row) => row.errors.length > 0)
   } catch (error) {
+    if (requestId !== parseRequestId) return
     parseError.value = error instanceof Error ? error.message : String(error)
     preview.value = {
       rows: [],
@@ -237,6 +257,8 @@ const handleFileChange = async (event: Event) => {
       fatalErrors: [parseError.value]
     }
     showOnlyErrors.value = false
+  } finally {
+    if (requestId === parseRequestId) parsing.value = false
   }
 }
 
@@ -270,6 +292,7 @@ const confirmImport = async () => {
       rowNumber: row.rowNumber,
       data: row.data
     })))
+    showOnlyErrors.value = importResult.value.failedCount > 0
     if (importResult.value.createdCount > 0) emit('imported', importResult.value.createdCount)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '批量导入失败')
@@ -278,7 +301,24 @@ const confirmImport = async () => {
   }
 }
 
+const downloadErrors = async () => {
+  if (!preview.value || downloadingErrors.value || importing.value) return
+  downloadingErrors.value = true
+  try {
+    await downloadTableImportErrors(fileName.value, preview.value.recognizedFields, invalidRows.value.map((row) => ({
+      ...row, errors: rowErrors(row)
+    })))
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '下载错误明细失败')
+  } finally {
+    downloadingErrors.value = false
+  }
+}
+
 const reset = () => {
+  if (importing.value) return
+  ++parseRequestId
+  parsing.value = false
   fileName.value = ''
   preview.value = undefined
   importResult.value = undefined
@@ -286,6 +326,11 @@ const reset = () => {
   importing.value = false
   showOnlyErrors.value = false
 }
+// Invalidate immediately on close, before the closing animation calls reset.
+watch(() => props.modelValue, (visible) => {
+  if (!visible) { ++parseRequestId; parsing.value = false }
+}, { flush: 'sync' })
+onBeforeUnmount(() => { ++parseRequestId })
 </script>
 
 <style scoped>
@@ -372,7 +417,7 @@ const reset = () => {
   flex: 0 0 auto;
   padding: 9px;
   border-radius: 10px;
-  background: var(--el-color-primary-light-9);
+  background: var(--bg-secondary, var(--el-bg-color));
   color: var(--el-color-primary);
   font-size: 22px;
 }
@@ -409,21 +454,21 @@ const reset = () => {
 }
 
 .summary-card.is-success {
-  border-color: var(--el-color-success-light-7);
-  background: var(--el-color-success-light-9);
+  border-color: var(--color-success, var(--el-color-success));
+  background: var(--bg-secondary, var(--el-bg-color));
 }
 
 .summary-card.is-success strong {
-  color: var(--el-color-success);
+  color: var(--color-success, var(--el-color-success));
 }
 
 .summary-card.is-danger {
-  border-color: var(--el-color-danger-light-7);
-  background: var(--el-color-danger-light-9);
+  border-color: var(--color-danger, var(--el-color-danger));
+  background: var(--bg-secondary, var(--el-bg-color));
 }
 
 .summary-card.is-danger strong {
-  color: var(--el-color-danger);
+  color: var(--color-danger, var(--el-color-danger));
 }
 
 .summary-card.is-muted strong {
@@ -440,12 +485,12 @@ const reset = () => {
 }
 
 .row-error {
-  color: var(--el-color-danger);
+  color: var(--color-danger, var(--el-color-danger));
   white-space: normal;
 }
 
 .row-valid {
-  color: var(--el-color-success);
+  color: var(--color-success, var(--el-color-success));
 }
 
 .dialog-footer {
@@ -465,21 +510,22 @@ const reset = () => {
 }
 
 .footer-validation.is-success {
-  color: var(--el-color-success);
+  color: var(--color-success, var(--el-color-success));
 }
 
 .footer-validation.is-danger {
-  color: var(--el-color-danger);
+  color: var(--color-danger, var(--el-color-danger));
 }
 
 .footer-actions {
+  margin-left: auto;
   display: flex;
   flex: 0 0 auto;
   gap: 10px;
 }
 
 :deep(.import-row-invalid td.el-table__cell) {
-  background: var(--el-color-danger-light-9) !important;
+  background: var(--bg-secondary, var(--el-bg-color)) !important;
 }
 
 @media (max-width: 760px) {

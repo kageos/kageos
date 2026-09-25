@@ -975,6 +975,7 @@ function onTreeNodeDragStart(e: DragEvent, data: ServiceTree) {
   if (!e.dataTransfer || !data.full_code_path) return
   e.dataTransfer.setData('application/x-workspace-node', JSON.stringify({
     type: data.type,
+    template_type: data.template_type,
     full_code_path: data.full_code_path,
     name: data.name || data.full_code_path?.split('/').pop() || '',
     id: data.id,

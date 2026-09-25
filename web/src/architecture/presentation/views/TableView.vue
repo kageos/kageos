@@ -85,42 +85,16 @@
         </el-button>
         <el-tooltip :disabled="hasAdminAccess" content="导入和导出需要当前函数的 Admin 或 Owner 权限">
           <span class="permission-gated-control">
-            <el-dropdown
-              trigger="click"
-              :disabled="spreadsheetBusy || !hasAdminAccess"
-              @command="handleSpreadsheetCommand"
+            <el-button
+              class="action-btn"
+              :icon="FolderOpened"
+              :loading="spreadsheetBusy"
+              :disabled="!hasAdminAccess"
+              data-testid="table-spreadsheet-actions"
+              @click="spreadsheetActionsVisible = true"
             >
-              <el-button
-                class="action-btn"
-                :loading="spreadsheetBusy"
-                :disabled="!hasAdminAccess"
-                data-testid="table-spreadsheet-actions"
-              >
-                <el-icon><FolderOpened /></el-icon>
-                {{ hasAdminAccess ? '导入 / 导出' : '导入 / 导出（需 Admin）' }}
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="template" :disabled="!hasAddCallback">
-                    <el-icon><DocumentAdd /></el-icon>
-                    下载导入模板
-                  </el-dropdown-item>
-                  <el-dropdown-item command="import" :disabled="!hasAddCallback">
-                    <el-icon><Upload /></el-icon>
-                    导入 Excel / CSV
-                  </el-dropdown-item>
-                  <el-dropdown-item command="export-current-page" divided :disabled="tableData.length === 0">
-                    <el-icon><Download /></el-icon>
-                    导出当前列表（第 {{ currentPage }} 页 · {{ tableData.length }} 条）
-                  </el-dropdown-item>
-                  <el-dropdown-item command="export-all" :disabled="total === 0">
-                    <el-icon><Download /></el-icon>
-                    导出全部数据（按当前筛选 · 自动分块）
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+              {{ hasAdminAccess ? '导入 / 导出' : '导入 / 导出（需 Admin）' }}
+            </el-button>
           </span>
         </el-tooltip>
         <TableSpreadsheetGuidePopover
@@ -441,6 +415,18 @@
       @close="handleCreateDialogClose"
     />
 
+    <TableSpreadsheetActionsDialog
+      v-if="hasAdminAccess"
+      v-model="spreadsheetActionsVisible"
+      :busy="spreadsheetBusy"
+      :can-import="hasAddCallback"
+      :table-name="tableName"
+      :total="total"
+      :current-page="currentPage"
+      :page-count="tableData.length"
+      @command="handleSpreadsheetCommand"
+    />
+
     <TableSpreadsheetImportDialog
       v-if="hasAddCallback && hasAdminAccess"
       v-model="spreadsheetImportVisible"
@@ -472,11 +458,12 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElIcon, ElTable, ElForm, ElFormItem, ElButton, ElSkeleton, ElMessage } from 'element-plus'
-import { Search, Refresh, RefreshLeft, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, FolderOpened, DocumentAdd, Upload, Download } from '@element-plus/icons-vue'
+import { Search, Refresh, RefreshLeft, Delete, Plus, ArrowUp, ArrowDown, More, Right, Edit, View, InfoFilled, FolderOpened } from '@element-plus/icons-vue'
 import { serviceFactory } from '../../infrastructure/factories'
 import WidgetComponent from '../../presentation/widgets/WidgetComponent.vue'
 import SearchInput from '@/architecture/presentation/components/SearchInput.vue'
 import FormDialog from '@/architecture/presentation/components/FormDialog.vue'
+import TableSpreadsheetActionsDialog from '@/architecture/presentation/components/TableSpreadsheetActionsDialog.vue'
 import TableSpreadsheetImportDialog from '@/architecture/presentation/components/TableSpreadsheetImportDialog.vue'
 import TableSpreadsheetExportDialog from '@/architecture/presentation/components/TableSpreadsheetExportDialog.vue'
 import TableSpreadsheetGuidePopover from '@/architecture/presentation/components/TableSpreadsheetGuidePopover.vue'
@@ -590,6 +577,7 @@ const spreadsheetExportVisible = ref(false)
 const spreadsheetExportPlan = ref<TableExportPlanResult | null>(null)
 const spreadsheetExportFilters = ref<Record<string, unknown>>({})
 const deletedRowsVisible = ref(false)
+const spreadsheetActionsVisible = ref(false)
 const spreadsheetBusy = ref(false)
 const tableCreateFields = computed(() => getTableCreateFields(props.functionDetail))
 const tableName = computed(() => props.functionDetail.name || props.functionDetail.code || '表格')
@@ -831,8 +819,12 @@ const handleSpreadsheetCommand = async (command: string | number | object) => {
     ElMessage.warning('导入和导出需要当前函数的 Admin 或 Owner 权限')
     return
   }
+  if (spreadsheetBusy.value) return
   if (command === 'import') {
-    if (hasAddCallback.value) spreadsheetImportVisible.value = true
+    if (hasAddCallback.value) {
+      spreadsheetActionsVisible.value = false
+      spreadsheetImportVisible.value = true
+    }
     return
   }
   if (command === 'export-all') {
@@ -856,6 +848,7 @@ const handleSpreadsheetCommand = async (command: string | number | object) => {
         spreadsheetBusy.value = false
       }
     }
+    spreadsheetActionsVisible.value = false
     spreadsheetExportVisible.value = true
     return
   }

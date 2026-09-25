@@ -812,7 +812,7 @@ function openCurrentWorkstationNewSession(payload: { fullCodePath: string; dirNa
   handleWorkspaceOpenWorkstation({
     full_code_path: payload.fullCodePath,
     directory_name: payload.dirName,
-    initial_maximized: true,
+    initial_maximized: false,
     open_as_mini: true,
     force_new: true
   })

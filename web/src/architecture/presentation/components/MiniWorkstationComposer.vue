@@ -105,6 +105,9 @@
         />
       </el-select>
       <div class="mini-action-row">
+        <el-button v-if="queuedCount > 0 && !sending && !sessionRunning" size="small" :disabled="uploading || blocked" @click="emit('retry-queued')">
+          {{ t('miniWorkstation.retryQueued', { count: queuedCount }) }}
+        </el-button>
         <el-button
           v-if="sending || sessionRunning"
           type="danger"
@@ -121,12 +124,12 @@
           v-else
           type="primary"
           size="small"
-          :disabled="blocked || !fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
+          :disabled="uploading || blocked || !fullCodePath || (!inputText.trim() && attachedFiles.length === 0)"
           data-testid="mini-workstation-send"
           class="mini-send-btn"
           @click="$emit('send')"
         >
-          {{ t('miniWorkstation.send') }}
+          {{ uploading ? t('miniWorkstation.uploadingFiles') : t('miniWorkstation.send') }}
         </el-button>
         <el-tooltip
           :content="miniHideShortcutHint"
@@ -162,7 +165,7 @@ import MiniWorkstationResourceIdentity from './MiniWorkstationResourceIdentity.v
 interface FocusableInput {
   focus: () => void
   focusAtEnd?: () => void
-  insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string }>) => void
+  insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string; type?: string; template_type?: string }>) => void
 }
 
 const props = withDefaults(defineProps<{
@@ -206,6 +209,7 @@ const emit = defineEmits<{
   (e: 'update:inputText', value: string): void
   (e: 'update:selectedLLMConfigId', value: number): void
   (e: 'send'): void
+  (e: 'retry-queued'): void
   (e: 'stop'): void
   (e: 'collapse'): void
 }>()

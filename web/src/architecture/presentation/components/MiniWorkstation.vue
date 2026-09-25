@@ -220,6 +220,7 @@
           @update:selected-l-l-m-config-id="selectedLLMConfigId = $event"
           @stop="handleStopSession"
           @send="handleSend"
+          @retry-queued="retryQueuedMessages"
           @collapse="hideWorkstation"
         >
           <template #left-actions>
@@ -404,7 +405,7 @@ const inputText = ref('')
 type WorkstationInputRef = {
   focus: () => void
   focusAtEnd?: () => void
-  insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string }>) => void
+  insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string; type?: string; template_type?: string }>) => void
 }
 const inputRef = ref<WorkstationInputRef>()
 const llmSelectOpen = ref(false)
@@ -417,7 +418,6 @@ const interactionOpen = computed(() => llmSelectOpen.value || settingsPopoverOpe
 const artifactPanelExpanded = ref(false)
 const sessionPanelCollapsed = ref(!props.initialMaximized)
 const collapsed = ref(props.initialExpanded === false)
-const suppressAutoSelectLatestSession = ref(false)
 const sessionSearchKeyword = ref('')
 const sessionFilter = ref<SessionFilterValue>('all')
 const sessionSourceFilter = ref('human')
@@ -613,7 +613,6 @@ const {
   recentSessionCenterList,
   getSessionTitle,
   getSessionDirectoryPath,
-  getSessionTimestamp,
   getSessionStatusLabel,
   getSessionStatusClass,
   normalizeFullCodePath
@@ -813,10 +812,17 @@ function initializeWindowBounds() {
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
   const offset = props.initialOffset || 0
-  windowWidth.value = Math.min(760, Math.max(520, viewportWidth * 0.52))
-  windowHeight.value = Math.min(760, Math.max(420, viewportHeight * 0.72))
+  windowWidth.value = Math.min(viewportWidth - 24, 860, Math.max(560, viewportWidth * 0.6))
+  windowHeight.value = Math.min(viewportHeight - 24, 780, Math.max(440, viewportHeight * 0.8))
   windowLeft.value = Math.max(12, Math.min(viewportWidth - windowWidth.value - 12, viewportWidth - windowWidth.value - 42 - offset))
   windowTop.value = Math.max(12, Math.min(viewportHeight - windowHeight.value - 12, 72 + offset))
+}
+
+function fitWindowToViewport() {
+  windowWidth.value = Math.min(windowWidth.value, Math.max(1, window.innerWidth - 24))
+  windowHeight.value = Math.min(windowHeight.value, Math.max(1, window.innerHeight - 24))
+  windowLeft.value = Math.max(12, Math.min(windowLeft.value, window.innerWidth - windowWidth.value - 12))
+  windowTop.value = Math.max(12, Math.min(windowTop.value, window.innerHeight - windowHeight.value - 12))
 }
 
 function startWindowDrag(event: PointerEvent) {
@@ -829,8 +835,8 @@ function startWindowDrag(event: PointerEvent) {
   const startLeft = windowLeft.value
   const startTop = windowTop.value
   const move = (moveEvent: PointerEvent) => {
-    windowLeft.value = Math.max(0, Math.min(window.innerWidth - 120, startLeft + moveEvent.clientX - startX))
-    windowTop.value = Math.max(0, Math.min(window.innerHeight - 48, startTop + moveEvent.clientY - startY))
+    windowLeft.value = Math.max(0, Math.min(window.innerWidth - windowWidth.value, startLeft + moveEvent.clientX - startX))
+    windowTop.value = Math.max(0, Math.min(window.innerHeight - windowHeight.value, startTop + moveEvent.clientY - startY))
   }
   trackPointer(move)
 }
@@ -844,20 +850,20 @@ function startWindowResize(event: PointerEvent, direction: ResizeDirection) {
   const startTop = windowTop.value
   const startWidth = windowWidth.value
   const startHeight = windowHeight.value
-  const minWidth = 420
-  const minHeight = 300
+  const minWidth = Math.min(480, window.innerWidth)
+  const minHeight = Math.min(360, window.innerHeight)
   const move = (moveEvent: PointerEvent) => {
     const dx = moveEvent.clientX - startX
     const dy = moveEvent.clientY - startY
-    if (direction.includes('e')) windowWidth.value = Math.max(minWidth, Math.min(window.innerWidth - startLeft, startWidth + dx))
-    if (direction.includes('s')) windowHeight.value = Math.max(minHeight, Math.min(window.innerHeight - startTop, startHeight + dy))
+    if (direction.includes('e')) windowWidth.value = Math.min(window.innerWidth - startLeft, Math.max(minWidth, startWidth + dx))
+    if (direction.includes('s')) windowHeight.value = Math.min(window.innerHeight - startTop, Math.max(minHeight, startHeight + dy))
     if (direction.includes('w')) {
-      const nextWidth = Math.max(minWidth, startWidth - dx)
+      const nextWidth = Math.min(startLeft + startWidth, Math.max(minWidth, startWidth - dx))
       windowLeft.value = Math.max(0, startLeft + startWidth - nextWidth)
       windowWidth.value = nextWidth
     }
     if (direction.includes('n')) {
-      const nextHeight = Math.max(minHeight, startHeight - dy)
+      const nextHeight = Math.min(startTop + startHeight, Math.max(minHeight, startHeight - dy))
       windowTop.value = Math.max(0, startTop + startHeight - nextHeight)
       windowHeight.value = nextHeight
     }
@@ -865,21 +871,25 @@ function startWindowResize(event: PointerEvent, direction: ResizeDirection) {
   trackPointer(move)
 }
 
+let stopWindowPointer: (() => void) | undefined
 function trackPointer(move: (event: PointerEvent) => void) {
+  stopWindowPointer?.()
+  const previousUserSelect = document.body.style.userSelect
   document.body.style.userSelect = 'none'
   const stop = () => {
-    document.body.style.userSelect = ''
+    document.body.style.userSelect = previousUserSelect
+    stopWindowPointer = undefined
     window.removeEventListener('pointermove', move)
     window.removeEventListener('pointerup', stop)
     window.removeEventListener('pointercancel', stop)
   }
+  stopWindowPointer = stop
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', stop, { once: true })
   window.addEventListener('pointercancel', stop, { once: true })
 }
 
 function startNewSession() {
-  suppressAutoSelectLatestSession.value = true
   handleNewSession()
   resetOutputScrollState()
   setCollapsed(false, '')
@@ -978,6 +988,7 @@ const composer = useMiniWorkstationComposer({
   inputText,
   inputRef,
   attachedFiles,
+  uploading,
   sending,
   sendMessage,
   beforeSend: handleBeforeSend,
@@ -999,6 +1010,7 @@ const {
   llmLoading,
   selectedLLMConfigId,
   queuedCount,
+  retryQueuedMessages,
   onLLMSelectVisibleChange: loadLLMOptionsOnVisibleChange,
   onInputEnter,
   handleSend,
@@ -1033,9 +1045,6 @@ watch(
       return
     }
     if (visible) {
-      if (!previousVisible) {
-        suppressAutoSelectLatestSession.value = false
-      }
       loadDrawerSessions()
       restoreOutputScroll()
     }
@@ -1046,7 +1055,6 @@ watch(
 watch(
   () => props.fullCodePath,
   () => {
-    suppressAutoSelectLatestSession.value = false
     if (!props.visible) return
     loadDrawerSessions()
   }
@@ -1054,6 +1062,7 @@ watch(
 
 onMounted(() => {
   initializeWindowBounds()
+  window.addEventListener('resize', fitWindowToViewport)
   if (rootRef.value && typeof ResizeObserver !== 'undefined') {
     windowResizeObserver = new ResizeObserver(([entry]) => {
       if (!entry) return
@@ -1067,22 +1076,12 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopWindowPointer?.()
+  window.removeEventListener('resize', fitWindowToViewport)
   windowResizeObserver?.disconnect()
   windowResizeObserver = null
 })
 
-watch(
-  [() => props.visible, collapsed, initialSessionIdRef, sessionId, miniSessionList],
-  () => {
-    if (!props.visible || collapsed.value) return
-    if (initialSessionIdRef.value || sessionId.value || suppressAutoSelectLatestSession.value) return
-    const latestSession = [...miniSessionList.value]
-      .sort((left, right) => getSessionTimestamp(right) - getSessionTimestamp(left))[0]
-    if (!latestSession?.session_id) return
-    void handleSelectSession(latestSession.session_id)
-  },
-  { flush: 'post' }
-)
 
 watch(showCurrentOutput, (visible, previousVisible) => {
   if (!visible && previousVisible) {
@@ -1163,7 +1162,7 @@ useMiniWorkstationEffects({
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: left 0.3s ease, top 0.3s ease, width 0.3s ease, height 0.3s ease, max-height 0.3s ease, border-radius 0.3s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 
@@ -1870,8 +1869,8 @@ useMiniWorkstationEffects({
 /* Desktop-style floating window behavior. Keep these rules last so they replace
    the legacy right-panel sizing without disturbing the workbench internals. */
 .mini-ws.mini-ws--compact {
-  min-width: 420px;
-  min-height: 300px;
+  min-width: min(480px, calc(100vw - 24px));
+  min-height: min(360px, calc(100vh - 24px));
   pointer-events: auto;
 }
 
@@ -2049,7 +2048,7 @@ useMiniWorkstationEffects({
 
 .mini-drawer-resource {
   max-width: 100%;
-  color: #f5f8ff;
+  color: var(--text-primary);
   font-size: 15px;
   font-weight: 850;
   line-height: 1.2;

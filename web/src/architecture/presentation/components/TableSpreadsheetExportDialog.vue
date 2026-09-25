@@ -6,9 +6,10 @@
     top="5vh"
     class="table-spreadsheet-export-dialog"
     destroy-on-close
+    :show-close="!exporting"
     :close-on-click-modal="!exporting"
     :close-on-press-escape="!exporting"
-    @update:model-value="emit('update:modelValue', $event)"
+    @update:model-value="updateVisibility"
   >
     <div class="export-dialog-body">
       <el-alert
@@ -101,7 +102,7 @@
           <template v-else>选择多个分块时，将打包为一个 ZIP 下载</template>
         </span>
         <div class="footer-actions">
-          <el-button :disabled="exporting" @click="emit('update:modelValue', false)">取消</el-button>
+          <el-button :disabled="exporting" @click="updateVisibility(false)">取消</el-button>
           <el-button
             type="primary"
             :loading="exporting"
@@ -144,6 +145,9 @@ const emit = defineEmits<{
 const chunks = computed(() => props.blocks ?? buildTableExportChunks(props.total))
 const selectedIndexes = ref<number[]>([])
 const exporting = ref(false)
+const updateVisibility = (visible: boolean) => {
+  if (!exporting.value) emit('update:modelValue', visible)
+}
 const completedIndexes = ref<number[]>([])
 const currentIndex = ref<number | null>(null)
 

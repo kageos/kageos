@@ -141,7 +141,7 @@ func runReadDirTool(ctx context.Context, args readDirArgs, currentFullCodePath s
 	}
 	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, fileSource)
 	if err != nil {
-		return toolResult(fmt.Sprintf("获取目录信息失败: %v", err), true)
+		return toolResult(publicToolBackendError(ctx, "read_dir", err), true)
 	}
 
 	degradeNotice := ""
@@ -367,7 +367,7 @@ func buildTreeLines(ctx context.Context, workspaceCtx *dto.GetWorkspaceContextRe
 			markReadDirVisited(visited, childCtx.Directory.FullCodePath)
 			result += buildTreeLines(ctx, childCtx, currentDepth+1, maxDepth, includeFunctions, includeFiles, fileSource, nextPrefix, visited, loader)
 		} else {
-			result += fmt.Sprintf("%s    (无法获取子目录内容: %v)\n", nextPrefix, err)
+			result += fmt.Sprintf("%s    (%s)\n", nextPrefix, publicToolBackendError(ctx, "read_dir 子目录", err))
 		}
 	}
 

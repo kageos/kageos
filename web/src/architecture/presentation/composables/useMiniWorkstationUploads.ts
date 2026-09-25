@@ -1,5 +1,5 @@
 import { ElMessage } from 'element-plus'
-import { nextTick, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import { useAuthStore } from '@/architecture/presentation/context/appStoresContext'
 import { uploadFile, notifyUploadComplete, type UploadProgress } from '@/architecture/presentation/context/uploadContext'
 import type { WorkspaceChatMessageFile } from '@/architecture/presentation/context/api/workspace'
@@ -15,6 +15,7 @@ const UPLOAD_ROUTER = 'workspace/chat'
 type ClipboardFileTransfer = Pick<DataTransfer, 'files' | 'items'>
 
 interface WorkspaceNodeDropPayload {
+  template_type?: string
   type?: string
   full_code_path?: string
   name?: string
@@ -26,7 +27,7 @@ export interface UseMiniWorkstationUploadsOptions {
   inputRef: Ref<{
     focus: () => void
     focusAtEnd?: () => void
-    insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string }>) => void
+    insertWorkspaceResources?: (paths: string[], resources?: Array<{ full_code_path?: string; name?: string; type?: string; template_type?: string }>) => void
   } | undefined>
 }
 
@@ -90,7 +91,8 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
   const authStore = useAuthStore()
 
   const attachedFiles = ref<WorkspaceChatMessageFile[]>([])
-  const uploading = ref(false)
+  const pendingUploads = ref(0)
+  const uploading = computed(() => pendingUploads.value > 0)
   const dragOver = ref(false)
   let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -100,7 +102,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
       return
     }
 
-    uploading.value = true
+    pendingUploads.value += 1
     try {
       const uploadResult = await uploadFile(UPLOAD_ROUTER, file, (_progress: UploadProgress) => {})
       if (!uploadResult.fileInfo) {
@@ -142,7 +144,7 @@ export function useMiniWorkstationUploads(options: UseMiniWorkstationUploadsOpti
     } catch (error: any) {
       ElMessage.error(error?.message || '上传失败')
     } finally {
-      uploading.value = false
+      pendingUploads.value -= 1
     }
   }
 

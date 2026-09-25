@@ -117,9 +117,55 @@ describe('StructuredPromptComposer', () => {
       window.getSelection()!.addRange(range)
       wrapper.vm.insertWorkspaceResources(['/system/customers'], [{ full_code_path: '/system/customers', name: '客户管理' }])
       await nextTick()
-      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('分析这些内容 </system/customers>')
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('分析这些内容 </system/customers> ')
       expect(editor.querySelector('.spc-editor-token-label')?.textContent).toBe('客户管理')
-      expect(editor.textContent).toBe('分析这些内容 客户管理')
+      expect(editor.textContent).toBe('分析这些内容 客户管理 ')
+      expect(editor.querySelector('img')?.getAttribute('src')).toBe('/service-tree/custom-folder.svg')
+    } finally { wrapper.unmount() }
+  })
+
+  it('focuses dropped resources synchronously with an editable caret, including duplicate drops', async () => {
+    const wrapper = mount(StructuredPromptComposer, { attachTo: document.body, props: { modelValue: '' } })
+    const source = document.createElement('button')
+    document.body.appendChild(source)
+    try {
+      const editor = wrapper.find('[data-testid="structured-prompt-editor"]').element as HTMLElement
+      source.focus()
+      wrapper.vm.insertWorkspaceResources(['/system/customers'], [{ full_code_path: '/system/customers', name: '客户管理' }])
+      // No nextTick or timer: input must be ready before the drop handler returns.
+      expect(document.activeElement).toBe(editor)
+      const selection = window.getSelection()!
+      expect(selection.anchorNode?.nodeType).toBe(Node.TEXT_NODE)
+      expect(selection.anchorNode?.textContent).toBe(' ')
+      expect(selection.anchorOffset).toBe(1)
+      const text = selection.anchorNode as Text
+      text.insertData(selection.anchorOffset, '立即输入')
+      editor.dispatchEvent(new Event('input', { bubbles: true }))
+      expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toBe('</system/customers> 立即输入')
+      source.focus()
+      wrapper.vm.insertWorkspaceResources(['/system/customers'])
+      expect(document.activeElement).toBe(editor)
+      expect(editor.querySelectorAll('.spc-editor-token')).toHaveLength(1)
+      expect(editor.textContent).toContain('立即输入')
+      await nextTick()
+      expect(document.activeElement).toBe(editor)
+    } finally { source.remove(); wrapper.unmount() }
+  })
+
+  it('uses real table and chart icons and respects dragged resource types without suffixes', async () => {
+    const wrapper = mountComposer('')
+    try {
+      wrapper.vm.insertWorkspaceResources(['/system/app/report', '/system/app/orders.table', '/system/app/guide'], [
+        { full_code_path: '/system/app/report', name: '经营图表', type: 'function', template_type: 'chart' },
+        { full_code_path: '/system/app/orders.table', name: '订单表', type: 'function', template_type: 'table' },
+        { full_code_path: '/system/app/guide', name: '操作说明', type: 'docs' },
+      ])
+      await nextTick()
+      const tokens = wrapper.findAll('.spc-editor-token')
+      expect(tokens[0]!.find('svg.chart-icon').exists()).toBe(true)
+      expect(tokens[1]!.find('svg.table-icon').exists()).toBe(true)
+      expect(tokens[2]!.find('img').attributes('src')).toBe('/文档.svg')
+      expect(wrapper.find('.spc-resource-icon-fallback').exists()).toBe(false)
     } finally { wrapper.unmount() }
   })
 

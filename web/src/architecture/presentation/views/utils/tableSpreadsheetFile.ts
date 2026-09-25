@@ -9,6 +9,7 @@ import {
   isTableSpreadsheetFieldSupported,
   parseCsvText,
   TABLE_IMPORT_MAX_FILE_BYTES,
+  type TableImportRow,
   type TableImportPreview
 } from './tableSpreadsheetRuntime'
 import { sanitizeXlsxCommentsForImport } from './sanitizeXlsxForImport'
@@ -250,4 +251,26 @@ export const downloadTableData = async (
     [await buildTableDataFile(fields, rows, tableName, options)],
     tableName
   )
+}
+
+// Keep error reports as explicit string cells, including values starting with '='.
+export const downloadTableImportErrors = async (
+  sourceName: string,
+  fields: FieldConfig[],
+  rows: TableImportRow[]
+): Promise<void> => {
+  const { Workbook } = await import('exceljs')
+  const workbook = new Workbook()
+  const sheet = workbook.addWorksheet('错误明细')
+  sheet.addRow(['原文件行', ...fields.map((field) => getTableSpreadsheetHeader(field, fields)), '错误原因'])
+  for (const row of rows) {
+    sheet.addRow([row.rowNumber, ...fields.map((field) => {
+      const value = row.data[field.code]
+      return value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value)
+    }), row.errors.join('；')])
+  }
+  sheet.getRow(1).font = { bold: true }
+  sheet.columns.forEach((column, index) => { column.width = index === 0 ? 12 : 32 })
+  sheet.views = [{ state: 'frozen', ySplit: 1 }]
+  downloadBlob(await workbookBlob(workbook), `${sanitizeFileName(sourceName.replace(/\.(xlsx|csv)$/i, ''))}_错误明细.xlsx`)
 }

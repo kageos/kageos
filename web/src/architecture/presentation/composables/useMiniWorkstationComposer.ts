@@ -12,6 +12,7 @@ export interface UseMiniWorkstationComposerOptions {
   inputText: Ref<string>
   inputRef: Ref<{ focus: () => void } | undefined>
   attachedFiles: Ref<WorkspaceChatMessageFile[]>
+  uploading: Ref<boolean>
   sending: Ref<boolean>
   sendMessage: (content: string, streamFn: (onEvent: WorkspaceChatStreamOnEvent) => Promise<void>, files?: ChatMessageFile[]) => Promise<void>
   beforeSend?: (payload: { text: string; files: WorkspaceChatMessageFile[] | null }) => BeforeSendDecision | Promise<BeforeSendDecision>
@@ -37,6 +38,8 @@ interface SendWorkspaceMessageOptions {
 }
 
 interface QueuedWorkspaceMessage {
+  sessionId: string
+  fullCodePath: string
   text: string
   files: WorkspaceChatMessageFile[] | null
 }
@@ -50,6 +53,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     inputRef,
     attachedFiles,
     sending,
+    uploading,
     sendMessage,
     beforeSend,
     onTaskStarted,
@@ -61,7 +65,12 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
   const llmLoading = ref(false)
   const selectedLLMConfigId = ref<number>(0)
   const queuedMessages = ref<QueuedWorkspaceMessage[]>([])
-  const queuedCount = computed(() => queuedMessages.value.length)
+  const belongsToCurrentSession = (message: QueuedWorkspaceMessage) => (
+    message.sessionId === sessionId.value && message.fullCodePath === fullCodePath.value
+  )
+  const queuedCount = computed(() => queuedMessages.value.filter(belongsToCurrentSession).length)
+  let checkingSend = false
+  let drainingQueue = false
   let activeStreamAbortController: AbortController | null = null
 
   async function loadLLMs() {
@@ -157,32 +166,57 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     }
   }
 
+  async function checkBeforeSend(text: string, files: WorkspaceChatMessageFile[] | null): Promise<BeforeSendDecision> {
+    try {
+      return beforeSend ? await beforeSend({ text, files }) : false
+    } catch {
+      ElMessage.error(translate('miniWorkstation.sendFailed'))
+      return { cancel: true, preserveDraft: true }
+    }
+  }
+
   async function handleSend() {
-    const text = inputText.value.trim()
-    const files = attachedFiles.value.length > 0 ? [...attachedFiles.value] : null
-    if (!fullCodePath.value || (!text && !files?.length)) {
+    if (uploading.value) {
+      ElMessage.warning(translate('miniWorkstation.waitForUpload'))
       return
     }
+    const draft = inputText.value
+    const text = draft.trim()
+    const files = attachedFiles.value.length > 0 ? [...attachedFiles.value] : null
+    if (!fullCodePath.value || (!text && !files?.length) || checkingSend || (drainingQueue && !sending.value)) return
+    const targetSessionId = sessionId.value
+    const targetPath = fullCodePath.value
+    const clearSubmittedDraft = () => {
+      if (inputText.value === draft) inputText.value = ''
+      attachedFiles.value = attachedFiles.value.filter(file => !files?.includes(file))
+    }
     if (sending.value) {
-      queuedMessages.value.push({ text, files })
-      inputText.value = ''
-      attachedFiles.value = []
+      // A first response may not have assigned a session yet. Keep the draft
+      // instead of guessing which future session owns it.
+      if (!targetSessionId) {
+        ElMessage.warning(translate('miniWorkstation.waitForSession'))
+        return
+      }
+      queuedMessages.value.push({ text, files, sessionId: targetSessionId, fullCodePath: targetPath })
+      clearSubmittedDraft()
       ElMessage.success(translate('miniWorkstation.queuedSuccess'))
       return
     }
-    const beforeSendDecision = beforeSend ? await beforeSend({ text, files }) : false
-    if (shouldCancelSend(beforeSendDecision)) {
-      if (!shouldPreserveDraft(beforeSendDecision)) {
-        inputText.value = ''
-        attachedFiles.value = []
+    checkingSend = true
+    try {
+      const decision = await checkBeforeSend(text, files)
+      if (sessionId.value !== targetSessionId || fullCodePath.value !== targetPath || uploading.value || sending.value) return
+      if (shouldCancelSend(decision)) {
+        if (!shouldPreserveDraft(decision)) clearSubmittedDraft()
+        return
       }
-      return
+      clearSubmittedDraft()
+      // sendWorkspaceMessage captures the current context synchronously.
+      checkingSend = false
+      await sendWorkspaceMessage(text, files, { interactionAction: getBeforeSendInteractionAction(decision) })
+    } finally {
+      checkingSend = false
     }
-    const interactionAction = getBeforeSendInteractionAction(beforeSendDecision)
-
-    inputText.value = ''
-    attachedFiles.value = []
-    await sendWorkspaceMessage(text, files, { interactionAction })
   }
 
   function shouldCancelSend(decision: BeforeSendDecision): boolean {
@@ -200,15 +234,36 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     return decision.interactionAction
   }
 
-  watch(sending, (isSending) => {
-    if (isSending || queuedMessages.value.length === 0) {
-      return
+  async function retryQueuedMessages() {
+    if (drainingQueue || checkingSend || sending.value || uploading.value) return
+    drainingQueue = true
+    try {
+      while (!sending.value && !uploading.value) {
+        const next = queuedMessages.value.find(belongsToCurrentSession)
+        if (!next) break
+        const decision = await checkBeforeSend(next.text, next.files)
+        // Switching sessions or starting an upload during an async check must
+        // not redirect or accidentally release a queued message.
+        if (!belongsToCurrentSession(next) || sending.value || uploading.value || checkingSend) break
+        if (shouldCancelSend(decision)) break
+        const index = queuedMessages.value.indexOf(next)
+        queuedMessages.value.splice(index, 1)
+        const sent = await sendWorkspaceMessage(next.text, next.files, {
+          sessionIdOverride: next.sessionId,
+          interactionAction: getBeforeSendInteractionAction(decision)
+        })
+        if (!sent) {
+          queuedMessages.value.splice(index, 0, next)
+          break
+        }
+      }
+    } finally {
+      drainingQueue = false
     }
-    const next = queuedMessages.value.shift()
-    if (!next) {
-      return
-    }
-    void sendWorkspaceMessage(next.text, next.files)
+  }
+
+  watch([sending, uploading, sessionId, fullCodePath], () => {
+    void retryQueuedMessages()
   })
 
   async function sendText(content: string): Promise<boolean> {
@@ -257,6 +312,7 @@ export function useMiniWorkstationComposer(options: UseMiniWorkstationComposerOp
     llmLoading,
     selectedLLMConfigId,
     queuedCount,
+    retryQueuedMessages,
     onLLMSelectVisibleChange,
     onInputEnter,
     handleSend,

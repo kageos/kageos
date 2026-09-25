@@ -24,7 +24,7 @@ type runTableSearchArgs struct {
 
 var runTableSearchToolDef = toolDefinition[runTableSearchArgs](
 	"run_table_search",
-	"执行工作区内 Table 查询接口，返回分页表格数据。筛选前必须已通过字段摘要或 read_file 确认 Table Request 字段；不要猜可筛选字段或 url_query 格式。full_code_path 必须为带 `.table` 后缀的具体表格函数路径，包含函数名（如 .../nps/nps_questionnaire_list.table）；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`，跨目录使用完整路径。不能只填包路径（如 .../nps），否则会查不到数据。若只知包路径，请先用 read_dir 看该包下 .go 文件，根据 init() 中 GET(\"xxx_list.table\",...) 确定函数名，再直接使用环境信息里带后缀的 full_code_path。查询参数使用 Request 字段名和值，例如 status=处理中&title=合同&page=1&page_size=20；排序用结构化 sorts，例如 [{\"field\":\"created_at\",\"order\":\"desc\"}]。可传 url_query 或单独传 page、page_size、sorts。datetime 字段可直接传 `YYYY-MM-DD HH:mm:ss`，也可用 SQL 风格白名单表达式如 CURRENT_TIMESTAMP、CURRENT_DATE、DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)。",
+	"执行工作区内 Table 查询接口，返回分页表格数据。筛选前必须已通过 search 返回的操作字段说明确认可用筛选字段；不要猜可筛选字段或 url_query 格式。full_code_path 必须为带 `.table` 后缀的具体表格函数路径，包含函数名（如 .../nps/nps_questionnaire_list.table）；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`，跨目录使用完整路径。不能只填包路径（如 .../nps），否则会查不到数据。若只知目录路径，请用 search 查询该目录下的可执行功能，使用返回的完整路径。查询参数使用筛选字段名和值，例如 status=处理中&title=合同&page=1&page_size=20；排序用结构化 sorts，例如 [{\"field\":\"created_at\",\"order\":\"desc\"}]。可传 url_query 或单独传 page、page_size、sorts。datetime 字段可直接传 `YYYY-MM-DD HH:mm:ss`，也可用 SQL 风格白名单表达式如 CURRENT_TIMESTAMP、CURRENT_DATE、DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)。",
 )
 
 func (t *RunTableSearchTool) Definition() dto.ToolDef {
@@ -79,7 +79,7 @@ func runTableSearchTool(ctx context.Context, args runTableSearchArgs, currentFul
 	result, err := apicall.TableSearch(ctx, fullCodePath, params)
 	if err != nil {
 		logger.Errorf(ctx, "[RunTableSearch] TableSearch 失败: %v", err)
-		return toolResult("run_table_search 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "run_table_search 调用失败", err), true)
 	}
 	return toolResultWithStructuredData(result, false, pathNotice)
 }

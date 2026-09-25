@@ -21,6 +21,18 @@ type ApiResult[T any] struct {
 	Data T      `json:"data"`
 }
 
+// BusinessError preserves an API rejection separately from transport failures.
+// Message may still contain legacy internal diagnostics; callers must apply
+// their presentation policy before showing it outside the service boundary.
+type BusinessError struct {
+	Code    int
+	Message string
+}
+
+func (e *BusinessError) Error() string {
+	return fmt.Sprintf("业务错误 [%d]: %s", e.Code, e.Message)
+}
+
 // httpClient 通用 HTTP 客户端（复用连接，提高性能）。
 var httpClient = &http.Client{
 	Timeout: 300 * time.Second,
@@ -177,7 +189,7 @@ func doAPIRequest[T any](req *http.Request) (*ApiResult[T], error) {
 	}
 
 	if result.Code != 0 {
-		return &result, fmt.Errorf("业务错误 [%d]: %s", result.Code, result.Msg)
+		return &result, &BusinessError{Code: result.Code, Message: result.Msg}
 	}
 
 	return &result, nil

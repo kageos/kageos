@@ -193,7 +193,6 @@ ERROR: No matching distribution found for zxingcpp`,
 		"【入口协议】",
 		"def kageos_entry(args, output_dir):",
 		"print 只做日志",
-		"/system/prompt/case_catalog/form/python_output",
 	} {
 		if !strings.Contains(guidance, want) {
 			t.Fatalf("expected missing entry guidance to contain %q, got %q", want, guidance)

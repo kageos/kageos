@@ -4,6 +4,8 @@
 
 处理 build、启动、schema、widget、路由后缀和 SDK API 相关错误。按错误类型批量修复并重新 build。
 
+平台返回 `platform_build_failed` 时，本轮报告构建未完成；没有业务代码诊断时不进入代码修复。
+
 ## 执行步骤
 
 1. 先调用 `change_role` 进入或沿用 `build_engineer`。

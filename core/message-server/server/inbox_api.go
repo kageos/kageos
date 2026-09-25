@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kageos/kageos/core/message-server/repository"
@@ -24,12 +25,28 @@ func (s *Server) listInboxMessages(c *gin.Context) {
 	}
 	status := strings.TrimSpace(c.Query("status"))
 	threadKey := strings.TrimSpace(c.Query("thread_key"))
+	keyword := strings.TrimSpace(c.Query("q"))
+	if len([]rune(keyword)) > 200 {
+		response.FailWithMessage(c, "搜索关键词不能超过 200 个字符")
+		return
+	}
+	var since *time.Time
+	if raw := strings.TrimSpace(c.Query("since")); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			response.FailWithMessage(c, "时间格式错误")
+			return
+		}
+		since = &parsed
+	}
 	sourcePath := strings.TrimSpace(c.Query("source_path"))
 	includeChildren := parseBoolQuery(c.Query("include_children"))
 	offset := (page - 1) * pageSize
 
 	list, total, err := s.messageRepo.ListInbox(c.Request.Context(), username, repository.InboxListFilter{
 		Status:          status,
+		Query:           keyword,
+		Since:           since,
 		ThreadKey:       threadKey,
 		SourcePath:      sourcePath,
 		IncludeChildren: includeChildren,

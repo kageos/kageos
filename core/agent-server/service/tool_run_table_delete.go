@@ -20,7 +20,7 @@ type runTableDeleteArgs struct {
 
 var runTableDeleteToolDef = toolDefinition[runTableDeleteArgs](
 	"run_table_delete",
-	"执行工作区内 Table 删除接口，批量删除表格记录（触发 OnTableDeleteRows）。执行前必须已通过 search 字段摘要或 read_file 确认表格具备删除能力；不要猜 id。full_code_path 必须为带 `.table` 后缀的具体表格函数路径；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`。body 必须为 JSON 数组字符串，每项为要删除的行 ID，如 [1,2,3]。返回 deleted_count、ids、result。",
+	"执行工作区内 Table 删除接口，批量删除表格记录。执行前必须已通过 search 返回的操作字段说明确认表格具备删除能力；不要猜 id。full_code_path 必须为带 `.table` 后缀的具体表格函数路径；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`。body 必须为 JSON 数组字符串，每项为要删除的行 ID，如 [1,2,3]。返回 deleted_count、ids、result。",
 )
 
 func (t *RunTableDeleteTool) Definition() dto.ToolDef {
@@ -56,7 +56,7 @@ func runTableDeleteTool(ctx context.Context, args runTableDeleteArgs, currentFul
 
 	result, err := apicall.TableDelete(ctx, fullCodePath, map[string]interface{}{"ids": ids})
 	if err != nil {
-		return toolResult("run_table_delete 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "run_table_delete 调用失败", err), true)
 	}
 	out := map[string]interface{}{
 		"deleted_count": len(ids),

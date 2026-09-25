@@ -13,7 +13,7 @@ import (
 )
 
 // runPythonPreinstallDoc 与 deploy/base/images/app-base/Dockerfile 中 apt/python3-* 与 pip3 install 预装保持一致；改镜像时请同步更新本文案
-const runPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的第三方库（对应 deploy/base/images/app-base/Dockerfile）：**
+const runPythonPreinstallDoc = `**可直接 import 的第三方库：**
 - 数据与图表：pandas、numpy、scipy、matplotlib、seaborn、plotly、pyecharts
 - 数据展示与日期：tabulate、arrow、dateutil（python-dateutil）
 - 网络与网页解析：requests、aiohttp、bs4（beautifulsoup4）、lxml
@@ -26,9 +26,7 @@ const runPythonPreinstallDoc = `**生产镜像已预装、可直接 import 的�
 - 配置与安全：yaml（PyYAML）、toml、cryptography
 - 另有 **Python 标准库**（json、re、collections、datetime、itertools、math、random 等）
 
-**若 import 报错：** 优先改用上面列表或标准库；临时新依赖可通过 packages 参数声明；长期依赖请管理员更新 Dockerfile / 基础镜像 requirements.txt 并重打镜像。
-**临时补充依赖：** 可通过 packages 参数声明额外 pip 包（逗号分隔，如 openai,scikit-learn==1.5.0）。packages 填 PyPI 安装名，不一定等于 import 名；例如二维码/条码识别可填 packages: zxing-cpp，然后在代码里 import zxingcpp。包会安装到当前应用版本容器的可写层；同一容器 stop/start 后通常仍在，但应用更新产生新版本容器、容器被删除、基础镜像重建或 Podman 存储清理后需要重新安装。长期稳定依赖仍应进入基础镜像。
-**环境差异：** 本地非 Docker 运行时以本机 python 为准，可能与镜像不一致。`
+**若 import 报错：** 优先使用可用库或标准库，也可以用 packages 声明额外 PyPI 包。`
 
 type RunPythonTool struct{}
 
@@ -36,7 +34,7 @@ type runPythonArgs struct {
 	PythonCode     string                 `json:"python_code" schema_desc:"完整 Python 源码" schema_required:"true"`
 	Args           map[string]interface{} `json:"args" schema_desc:"注入脚本的对象参数（推荐）"`
 	InputFiles     string                 `json:"input_files" schema_desc:"可选文件引用字符串，格式 bucket/object_key，多文件用英文逗号分隔；不传时自动使用当前用户消息上传的附件；支持直接填入上一步 output_files 返回的路径，实现 output -> input 文件流转"`
-	Packages       string                 `json:"packages" schema_desc:"可选额外 pip 包，逗号分隔；填写 PyPI 安装名而不是 import 名，仅支持简单包名或版本约束，如 openai,scikit-learn==1.5.0,zxing-cpp；安装在当前应用版本容器内，容器重建后不保证保留"`
+	Packages       string                 `json:"packages" schema_desc:"可选额外 pip 包，逗号分隔；填写 PyPI 安装名而不是 import 名，仅支持简单包名或版本约束，如 openai,scikit-learn==1.5.0,zxing-cpp；每次需要该依赖时均应声明"`
 	TimeoutSeconds *int                   `json:"timeout_seconds" schema_desc:"超时秒数"`
 }
 
@@ -44,59 +42,22 @@ var runPythonToolDef = toolDefinition[runPythonArgs](
 	"run_python",
 	runPythonPreinstallDoc+`
 
-**执行环境：** Python 跑在 **当前工作区应用运行时容器内**（Podman 等业务容器，**不是宿主机**）。本工具会根据当前工作台上下文调用对应应用的私有 runtime 路由 **/_runtime/python**；该路由不进入服务树/schema。脚本在 **临时目录** 中运行，不把工作区源码树当作工作目录。
+处理数据、计算或生成文件。只需提供脚本及输入参数。
 
-**固定入口协议：**
-- python_code **必须定义**：def kageos_entry(args, output_dir): ...
-- 第一个参数 args 为传入的对象参数；第二个参数 output_dir 为受控输出目录
-- 若本轮用户上传了附件，系统会在执行前自动下载到容器本地，并注入 args["input_files"]：本地文件路径列表。单文件取 args["input_files"][0]。Python 代码应直接 open 本地路径，不要 requests.get 文件引用或猜 URL；不要把文件引用数组再塞进 args["input_files"]。
-- 若继续处理历史消息里的上传文件，请把 <files> 里的 refs 原样传给本工具顶层 input_files 参数；不要拆成 bucket/key 放进 args，也不要自行拼 COS URL。
-- input_files 也可以直接传入上一步工具返回的 output_files 文件引用（bucket/object_key，如 kageos/.../result.csv）。平台会像处理用户上传附件一样自动从 COS/对象存储下载到容器本地，并注入 args["input_files"] 本地路径列表；这用于多步骤流水线，避免手动下载再上传。
-- 返回值 **必须是 dict**，仅允许：
-  - data: JSON 可序列化结果
-  - output_files: 输出文件列表，每项至少含 path
-  - warnings: 警告字符串列表
-- print(...) 只用于日志，不作为主结果协议
+**脚本契约：**
+- 定义 def kageos_entry(args, output_dir):，使用 4 空格缩进。
+- args 是对象参数。输入附件的可读路径由 args["input_files"] 提供，直接 open 或交给 pandas 读取。
+- input_files 接收上传附件或上一步 output_files 的文件引用，多文件以英文逗号分隔；不传则使用本轮附件。文件引用原样传递，不自行拼下载地址。
+- 输出文件写入 output_dir；返回 dict，仅包含 data（JSON 可序列化数据）、output_files（每项含 path，可选 name）、warnings（字符串列表）。
+- print 只做日志，不作为主结果。data 不包含 Timestamp、numpy 标量、tuple 字典键等不能直接转 JSON 的对象。
+- packages 填 PyPI 安装名，可带版本约束，如 openai,scikit-learn==1.5.0；例如 zxing-cpp 对应 import zxingcpp。只接收简单包名、extras 和版本约束。
+- timeout_seconds 默认 120，最大 300。
+- 图表使用默认字体；需要时设置 axes.unicode_minus=False。
 
-**额外依赖 packages（谨慎使用）：**
-- packages 仅用于临时补充预装库之外的 pip 包，多个包用英文逗号分隔，例如 openai,scikit-learn==1.5.0。
-- packages 必须填写 PyPI 安装名，不是 import 名；包名和导入名不一致时以 pip install 名为准，例如 packages: zxing-cpp，代码中 import zxingcpp。
-- 只允许简单包名、extras 和版本约束；不要传 URL、本地路径、requirements 文件、--index-url、-r 等 pip 参数。
-- 安装发生在当前应用版本容器内；同一容器 stop/start 后通常仍在，应用更新创建新版本容器或容器被删除后需要重新安装。
-- 长期稳定依赖请进入 app-base 镜像或系统工具能力，避免每次执行安装带来耗时和网络不稳定。
-
-**Python 代码书写规范（非常重要）：**
-- python_code 会按原文传给执行端，平台不做 BOM、控制字符、缩进的隐式修复；请直接输出干净的 UTF-8 源码，并从 def kageos_entry(args, output_dir): 开始。
-- 使用 4 个空格缩进，不要使用 Tab；不要混用空格和 Tab。
-- 不要把 ANSI 颜色控制符、终端转义字符或 NUL 等不可见控制字符写进 python_code；这类字符会导致 SyntaxError 或 IndentationError。
-- 优先生成短脚本、少嵌套脚本。Excel/CSV 分析优先用 pandas；只有确实要精细 Excel 样式时才用 openpyxl，避免逐单元格大段样式代码。
-- import 语句放在文件开头，或至少放在 kageos_entry 函数体开头；不要先使用名字再在后面 import。
-- 避免长的多层嵌套块，尤其是 for 里再套 if/else、try、with。能用 pandas 向量化、groupby、assign、map、apply、to_dict('records')、zip、列表推导式解决的，就不要写多层块。
-- 返回值里的 data 必须保持 JSON 可序列化：dict key 只能是字符串；不要把 tuple、Timestamp、numpy 标量、集合直接塞进 data。pandas 聚合后优先用 as_index=False 或 reset_index()，最终用 to_dict('records') 返回。
-- 构造复杂返回值时，先把中间结果赋给变量，再 return；不要在 return 里塞很长的多层字典/列表字面量。
-- 删除 DataFrame 列前先确认列存在；不确定时优先显式选择需要的列，而不是 drop 一组临时列。
-- 使用 matplotlib 生成图表时，不要设置 font.family、font.sans-serif 或其他字体相关 rcParams；按运行环境默认值即可。只需在需要时设置 axes.unicode_minus=False。
-- 输出图片、Excel、PDF 等文件时，统一写到 output_dir，再在 output_files 里声明绝对路径。
-- 如果上一轮出现 SyntaxError 或 IndentationError，不要局部修补旧长脚本；请重新生成一份更短、更扁平、缩进完整的 python_code。
-
-**输出结果：** 工具库执行端会解析 kageos_entry 的返回值；若返回里有 **output_files**，Go 侧会负责校验、上传并构造成最终 string，工作台自动展示文件组件（预览、打开、下载等能力由组件提供）。最终回复按任务复杂度给高密度结果：简单处理 1-2 句话，分析类任务保留关键结论、风险和下一步；不要手写“下载文件：xxx”、Markdown 下载链接或伪 URL，不要复述脚本逻辑、文件参数和工具执行过程。
-
-**文件流转能力（重要）：**
-- output_files 返回的文件引用可以直接作为下一次 run_python 的 input_files 参数。
-- 多个文件引用仍用英文逗号分隔。
-- 下一步 Python 代码里不要读取 bucket/object_key 字符串本身；应读取平台注入的本地路径 args["input_files"][0] / args["input_files"][i]。
-- 示例流水线：步骤1 清洗 Excel -> output_files 返回 CSV；步骤2 input_files 填该 CSV 路径并读取 pd.read_csv(args["input_files"][0]) -> 输出 XLSX；步骤3 input_files 填该 XLSX 路径 -> 生成图表图片。
-
-**输出文件约束：**
-- 只能声明写在 output_dir 里的最终文件
-- 不要返回随机路径、临时缓存路径、相对路径拼猜出来的文件
-- 每个输出文件项建议形如：{"path": "/abs/path/in/output_dir/report.xlsx", "name": "report.xlsx"}
-
-**若你需要把字段、权限、命名规则固化为应用接口：** 请用 **read_doc** 读取内置示例文档 **/system/prompt/case_catalog/form/python_output**（含 PRD 与完整 Go 示例），再按文档配合 **agent-app SDK** 在用户应用内新增 Form：**pythonRuntime.NewExecutor** → **defer executor.Close()**（默认临时目录）→ Go 用 **filepath.Abs** 得到 **绝对路径**（如 GetTraceOutputDir 下文件）经请求传给 Python → Python **直接写入该路径**（如 savefig，勿用相对路径互传，Go/Python **cwd 不同**）→ 用 **OutputFilePaths + ResponseFiles** 下发附件。Go 与 Python 为**同机子进程**，非网络隔离。
-
-**参数：** 使用 args 传对象参数；packages 可声明临时 pip 依赖；timeout_seconds 默认 120、上限 300。
-
-返回中可能含 _model_guidance：面向你的纠错/降级说明，请优先阅读。`,
+**结果与文件：**
+输出文件会由工作台展示文件组件。不要手写“下载文件：xxx”、Markdown 下载链接或伪 URL。output_files 返回的文件引用可以直接传给下一次 input_files。
+执行失败时根据脚本错误类型和行号修正输入或代码。
+`,
 )
 
 func (t *RunPythonTool) Definition() dto.ToolDef {
@@ -153,16 +114,14 @@ func runPythonTool(ctx context.Context, args runPythonArgs, attachedFiles string
 	result, err := apicall.RunWorkspacePython(runtimeCtx, workspaceRoot, body)
 	if err != nil {
 		logger.Errorf(ctx, "[RunPython] RunWorkspacePython 失败: %v", err)
-		return "run_python 调用失败: " + err.Error() + "\n\n【给模型】可检查 python_code 是否过长、args 是否为合法对象；网络或权限问题可稍后重试。", true, nil
+		return publicToolBackendError(ctx, "run_python", err), true, nil
 	}
-	out := make(map[string]interface{}, len(result)+1)
-	for k, v := range result {
-		out[k] = v
-	}
-	if g := buildPythonModelGuidance(result); g != "" {
+	out := publicPythonResult(result, workspaceRoot)
+	if g := buildPythonModelGuidance(out); g != "" {
 		out["_model_guidance"] = g
 	}
-	content, isError := formatJSONResult(out)
+	content, _ := formatJSONResult(out)
+	isError := out["status"] == "失败"
 	return content, isError, out
 }
 
@@ -350,7 +309,7 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 	case "失败":
 		appendLine("【状态为失败】请阅读 output 中的 traceback/错误信息，修正 python_code 后重试。")
 		if strings.Contains(out, "ModuleNotFoundError") || strings.Contains(out, "No module named") {
-			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；临时新库可在 packages 参数中声明简单 PyPI 包名/版本约束。注意 packages 填 pip 安装名，不一定等于 import 名，例如 packages: zxing-cpp 对应 import zxingcpp。长期依赖请更新 deploy/base/images/app-base/Dockerfile 或基础镜像 requirements.txt 并重打镜像。")
+			appendLine("【依赖】ModuleNotFoundError：请优先使用工具说明里已列出的预装库（pandas、numpy、jieba、snownlp、requests、openpyxl、xlsxwriter、python-pptx、matplotlib、plotly、pyecharts、bs4、tabulate、arrow、wordcloud、pytesseract、yt_dlp、PyYAML…）或仅用标准库；临时新库可在 packages 参数中声明简单 PyPI 包名/版本约束。注意 packages 填 pip 安装名，不一定等于 import 名，例如 packages: zxing-cpp 对应 import zxingcpp。")
 		}
 		if strings.Contains(out, "安装 Python 包") || strings.Contains(lowOut, "no matching distribution found") || strings.Contains(lowOut, "could not find a version") {
 			appendLine("【依赖安装】packages 会执行 pip install；请确认填写的是 PyPI 安装名而不是 import 名，必要时换用预装库或标准库。例如二维码/条码识别应填 packages: zxing-cpp，代码里再 import zxingcpp。")
@@ -362,7 +321,6 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 		}
 		if strings.Contains(out, "必须定义函数 kageos_entry") || strings.Contains(out, "python_code 必须定义函数") {
 			appendLine("【入口协议】run_python 不是普通 Python REPL。请重写完整 python_code，从 def kageos_entry(args, output_dir): 开始；返回 dict 只包含 data、output_files、warnings，例如 {\"data\": {...}, \"warnings\": [], \"output_files\": []}。print 只做日志，不作为主结果。")
-			appendLine("【参考】需要固化为应用接口时，先 read_doc(\"/system/prompt/case_catalog/form/python_output\")；只是分析 Go 源码、依赖字段或 SDK 用法时，优先用 read_file/search/read_doc 读取真实代码，不要用 Python 模拟结论。")
 		}
 		if strings.Contains(out, "UnboundLocalError") {
 			appendLine("【作用域】请检查变量是否先使用后赋值；import 语句请放到文件顶部或函数体开头。")
@@ -408,4 +366,22 @@ func buildPythonModelGuidance(raw map[string]interface{}) string {
 		return ""
 	}
 	return strings.Join(lines, "\n")
+}
+
+func publicPythonResult(raw map[string]interface{}, workspace string) map[string]interface{} {
+	p := pythonFormPayload(raw)
+	out := make(map[string]interface{})
+	for _, key := range []string{"status", "json_result", "output_files"} {
+		if value, ok := p[key]; ok {
+			out[key] = value
+		}
+	}
+	if output, ok := p["output"]; ok {
+		out["output"] = publicDiagnosticText(pythonAnyToString(output), workspace)
+	}
+	if out["status"] != "成功" && out["status"] != "失败" {
+		out["status"] = "失败"
+		out["output"] = "execution_result_unavailable：未收到有效执行结果。"
+	}
+	return out
 }

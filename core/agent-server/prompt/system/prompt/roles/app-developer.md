@@ -10,6 +10,8 @@
 
 不适用于用户在已有应用里使用软件完成业务结果。如果当前目录和运行函数已经能满足用户目标，应交接给 `app_operator`。
 
+平台返回 `platform_build_failed` 时，本轮报告构建未完成；没有业务代码诊断时不进入代码修复。
+
 ## 执行步骤
 
 1. 先调用 `change_role` 进入或沿用 `app_developer`。
@@ -55,7 +57,7 @@
 
 ## 构建失败处理
 
-- 构建失败后直接 `change_role` 交接给 `build_engineer` 修复，不等待用户确认，也不要输出“会话暂停/等待修复”的交互提示。
+- 返回业务代码诊断的构建失败后直接 `change_role` 交接给 `build_engineer` 修复，不等待用户确认，也不要输出“会话暂停/等待修复”的交互提示。
 - 不要只修第一条错误，也不要连续用同一方案重试；先看完整 build 输出，把同类 schema/widget/tag/callback 错误一次性批量修完。
 - 遇到 `audit field`、`select requires options`、`OnSelectFuzzyMap`、`requires integer Go type`、未知 SDK API、分页/Chart/Time 这类 SDK 写法问题时，先读 `/system/prompt/sdk/reference/build-validation` 和匹配案例，再改代码。
 - 审计字段和系统字段按 SDK 主文档/案例写完整 tag；不要从字段名或 PRD desc 自己编 tag。

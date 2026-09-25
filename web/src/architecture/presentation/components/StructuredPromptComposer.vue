@@ -319,6 +319,7 @@ import {
   parseWorkspacePromptSegments,
   resolveWorkspaceResourcePath,
   workspaceToolName,
+  workspaceResourceIconHtml,
   wrapWorkspaceResourcePath,
   type WorkspacePromptSegment,
 } from './utils/workspaceInvocationSnippet'
@@ -1042,29 +1043,50 @@ function insertTextAtCaret(text: string, preferredOffset?: number) {
   handleEditorInput()
 }
 
-function insertWorkspaceResources(paths: string[], resources: Array<{ full_code_path?: string; name?: string }> = []) {
+function insertWorkspaceResources(paths: string[], resources: Array<{ full_code_path?: string; name?: string; type?: string; template_type?: string }> = []) {
   if (props.disabled || paths.length === 0) return
   resources.forEach(resource => {
     const path = normalizeResourcePathForMeta(resource.full_code_path || '')
     if (path && resource.name) {
-      resourceMetaByPath.value[path] = { ...createFallbackResourceMeta(path), label: resource.name }
+      const fallback = createFallbackResourceMeta(path)
+      resourceMetaByPath.value[path] = mapResourceSearchResultToMeta({
+        id: 0, full_code_path: path, name: resource.name, code: getPathTail(path),
+        type: resource.type === 'package' || resource.type === 'docs' || resource.type === 'function'
+          ? resource.type : fallback.resourceType as ResourceSearchResult['type'],
+        template_type: resource.template_type || fallback.templateType,
+      })
     }
   })
   const editor = editorRef.value
   const source = editor ? serializeEditorContent(editor) : currentText.value
   const result = insertWorkspaceResourceTokensAtOffset(source, paths, source.length, props.fullCodePath)
-  if (!result.insertedText) return
+  const wasEditing = mode.value === 'edit'
   mode.value = 'edit'
-  commitText(result.value)
-  renderEditorContent(result.value)
-  lastCaretOffset = result.cursor
+  // A text node after the non-editable chip gives browsers an immediate typing
+  // and IME position. Focus before the parent's Vue update, not after it.
+  if (result.insertedText) {
+    clearRenderTimer()
+    const value = `${result.value} `
+    commitText(value)
+    renderEditorContent(value)
+    lastCaretOffset = value.length
+  } else {
+    lastCaretOffset = source.length
+  }
   closeMentionPanel()
-  void nextTick(() => {
-    if (!editor) return
-    editor.focus()
-    restoreCaretTextOffset(editor, result.cursor)
-    keepCaretVisible(editor)
-  })
+  const focusInsertedResource = () => {
+    const target = editorRef.value
+    if (!target) return
+    target.focus({ preventScroll: true })
+    restoreCaretTextOffset(target, lastCaretOffset)
+    keepCaretVisible(target)
+  }
+  if (wasEditing) {
+    focusInsertedResource()
+  } else {
+    // Preview-to-edit needs Vue to reveal the editor first.
+    void nextTick(focusInsertedResource)
+  }
   scheduleMetadataHydration()
 }
 
@@ -1528,9 +1550,14 @@ function createResourceIconElement(meta: PromptResourceMeta | undefined, path: s
     return img
   }
 
-  const icon = document.createElement('span')
-  icon.className = `spc-resource-icon-fallback is-${resourceKind(path)} ${meta?.iconClass || ''}`.trim()
-  return icon
+  const kind = meta?.resourceType === 'package' ? 'directory'
+    : meta?.resourceType === 'docs' ? 'docs' : meta?.templateType || resourceKind(path)
+  const container = document.createElement('span')
+  container.className = 'spc-resource-icon-component'
+  container.setAttribute('aria-hidden', 'true')
+  // Only trusted built-in icon markup; no server-supplied SVG or HTML.
+  container.innerHTML = workspaceResourceIconHtml(kind)
+  return container
 }
 
 function scheduleMetadataHydration() {
@@ -1613,7 +1640,11 @@ async function hydrateResourceMetadata(paths: string[], seq: number) {
     resourceMetaByPath.value = next
     editorRef.value?.querySelectorAll<HTMLElement>('.spc-editor-token.is-resource').forEach(chip => {
       const label = chip.querySelector('.spc-editor-token-label')
-      if (label) label.textContent = getResourceDisplayLabel(chip.dataset.path || '')
+      const path = chip.dataset.path || ''
+      if (label) label.textContent = getResourceDisplayLabel(path)
+      const icon = createResourceIconElement(getResourceMeta(path), path)
+      if (chip.firstElementChild !== label) chip.firstElementChild?.replaceWith(icon)
+      else chip.prepend(icon)
     })
   } catch {
     // Metadata is display-only. Keep raw tokens if lookup fails.
@@ -1686,7 +1717,7 @@ function createFallbackResourceMeta(path: string): PromptResourceMeta {
     id: 0,
     name: resourceDisplayName(normalized),
     code: getPathTail(normalized),
-    type: normalized.includes('/docs/') || normalized.endsWith('.docs') ? 'docs' : normalized.endsWith('/') ? 'package' : 'function',
+    type: normalized.endsWith('.docs') ? 'docs' : resourceKind(normalized) === 'directory' ? 'package' : 'function',
     full_code_path: normalized,
     template_type: normalized.endsWith('.form') ? 'form' : normalized.endsWith('.table') ? 'table' : normalized.endsWith('.chart') ? 'chart' : '',
   }
@@ -2235,6 +2266,9 @@ defineExpose({
   flex-shrink: 0;
   object-fit: contain;
 }
+
+:deep(.spc-resource-icon-component svg),
+:deep(.spc-resource-icon-component img) { width: 100%; height: 100%; display: block; }
 
 .spc-resource-icon-fallback,
 :deep(.spc-resource-icon-fallback) {

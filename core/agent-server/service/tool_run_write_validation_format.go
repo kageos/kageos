@@ -40,6 +40,7 @@ func formatRunWriteValidationFailure(ctx context.Context, toolName string, issue
 
 func orderedRunWriteValidationIssueKinds() []runWriteValidationIssueKind {
 	return []runWriteValidationIssueKind{
+		runWriteIssueNotWritable,
 		runWriteIssueRequired,
 		runWriteIssueStaticChoice,
 		runWriteIssueFuzzyChoice,
@@ -60,12 +61,14 @@ func groupRunWriteValidationIssues(issues []runWriteValidationIssue) map[runWrit
 
 func runWriteValidationKindGuidance(ctx context.Context, kind runWriteValidationIssueKind) string {
 	switch kind {
+	case runWriteIssueNotWritable:
+		return "只提交当前操作允许写入的字段；不得通过其他字段绕过业务限制。"
 	case runWriteIssueRequired:
 		return "必填字段: 补齐非空值。"
 	case runWriteIssueStaticChoice:
 		return "静态选项: 只能填 schema options 中的值。"
 	case runWriteIssueFuzzyChoice:
-		return "动态选项: 用 run_on_select_fuzzy 查候选，填 items[].value；不支持 by_value/by_values 就修回调。"
+		return "动态选项: 用 run_on_select_fuzzy 查候选，填 items[].value；不支持 by_value/by_values 时使用已支持的关键词查询，不自行修改回调。"
 	case runWriteIssueUser:
 		if user := strings.TrimSpace(contextx.GetRequestUser(ctx)); user != "" {
 			return "用户字段: 使用真实 username；测试时优先用当前请求用户 " + user + "。"

@@ -117,7 +117,16 @@ func normalizeSearchPage(args searchArgs) int {
 	return 1
 }
 
+type searchBackend struct {
+	functions func(context.Context, *dto.SearchFunctionsReq) (*dto.SearchFunctionsResp, error)
+	resources func(context.Context, *dto.SearchResourcesReq) (*dto.SearchResourcesResp, error)
+}
+
 func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs) ToolResult {
+	return runSearchToolWithBackend(ctx, registry, args, searchBackend{apicall.SearchFunctions, apicall.SearchResources})
+}
+
+func runSearchToolWithBackend(ctx context.Context, registry *ToolRegistry, args searchArgs, backend searchBackend) ToolResult {
 	keywordRaw := strings.TrimSpace(args.Keyword)
 	fullCodePath := normalizeWorkspacePath(args.FullCodePath)
 	resourceType := normalizeSearchResourceType(args.ResourceType)
@@ -140,7 +149,7 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 			fetchPage = 1
 			fetchPageSize = 100
 		}
-		resp, err := apicall.SearchFunctions(ctx, &dto.SearchFunctionsReq{
+		resp, err := backend.functions(ctx, &dto.SearchFunctionsReq{
 			Keyword:      keywordRaw,
 			FullCodePath: fullCodePath,
 			TemplateType: templateType,
@@ -149,6 +158,7 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 		})
 		if err != nil {
 			logger.Warnf(ctx, "[Search] SearchFunctions err: %v", err)
+			return searchUnavailableResult()
 		} else if resp != nil {
 			functions = resp.Functions
 		}
@@ -160,7 +170,7 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 
 	items := make([]*dto.ResourceSearchResult, 0)
 	if shouldSearchResources(resourceType) {
-		resp, err := apicall.SearchResources(ctx, &dto.SearchResourcesReq{
+		resp, err := backend.resources(ctx, &dto.SearchResourcesReq{
 			Keyword:      keywordRaw,
 			FullCodePath: fullCodePath,
 			ResourceType: apiSearchResourceType(resourceType),
@@ -169,6 +179,7 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 		})
 		if err != nil {
 			logger.Warnf(ctx, "[Search] SearchResources err: %v", err)
+			return searchUnavailableResult()
 		} else if resp != nil {
 			items = resp.Items
 		}
@@ -209,4 +220,11 @@ func runSearchTool(ctx context.Context, registry *ToolRegistry, args searchArgs)
 	}
 
 	return toolResultWithData(formatSearchOutput(data, requestOutput), false, data)
+}
+
+func searchUnavailableResult() ToolResult {
+	return toolResultWithStructuredData(struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}{"resource_query_failed", "资源查询失败，本次无法确认资源是否存在。"}, true)
 }

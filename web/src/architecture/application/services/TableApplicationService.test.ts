@@ -34,3 +34,12 @@ describe('TableApplicationService batch add', () => {
     })
   })
 })
+
+it('preserves successful writes when refreshing the list fails', async () => {
+  const domain = { beforeRender: vi.fn(), addRow: vi.fn().mockResolvedValue({ id: 1 }), loadData: vi.fn().mockRejectedValue(new Error('offline')) }
+  const service = new TableApplicationService(domain as any, { on: vi.fn() } as any)
+  const result = await service.addRows({ router: '/table' } as any, [{ rowNumber: 2, data: { name: 'A' } }])
+  expect(result).toMatchObject({ createdCount: 1, failedCount: 0, errors: [] })
+  expect(result.refreshWarning).toContain('不要重复导入')
+  expect(domain.addRow).toHaveBeenCalledTimes(1)
+})

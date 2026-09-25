@@ -19,7 +19,7 @@ type runChartQueryArgs struct {
 
 var runChartQueryToolDef = toolDefinition[runChartQueryArgs](
 	"run_chart_query",
-	"执行工作区内 Chart 查询接口，返回图表数据。执行前必须已通过 search 字段摘要或 read_file 确认该 Chart 的 Request 字段名、必填项和枚举值；不要根据图表名或相似图表猜 url_query。full_code_path 必须为带 `.chart` 后缀的具体图表函数路径；同目录图表可用 `./xxx.chart` 或 `<./xxx.chart>`，跨目录使用完整路径，如 /luobei/myapp/charts/sales_trend.chart。图表查询参数不固定，由具体 Chart 的 handler 定义（如 year、month、dimension 等）。传 url_query 为完整查询串（如 year=2024&month=1），不传则无额外参数。",
+	"执行工作区内 Chart 查询接口，返回图表数据。执行前必须已通过 search 返回的操作字段说明确认该图表的查询字段名、必填项和枚举值；不要根据图表名或相似图表猜 url_query。full_code_path 必须为带 `.chart` 后缀的具体图表函数路径；同目录图表可用 `./xxx.chart` 或 `<./xxx.chart>`，跨目录使用完整路径，如 /luobei/myapp/charts/sales_trend.chart。图表查询参数以该图表的操作字段说明为准（如 year、month、dimension 等）。传 url_query 为完整查询串（如 year=2024&month=1），不传则无额外参数。",
 )
 
 func (t *RunChartQueryTool) Definition() dto.ToolDef {
@@ -54,7 +54,7 @@ func runChartQueryTool(ctx context.Context, args runChartQueryArgs, currentFullC
 	result, err := apicall.ChartQuery(ctx, fullCodePath, params)
 	if err != nil {
 		logger.Errorf(ctx, "[RunChartQuery] ChartQuery 失败: %v", err)
-		return toolResult("run_chart_query 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "run_chart_query 调用失败", err), true)
 	}
 	return toolResultWithStructuredData(result, false, pathNotice)
 }

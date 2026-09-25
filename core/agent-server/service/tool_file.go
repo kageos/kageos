@@ -296,7 +296,7 @@ func runEditDocsFileTool(ctx context.Context, args editFileArgs, currentFullCode
 	docPath := strings.TrimRight(targetPath, "/") + "/" + withWriteDocSuffix(code)
 	detail, err := apicall.GetServiceTreeDetailByFullCodePath(ctx, docPath)
 	if err != nil || detail == nil {
-		return toolResult(fmt.Sprintf("edit_file 查询文档节点失败: %v", err), true)
+		return toolResult(publicToolBackendError(ctx, "edit_file", err), true)
 	}
 	updateReq := &dto.UpdateDocsReq{}
 	if hasSearchEdits || hasLineEdits {
@@ -307,7 +307,7 @@ func runEditDocsFileTool(ctx context.Context, args editFileArgs, currentFullCode
 		updateReq.Name = &name
 	}
 	if err := apicall.UpdateDocs(ctx, detail.ID, updateReq); err != nil {
-		return toolResult("edit_file 更新文档失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "edit_file 更新文档失败", err), true)
 	}
 
 	newSHA := fileContentSHA(newContent)
@@ -400,10 +400,10 @@ func runWriteFileTool(ctx context.Context, args writeFileArgs, currentFullCodePa
 			Content:      args.Content,
 		})
 		if err != nil {
-			return toolResult("write_file 调用失败: "+err.Error(), true)
+			return toolResult(publicToolBackendError(ctx, "write_file 调用失败", err), true)
 		}
 		if resp != nil && !resp.Success {
-			return toolResult("write_file 失败: "+resp.Message, true)
+			return toolResult(publicToolBackendError(ctx, "write_file", fmt.Errorf("%s", resp.Message)), true)
 		}
 		msg = fmt.Sprintf("已落盘: %s。当前未编译工作空间，仅修改了文本文件。", fileName)
 		if resp != nil && resp.RelativePath != "" {
@@ -444,7 +444,7 @@ func runWriteDocsFileTool(ctx context.Context, args writeFileArgs, targetPath st
 		existingName = strings.TrimSpace(doc.Name)
 		created = false
 	} else if err != nil && !isWorkspaceDocNotFoundError(err) {
-		return toolResult("write_file 读取现有文档失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "write_file 读取现有文档失败", err), true)
 	}
 	oldSHA := ""
 	if !created {
@@ -526,7 +526,7 @@ func readWorkspaceFile(ctx context.Context, directory string, fullCodePath strin
 		docPath := strings.TrimRight(targetPath, "/") + "/" + filepath.Base(fileName)
 		doc, err := apicall.GetDoc(ctx, docPath)
 		if err != nil {
-			return targetPath, nil, fmt.Sprintf("读取文档失败: %v", err), true
+			return targetPath, nil, publicToolBackendError(ctx, "read_file", err), true
 		}
 		if doc == nil {
 			return targetPath, nil, fmt.Sprintf("在目录 %s 下未找到文档：%s", targetPath, fileName), true
@@ -550,7 +550,7 @@ func readWorkspaceFile(ctx context.Context, directory string, fullCodePath strin
 func findWorkspaceFile(ctx context.Context, targetPath string, fileName string) (*dto.WorkspaceContextFile, string, bool) {
 	workspaceCtx, err := apicall.GetWorkspaceContext(ctx, targetPath, "runtime")
 	if err != nil {
-		return nil, fmt.Sprintf("获取文件失败: %v", err), true
+		return nil, publicToolBackendError(ctx, "read_file", err), true
 	}
 	if len(workspaceCtx.Files) == 0 {
 		return nil, fmt.Sprintf("目录 %s 下没有文件。", targetPath), false

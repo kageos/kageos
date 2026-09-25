@@ -249,7 +249,7 @@ function openExecutionSession(execution: TimerExecution) {
     full_code_path: fullCodePath,
     session_id: sessionID,
     directory_name: getWorkspaceName(fullCodePath),
-    initial_maximized: true,
+    initial_maximized: false,
     open_as_mini: true,
   })
 }

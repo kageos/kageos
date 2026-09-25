@@ -57,10 +57,10 @@ func runDeleteFileTool(ctx context.Context, args deleteFileArgs, currentFullCode
 	resp, err := apicall.DeleteFile(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[DeleteFile] DeleteFile 失败: %v", err)
-		return "delete_file 调用失败: " + err.Error(), true
+		return publicToolBackendError(ctx, "delete_file", err), true
 	}
 	if !resp.Success {
-		return "delete_file: " + resp.Message, true
+		return publicToolBackendError(ctx, "delete_file", fmt.Errorf("%s", resp.Message)), true
 	}
 	return fmt.Sprintf("已删除: 目录=%s, 文件=%s", targetPath, fileName), false
 }

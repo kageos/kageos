@@ -1,295 +1,127 @@
 <template>
   <div class="workspace-inbox">
     <el-tooltip v-if="props.showTrigger" :content="t('workspaceInbox.title')" placement="bottom" effect="light">
-      <el-badge
-        :value="unreadCount"
-        :hidden="unreadCount <= 0"
-        :max="99"
-        class="workspace-inbox-badge"
-      >
-        <el-button
-          class="workspace-inbox-button"
-          :icon="MessageIcon"
-          :loading="countLoading"
-          circle
-          @click="openDrawer"
-        />
+      <el-badge :value="unreadCount" :hidden="unreadCount <= 0" :max="99" class="workspace-inbox-badge">
+        <el-button class="workspace-inbox-button" :icon="MessageIcon" :loading="countLoading" :aria-label="t('workspaceInbox.title')" circle @click="openDrawer" />
       </el-badge>
     </el-tooltip>
-
-    <el-drawer
-      v-model="drawerVisible"
-      :title="drawerTitle"
-      direction="rtl"
-      size="min(1120px, 96vw)"
-      :destroy-on-close="false"
-      append-to-body
-      modal-class="workspace-inbox-modal"
-      :z-index="Z_INDEX.globalOverlay"
-      class="workspace-inbox-drawer"
-      @open="handleDrawerOpen"
-      @closed="handleDrawerClosed"
-    >
+    <el-drawer v-model="drawerVisible" :title="drawerTitle" direction="rtl"
+      :size="maximized ? '100vw' : 'min(1480px, 96vw)'" :destroy-on-close="false" append-to-body
+      modal-class="workspace-inbox-modal" :z-index="Z_INDEX.globalOverlay" class="workspace-inbox-drawer"
+      @open="handleDrawerOpen" @closed="handleDrawerClosed">
+      <template #header>
+        <div class="inbox-heading">
+          <h2>{{ t('workspaceInbox.title') }}</h2>
+          <el-button text class="inbox-maximize" @click="maximized = !maximized">
+            {{ t(maximized ? 'workspaceInbox.restore' : 'workspaceInbox.maximize') }}
+          </el-button>
+        </div>
+      </template>
       <div class="inbox-shell">
+        <form class="inbox-search" @submit.prevent="applySearch">
+          <el-input v-model="searchInput" :prefix-icon="Search" :placeholder="t('workspaceInbox.searchPlaceholder')"
+            :aria-label="t('workspaceInbox.searchPlaceholder')" maxlength="200" clearable @input="scheduleSearch" />
+        </form>
         <header class="inbox-toolbar">
           <div class="inbox-filter">
-            <el-segmented
-              v-model="statusFilter"
-              :options="statusOptions"
-              size="small"
-              @change="loadInbox(true)"
-            />
+            <el-button v-if="showServiceTreeInbox" text :aria-expanded="sourcesVisible" @click="sourcesVisible = !sourcesVisible">
+              {{ t(sourcesVisible ? 'workspaceInbox.hideSources' : 'workspaceInbox.showSources') }}
+            </el-button>
+            <el-segmented v-model="statusFilter" :options="statusOptions" size="small" @change="loadInbox(true)" />
+            <el-select v-model="timeRange" class="inbox-time-filter" :aria-label="t('workspaceInbox.timeRange')" @change="loadInbox(true)">
+              <el-option v-for="days in [0, 7, 30]" :key="days" :value="days"
+                :label="days ? t('workspaceInbox.lastDays', { count: days }) : t('workspaceInbox.anyTime')" />
+            </el-select>
             <div v-if="sourceFilter" class="source-filter-chip">
-              <el-tag size="small" effect="plain">{{ t('workspaceInbox.nodeNotifications') }}</el-tag>
               <span :title="sourceFilter.sourcePath">{{ sourceFilter.title || sourceFilter.sourcePath }}</span>
               <el-button size="small" text @click="clearSourceFilter">{{ t('workspaceInbox.viewAll') }}</el-button>
             </div>
           </div>
           <div class="inbox-actions">
-            <el-button :icon="Refresh" :loading="listLoading" @click="loadInbox(true)">
-              {{ t('common.refresh') }}
-            </el-button>
-            <el-button :disabled="currentScopeUnreadCount <= 0" @click="markCurrentScopeRead">
+            <el-button :icon="Refresh" :loading="listLoading" @click="loadInbox(true)">{{ t('common.refresh') }}</el-button>
+            <el-button :disabled="currentScopeUnreadCount <= 0 || markingScope" :loading="markingScope" @click="markCurrentScopeRead">
               {{ sourceFilter ? t('workspaceInbox.markCurrentNodeRead') : t('workspaceInbox.markAllRead') }}
             </el-button>
           </div>
         </header>
-
         <div v-if="shouldShowWorkspaceTabs" class="inbox-workspace-tabs">
-          <button
-            v-for="workspace in workspaceTabs"
-            :key="workspace.workspace_key"
-            type="button"
-            class="workspace-tab"
-            :class="{ 'is-active': isWorkspaceTabActive(workspace), 'has-unread': Number(workspace.unread_count || 0) > 0 }"
-            @click="handleWorkspaceTabClick(workspace)"
-          >
-            <div class="workspace-tab-logo">
-              <el-icon><Monitor /></el-icon>
-            </div>
-            <span class="workspace-tab-copy">
-              <span class="workspace-tab-title">{{ workspaceTabTitle(workspace) }}</span>
-              <span class="workspace-tab-path">{{ workspaceTabPath(workspace) }}</span>
-            </span>
-            <span class="workspace-tab-counts">
-              <span v-if="Number(workspace.unread_count || 0) > 0" class="workspace-tab-unread">
-                {{ workspace.unread_count }}
-              </span>
-              <span class="workspace-tab-total">{{ t('workspaceInbox.messageCount', { count: workspace.message_count }) }}</span>
-            </span>
+          <button v-for="workspace in workspaceTabs" :key="workspace.workspace_key" type="button" class="workspace-tab"
+            :class="{ 'is-active': isWorkspaceTabActive(workspace) }" @click="handleWorkspaceTabClick(workspace)">
+            <span class="workspace-tab-logo"><el-icon><Monitor /></el-icon></span>
+            <span class="workspace-tab-copy"><span class="workspace-tab-title">{{ workspaceTabTitle(workspace) }}</span></span>
+            <span v-if="Number(workspace.unread_count || 0) > 0" class="workspace-tab-unread">{{ workspace.unread_count }}</span>
           </button>
         </div>
-
-        <el-alert
-          v-if="errorMessage"
-          :title="errorMessage"
-          type="error"
-          show-icon
-          :closable="false"
-          class="inbox-error"
-        />
-
-        <div class="inbox-layout">
-          <section class="inbox-list-pane" v-loading="!showServiceTreeInbox && listLoading">
-            <template v-if="showServiceTreeInbox">
-              <el-tree
-                :key="sourceTreeRenderKey"
-                class="inbox-source-tree"
-                :data="props.serviceTree"
-                :props="sourceTreeProps"
-                node-key="full_code_path"
-                :default-expanded-keys="sourceTreeExpandedKeys"
-                :expand-on-click-node="false"
-                :highlight-current="true"
-                :current-node-key="activeSourceTreeKey"
-                @node-click="handleSourceTreeNodeClick"
-              >
-                <template #default="{ data }">
-                  <ServiceTreeNodeContent
-                    :node="data"
-                    :active="isSourceTreeNodeActive(data)"
-                    :show-notification-badge="hasSourceTreeMessages(data)"
-                    :notification-badge-value="sourceTreeNotificationCount(data)"
-                    :notification-badge-class="sourceTreeNotificationClass(data)"
-                    :notification-badge-title="getSourceTreeNotificationTitle(data)"
-                    @notification-click="handleSourceTreeNodeClick(data)"
-                  />
-                </template>
-              </el-tree>
-            </template>
-            <template v-else>
-              <el-empty
-                v-if="!listLoading && inboxThreads.length === 0"
-                :description="t('workspaceInbox.empty')"
-                :image-size="80"
-              />
-
-              <button
-                v-for="thread in inboxThreads"
-                :key="thread.key"
-                type="button"
-                class="inbox-list-item"
-                :class="{ 'is-active': selectedThread?.key === thread.key, 'is-unread': thread.unreadCount > 0 }"
-                @click="selectThread(thread)"
-              >
-                <span class="thread-avatar">
-                  <el-icon><component :is="threadIcon(thread)" /></el-icon>
-                </span>
-                <span class="inbox-list-copy">
-                  <span class="thread-title-row">
-                    <span class="inbox-list-title">{{ thread.title }}</span>
-                    <span v-if="thread.unreadCount > 0" class="thread-unread-count">{{ thread.unreadCount }}</span>
-                  </span>
-                  <span class="inbox-list-preview">{{ previewText(thread.lastMessage.content, thread.lastMessage.files) }}</span>
-                  <span class="inbox-list-meta">
-                    <span>{{ thread.subtitle }}</span>
-                    <span class="thread-time" :title="formatExactTime(thread.lastMessage.created_at)">
-                      {{ formatRelativeTime(thread.lastMessage.created_at) }}
-                    </span>
-                  </span>
-                </span>
-              </button>
-
-              <div v-if="total > pageSize" class="inbox-pagination">
-                <el-pagination
-                  v-model:current-page="page"
-                  :page-size="pageSize"
-                  :total="total"
-                  size="small"
-                  layout="prev, pager, next"
-                  @current-change="loadInbox"
-                />
+        <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" class="inbox-error" />
+        <div class="inbox-layout" :class="{ 'sources-hidden': !showServiceTreeInbox || !sourcesVisible }">
+          <aside v-if="showServiceTreeInbox && sourcesVisible" class="inbox-list-pane" v-loading="sourceTreeLoading">
+            <button class="inbox-all-sources" :class="{ 'is-active': !sourceFilter }" @click="clearSourceFilter">
+              {{ t('workspaceInbox.allNotifications') }} <span>{{ unreadCount || '' }}</span>
+            </button>
+            <el-checkbox v-model="showAllSources" class="inbox-source-toggle">{{ t('workspaceInbox.showAllSources') }}</el-checkbox>
+            <el-alert v-if="sourceTreeError" :title="sourceTreeError" type="error" :closable="false" />
+            <el-button v-if="sourceTreeError" text @click="loadDirectoryTree">{{ t('common.refresh') }}</el-button>
+            <el-tree v-else :key="sourceTreeRenderKey" class="inbox-source-tree" :data="visibleSourceTree" :props="sourceTreeProps"
+              node-key="full_code_path" :default-expanded-keys="sourceTreeExpandedKeys" :expand-on-click-node="false"
+              :highlight-current="true" :current-node-key="activeSourceTreeKey" @node-click="handleSourceTreeNodeClick">
+              <template #default="{ data }">
+                <ServiceTreeNodeContent :node="data" :active="isSourceTreeNodeActive(data)"
+                  :show-notification-badge="hasSourceTreeMessages(data)" :notification-badge-value="sourceTreeNotificationCount(data)"
+                  :notification-badge-class="sourceTreeNotificationClass(data)" :notification-badge-title="getSourceTreeNotificationTitle(data)"
+                  @notification-click="handleSourceTreeNodeClick(data)" />
+              </template>
+            </el-tree>
+          </aside>
+          <section ref="messagePane" class="inbox-detail-pane" v-loading="listLoading" :aria-busy="listLoading">
+            <header class="inbox-detail-header">
+              <div>
+                <h3>{{ sourceFilter?.title || sourceFilter?.sourcePath || t('workspaceInbox.allNotifications') }}</h3>
+                <div class="inbox-detail-meta" aria-live="polite">
+                  {{ t(searchQuery ? 'workspaceInbox.resultCount' : 'workspaceInbox.messageCount', { count: total }) }}
+                </div>
               </div>
-            </template>
-          </section>
-
-          <section class="inbox-detail-pane" v-loading="detailLoading || (showServiceTreeInbox && listLoading)">
-            <el-empty
-              v-if="!selectedThread"
-              :description="sourceFilter ? t('workspaceInbox.currentNodeEmpty') : t('workspaceInbox.selectSource')"
-              :image-size="96"
-            />
-
-            <article v-else class="inbox-detail">
-              <header class="inbox-detail-header">
-                <div>
-                  <h3>{{ selectedThread.title }}</h3>
-                  <div class="inbox-detail-meta">
-                    <span>{{ selectedThread.subtitle }}</span>
-                    <span>{{ t('workspaceInbox.messageCount', { count: selectedThread.count }) }}</span>
-                    <el-tag v-if="selectedThread.unreadCount > 0" size="small" type="primary">
-                      {{ t('workspaceInbox.unreadMessageCount', { count: selectedThread.unreadCount }) }}
-                    </el-tag>
-                    <el-tag v-else size="small" type="info">{{ t('workspaceInbox.read') }}</el-tag>
-                  </div>
-                </div>
-                <el-button
-                  v-if="selectedThread.unreadCount > 0"
-                  size="small"
-                  type="primary"
-                  plain
-                  @click="markThreadRead(selectedThread)"
-                >
-                  {{ t('workspaceInbox.markAllRead') }}
-                </el-button>
-              </header>
-
-              <section class="inbox-source-card">
-                <div class="source-avatar">
-                  <el-icon><component :is="threadIcon(selectedThread)" /></el-icon>
-                </div>
-                <div class="source-copy">
-                  <div class="source-title-row">
-                    <strong>{{ selectedThread.title }}</strong>
-                    <el-tag v-if="sourceTypeText(selectedThread.lastMessage)" size="small" effect="plain">
-                      {{ sourceTypeText(selectedThread.lastMessage) }}
-                    </el-tag>
-                  </div>
-                  <div class="source-subtitle">{{ selectedThread.path || selectedThread.subtitle }}</div>
-                </div>
-                <div class="source-actions">
-                  <el-button
-                    v-if="sourcePathForMessage(selectedThread.lastMessage)"
-                    size="small"
-                    plain
-                    @click="openSourcePath(selectedThread.lastMessage)"
-                  >
-                    {{ t('workspaceInbox.viewSource') }}
-                  </el-button>
-                </div>
-              </section>
-
-              <div class="inbox-message-stream">
-                <article
-                  v-for="message in selectedThreadMessages"
-                  :key="message.id"
-                  class="inbox-message-card"
-                  :class="{ 'is-unread': !message.read_at, 'is-active': selectedId === message.id }"
-                  @click="selectMessage(message)"
-                >
-                  <header class="message-card-header">
-                    <div class="message-card-title">
-                      <strong>{{ message.title || t('workspaceInbox.untitledMessage') }}</strong>
-                      <el-tag v-if="sourceTypeText(message)" size="small" effect="plain">
-                        {{ sourceTypeText(message) }}
-                      </el-tag>
-                      <el-tag v-if="!message.read_at" size="small" type="primary">{{ t('workspaceInbox.unread') }}</el-tag>
-                    </div>
-                    <span class="message-card-time" :title="formatExactTime(message.created_at)">
-                      <span>{{ formatRelativeTime(message.created_at) }}</span>
-                      <small>{{ formatExactTime(message.created_at) }}</small>
+            </header>
+            <el-empty v-if="!listLoading && !errorMessage && !threadMessages.length" :description="t(searchQuery || timeRange ? 'workspaceInbox.noResults' : 'workspaceInbox.empty')" :image-size="80" />
+            <div class="inbox-message-stream">
+              <template v-for="(message, index) in selectedThreadMessages" :key="message.id">
+                <h4 v-if="index === 0 || dateGroup(message.created_at) !== dateGroup(selectedThreadMessages[index - 1]?.created_at)" class="inbox-date-group">
+                  {{ dateGroup(message.created_at) }}
+                </h4>
+                <article :id="`inbox-message-${message.id}`" class="inbox-message-card"
+                  :class="{ 'is-unread': !message.read_at, 'is-active': selectedId === message.id }">
+                  <header class="message-summary">
+                    <span class="message-card-header">
+                      <span class="message-card-title">
+                        <span v-if="!message.read_at" class="message-unread-dot" :aria-label="t('workspaceInbox.unread')" />
+                        <strong v-html="highlightText(message.title || t('workspaceInbox.untitledMessage'))" />
+                      </span>
+                      <time class="message-card-time" :datetime="message.created_at" :title="formatExactTime(message.created_at)">{{ formatRelativeTime(message.created_at) }}</time>
+                    </span>
+                    <span class="message-card-meta">
+                      <span v-html="highlightText(sourceSecondaryText(message))" />
+                      <span>{{ messageSenderText(message) }}</span>
+                      <span v-if="parseMessageFileRefs(message.files).length">{{ t('workspaceInbox.attachmentCount', { count: parseMessageFileRefs(message.files).length }) }}</span>
                     </span>
                   </header>
-                  <div class="message-card-meta">
-                    <span>{{ t('workspaceInbox.sender') }}: {{ messageSenderText(message) }}</span>
-                    <span>{{ t('workspaceInbox.source') }}: {{ sourceSecondaryText(message) }}</span>
+                  <div :id="`inbox-body-${message.id}`" class="message-expanded" v-loading="detailLoading && selectedId === message.id">
+                    <div class="inbox-content inbox-rich-content" v-html="renderMessageContent(selectedId === message.id && selectedMessage ? selectedMessage : message)" />
+                    <OutputFilesDisplay v-if="messageFileGroups(selectedId === message.id && selectedMessage ? selectedMessage : message).length" class="inbox-message-files"
+                      :file-groups="messageFileGroups(selectedId === message.id && selectedMessage ? selectedMessage : message)" :section-title="t('workspaceInbox.attachments')" />
+                    <footer class="message-card-actions">
+                      <el-button v-if="message.scheduled_task_id" size="small" type="primary" plain @click="openScheduledExecution(message)">{{ t('workspaceInbox.viewExecution') }}</el-button>
+                      <el-button v-if="message.workspace_session_id" size="small" type="primary" plain @click="openWorkspaceSession(message)">{{ t('workspaceInbox.viewSession') }}</el-button>
+                      <el-button v-if="sourcePathForMessage(message)" size="small" plain @click="openSourcePath(message)">{{ t('workspaceInbox.viewSource') }}</el-button>
+                      <el-button v-if="sourcePathForMessage(message)" size="small" text @click="openMessageSource(message)">{{ t('workspaceInbox.sourceHistory') }}</el-button>
+                      <el-button v-if="!message.read_at" size="small" text @click="markMessageRead(message.id)">{{ t('workspaceInbox.markRead') }}</el-button>
+                    </footer>
                   </div>
-                  <div class="inbox-content inbox-rich-content" v-html="renderMessageContent(message)" />
-                  <OutputFilesDisplay
-                    v-if="messageFileGroups(message).length > 0"
-                    class="inbox-message-files"
-                    :file-groups="messageFileGroups(message)"
-                    :section-title="t('workspaceInbox.attachments')"
-                  />
-                  <footer class="message-card-actions">
-                    <el-button
-                      v-if="message.scheduled_task_id || selectedThread?.scheduledTaskID"
-                      size="small"
-                      type="primary"
-                      plain
-                      @click.stop="openScheduledExecution(message)"
-                    >
-                      {{ t('workspaceInbox.viewExecution') }}
-                    </el-button>
-                    <el-button
-                      v-if="message.workspace_session_id"
-                      size="small"
-                      type="primary"
-                      plain
-                      @click.stop="openWorkspaceSession(message)"
-                    >
-                      {{ t('workspaceInbox.viewSession') }}
-                    </el-button>
-                    <el-button
-                      v-if="sourcePathForMessage(message)"
-                      size="small"
-                      plain
-                      @click.stop="openSourcePath(message)"
-                    >
-                      {{ t('workspaceInbox.viewSource') }}
-                    </el-button>
-                    <el-button
-                      v-if="!message.read_at"
-                      size="small"
-                      plain
-                      @click.stop="markMessageRead(message.id)"
-                    >
-                      {{ t('workspaceInbox.markRead') }}
-                    </el-button>
-                  </footer>
                 </article>
-              </div>
-            </article>
+              </template>
+            </div>
+            <div v-if="total > pageSize" class="inbox-pagination">
+              <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" :disabled="listLoading"
+                :pager-count="5" size="small" layout="prev, pager, next" @current-change="loadInbox(false)" />
+            </div>
           </section>
         </div>
       </div>
@@ -298,19 +130,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import {
-  ChatDotRound,
-  Document as DocumentIcon,
-  FolderOpened,
   Message as MessageIcon,
   Refresh,
-  Timer,
-  Monitor
+  Monitor,
+  Search
 } from '@element-plus/icons-vue'
 import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { useLazyMarkdownRenderer } from '@/architecture/presentation/composables/useLazyMarkdownRenderer'
@@ -339,7 +168,6 @@ import {
   getMessageInboxUnreadCount,
   listMessageInbox,
   listMessageInboxSourceCounts,
-  listMessageInboxThreads,
   listMessageInboxWorkspaceCounts,
   markAllMessageInboxItemsRead,
   markMessageInboxItemRead,
@@ -350,7 +178,7 @@ import {
   type MessageInboxWorkspaceCount,
   type MessageInboxStatus,
 } from '@/architecture/presentation/context/api/message'
-import { getAppList } from '@/architecture/presentation/context/api/app'
+import { getAppList, getAppWithServiceTree } from '@/architecture/presentation/context/api/app'
 import {
   notifyMessageInboxChanged,
   subscribeToMessageInboxChanges,
@@ -376,19 +204,6 @@ const emit = defineEmits<{
 }>()
 const inboxInstanceID = Symbol('workspace-inbox')
 
-interface InboxThread {
-  key: string
-  title: string
-  subtitle: string
-  path?: string
-  kind: MessageInboxThread['kind']
-  lastMessage: MessageInboxItem
-  unreadCount: number
-  count: number
-  scheduledTaskID?: number
-  scheduledExecutionID?: number
-}
-
 interface SourceFilter {
   sourcePath: string
   title?: string
@@ -402,10 +217,6 @@ interface SourceTreeSummary {
   latest_at?: string
 }
 
-interface LoadInboxOptions {
-  markSourceRead?: boolean
-}
-
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
@@ -416,11 +227,9 @@ const listLoading = ref(false)
 const detailLoading = ref(false)
 const errorMessage = ref('')
 const unreadCount = ref(0)
-const inboxThreads = ref<InboxThread[]>([])
 const threadMessages = ref<MessageInboxItem[]>([])
 const selectedMessage = ref<MessageInboxItem | null>(null)
 const selectedId = computed(() => selectedMessage.value?.id ?? null)
-const selectedThreadKey = ref('')
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
@@ -430,7 +239,6 @@ const statusOptions = computed(() => [
   { label: t('workspaceInbox.unread'), value: 'unread' },
 ])
 const sourceFilter = ref<SourceFilter | null>(null)
-const markSourceReadOnOpen = ref(false)
 const sourceCountMap = ref<Record<string, MessageInboxSourceCount>>({})
 const workspaceCounts = ref<MessageInboxWorkspaceCount[]>([])
 const resolvedWorkspaceApps = ref<Record<string, App>>({})
@@ -444,7 +252,16 @@ const sourceTreeProps = {
   children: 'children',
   label: 'name',
 }
-const showServiceTreeInbox = computed(() => props.showTrigger && props.serviceTree.length > 0)
+const remoteSourceTree = ref<ServiceTree[]>([])
+const remoteTreeWorkspaceKey = ref('')
+const sourceTreeLoading = ref(false)
+const sourceTreeError = ref('')
+let sourceTreeLoadSeq = 0
+const directoryWorkspaceKey = computed(() => workspaceKeyFromRoutePath(sourceFilter.value?.sourcePath || '') || currentWorkspaceKey.value)
+const directoryTree = computed(() => directoryWorkspaceKey.value === currentWorkspaceKey.value
+  ? props.serviceTree
+  : remoteTreeWorkspaceKey.value === directoryWorkspaceKey.value ? remoteSourceTree.value : [])
+const showServiceTreeInbox = computed(() => Boolean(directoryWorkspaceKey.value) || directoryTree.value.length > 0)
 const activeSourceTreeKey = computed(() => normalizeSourceTreePath(sourceFilter.value?.sourcePath))
 const currentWorkspaceKey = computed(() => {
   return workspaceKeyFromRoutePath(route.path) || workspaceKeyFromApp(props.currentApp)
@@ -483,13 +300,22 @@ const sourceTreeSummaries = computed<Record<string, SourceTreeSummary>>(() => {
   const walk = (node: ServiceTree) => {
     const path = normalizeSourceTreePath(node.full_code_path)
     if (path) {
-      summaries[path] = sourceCountMap.value[path] || {}
+      summaries[path] = node.type === 'package'
+        ? Object.values(sourceCountMap.value).reduce<SourceTreeSummary>((summary, item) => {
+          const childPath = normalizeSourceTreePath(item.source_path)
+          if (childPath === path || childPath.startsWith(`${path}/`)) {
+            summary.message_count = Number(summary.message_count || 0) + Number(item.message_count || 0)
+            summary.unread_count = Number(summary.unread_count || 0) + Number(item.unread_count || 0)
+          }
+          return summary
+        }, {})
+        : sourceCountMap.value[path] || {}
     }
     for (const child of node.children || []) {
       walk(child)
     }
   }
-  for (const node of props.serviceTree || []) {
+  for (const node of directoryTree.value) {
     walk(node)
   }
   return summaries
@@ -521,14 +347,14 @@ const sourceTreeExpandedKeys = computed(() => {
     }
   }
 
-  for (const node of props.serviceTree || []) {
+  for (const node of directoryTree.value) {
     walk(node, [])
   }
 
   return [...expanded]
 })
 const sourceTreeRenderKey = computed(() => {
-  return sourceTreeExpandedKeys.value.join('|') || 'empty'
+  return `${directoryWorkspaceKey.value}:${sourceTreeExpandedKeys.value.join('|')}`
 })
 const drawerTitle = computed(() => {
   if (!sourceFilter.value) return t('workspaceInbox.title')
@@ -536,22 +362,93 @@ const drawerTitle = computed(() => {
     title: sourceFilter.value.title || t('workspaceInbox.nodeNotifications')
   })
 })
-const selectedThread = computed(() => {
-  return inboxThreads.value.find(thread => thread.key === selectedThreadKey.value)
-    || inboxThreads.value[0]
-    || null
+const currentScopeUnreadCount = computed(() => sourceFilter.value ? sourceFilterUnreadCount() : unreadCount.value)
+const maximized = ref(false)
+const sourcesVisible = ref(typeof window === 'undefined' || window.innerWidth > 1024)
+const showAllSources = ref(false)
+const searchInput = ref('')
+const searchQuery = ref('')
+const timeRange = ref(0)
+const markingScope = ref(false)
+const messagePane = ref<HTMLElement | null>(null)
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+let markSourceReadOnOpen = false
+const visibleSourceTree = computed(() => {
+  if (showAllSources.value) return directoryTree.value
+  const prune = (nodes: ServiceTree[]): ServiceTree[] => nodes.flatMap(node => {
+    const children = prune(node.children || [])
+    return children.length || hasSourceTreeMessages(node) || isSourceTreeNodeActive(node)
+      ? [{ ...node, children }] : []
+  })
+  return prune(directoryTree.value)
 })
-const currentScopeUnreadCount = computed(() => {
-  if (sourceFilter.value) {
-    return selectedThread.value ? selectedThread.value.unreadCount : sourceFilterUnreadCount()
-  }
-  return unreadCount.value
-})
+onBeforeUnmount(() => clearTimeout(searchTimer))
+
+function scheduleSearch() {
+  clearTimeout(searchTimer)
+  // Invalidate pending results immediately, before the debounce finishes.
+  inboxLoadSeq += 1
+  detailLoadSeq += 1
+  searchTimer = setTimeout(applySearch, 300)
+}
+function applySearch() {
+  clearTimeout(searchTimer)
+  searchQuery.value = searchInput.value.trim()
+  void loadInbox(true)
+}
+function highlightText(text: string) {
+  const query = searchQuery.value
+  if (!query) return escapeHtml(text)
+  const index = text.toLocaleLowerCase().indexOf(query.toLocaleLowerCase())
+  if (index < 0) return escapeHtml(text)
+  return escapeHtml(text.slice(0, index)) + '<mark>' + escapeHtml(text.slice(index, index + query.length)) + '</mark>' + escapeHtml(text.slice(index + query.length))
+}
+function dateGroup(value?: string) {
+  const date = dayjs(value)
+  if (date.isSame(dayjs(), 'day')) return t('workspaceInbox.today')
+  if (date.isSame(dayjs().subtract(1, 'day'), 'day')) return t('workspaceInbox.yesterday')
+  return t('workspaceInbox.earlier')
+}
+function openMessageSource(message: MessageInboxItem) {
+  clearTimeout(searchTimer)
+  searchInput.value = ''
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  timeRange.value = 0
+  openForSource({ sourcePath: sourcePathForMessage(message), title: sourceSecondaryText(message) })
+}
+
 const selectedThreadMessages = computed(() => {
   return threadMessages.value
     .slice()
-    .sort((a, b) => messageTime(b) - messageTime(a)) || []
+    .sort((a, b) => messageTime(b) - messageTime(a) || b.id - a.id) || []
 })
+
+async function loadDirectoryTree() {
+  const key = directoryWorkspaceKey.value
+  const seq = ++sourceTreeLoadSeq
+  sourceTreeError.value = ''
+  remoteSourceTree.value = []
+  remoteTreeWorkspaceKey.value = ''
+  if (!key || key === currentWorkspaceKey.value) {
+    sourceTreeLoading.value = false
+    return
+  }
+  sourceTreeLoading.value = true
+  try {
+    const response = await getAppWithServiceTree(key)
+    if (seq !== sourceTreeLoadSeq) return
+    remoteSourceTree.value = response.service_tree || []
+    remoteTreeWorkspaceKey.value = key
+    cacheWorkspaceApps([response.app])
+  } catch (error) {
+    if (seq === sourceTreeLoadSeq) sourceTreeError.value = error instanceof Error ? error.message : t('workspaceInbox.loadFailed')
+  } finally {
+    if (seq === sourceTreeLoadSeq) sourceTreeLoading.value = false
+  }
+}
+watch([directoryWorkspaceKey, currentWorkspaceKey], () => { void loadDirectoryTree() }, { immediate: true })
+onBeforeUnmount(() => { sourceTreeLoadSeq += 1 })
 
 onMounted(() => {
   void loadUnreadCount()
@@ -594,7 +491,6 @@ async function loadUnreadCount() {
 function openDrawer() {
   void preloadMarkdown()
   sourceFilter.value = null
-  markSourceReadOnOpen.value = false
   void syncInboxRoute()
   drawerVisible.value = true
 }
@@ -613,27 +509,28 @@ async function openInboxFromRouteIntent() {
     sourceFilter.value = {
       sourcePath,
       title: sourceNode?.name || sourceNode?.code || sourcePath,
-      includeChildren: false,
+      includeChildren: sourceNode?.type === 'package' || sourcePath.split('/').filter(Boolean).length === 2,
       kind: sourceNode?.type === 'package' ? 'directory' : 'function',
     }
   } else {
     sourceFilter.value = null
   }
 
-  markSourceReadOnOpen.value = false
   routeIntentOpening = true
   drawerVisible.value = true
   try {
-    await loadInbox(true)
+    await loadInbox(true, Boolean(sourcePath) && !messageID)
     if (messageID) {
       await focusMessageByID(messageID)
+      await nextTick()
+      messagePane.value?.querySelector(`#inbox-message-${messageID}`)?.scrollIntoView?.({ block: 'nearest' })
     }
   } finally {
     routeIntentOpening = false
   }
 }
 
-function openForSource(filter: SourceFilter) {
+function openForSource(filter: SourceFilter, autoRead = true) {
   const sourcePath = (filter.sourcePath || '').trim()
   if (!sourcePath) return
   void preloadMarkdown()
@@ -642,17 +539,17 @@ function openForSource(filter: SourceFilter) {
     sourcePath,
   }
   const wasVisible = drawerVisible.value
-  markSourceReadOnOpen.value = !wasVisible
+  markSourceReadOnOpen = !wasVisible && autoRead
   void syncInboxRoute({ sourcePath })
   drawerVisible.value = true
   if (wasVisible) {
-    void loadInbox(true, { markSourceRead: true })
+    void loadInbox(true, autoRead)
   }
 }
 
 function clearSourceFilter() {
   sourceFilter.value = null
-  markSourceReadOnOpen.value = false
+  if (window.innerWidth <= 1024) sourcesVisible.value = false
   void syncInboxRoute()
   void loadInbox(true)
 }
@@ -663,13 +560,16 @@ function handleDrawerOpen() {
     void loadUnreadCount()
     return
   }
-  const markSourceRead = markSourceReadOnOpen.value
-  markSourceReadOnOpen.value = false
-  void loadInbox(true, { markSourceRead })
+  const autoRead = markSourceReadOnOpen
+  markSourceReadOnOpen = false
+  void loadInbox(true, autoRead)
   void loadUnreadCount()
 }
 
 function handleDrawerClosed() {
+  clearTimeout(searchTimer)
+  inboxLoadSeq += 1
+  detailLoadSeq += 1
   if (!props.syncRoute || !isInboxOpenQuery(route.query)) return
   appliedRouteInboxKey.value = ''
   const query = { ...route.query }
@@ -677,62 +577,61 @@ function handleDrawerClosed() {
   void router.replace({ path: route.path, query })
 }
 
-async function loadInbox(resetPage = false, options: LoadInboxOptions = {}) {
+async function loadInbox(resetPage = false, autoRead = false) {
+  clearTimeout(searchTimer)
+  searchQuery.value = searchInput.value.trim()
   const loadSeq = ++inboxLoadSeq
   detailLoadSeq += 1
   detailLoading.value = false
-  if (resetPage) {
-    page.value = 1
-  }
+  selectedMessage.value = null
+  if (resetPage) page.value = 1
   listLoading.value = true
   errorMessage.value = ''
+  const filter = sourceFilter.value
   try {
-    await loadWorkspaceCounts()
+    const [resp] = await Promise.all([
+      listMessageInbox({
+        status: statusFilter.value === 'unread' ? 'unread' : undefined,
+        q: searchQuery.value || undefined,
+        since: timeRange.value ? dayjs().subtract(timeRange.value, 'day').toISOString() : undefined,
+        source_path: filter?.sourcePath,
+        include_children: Boolean(filter?.includeChildren),
+        page: page.value,
+        page_size: pageSize,
+      }),
+      loadWorkspaceCounts(),
+      loadSourceCounts(),
+    ])
     if (loadSeq !== inboxLoadSeq) return
-    if (showServiceTreeInbox.value) {
-      await loadSourceCounts()
-      if (loadSeq !== inboxLoadSeq) return
-    }
-    if (sourceFilter.value?.sourcePath) {
-      await loadSourceInbox({ markRead: options.markSourceRead, loadSeq })
-      return
-    }
-    if (showServiceTreeInbox.value) {
-      if (loadSeq !== inboxLoadSeq) return
-      inboxThreads.value = []
-      threadMessages.value = []
-      selectedThreadKey.value = ''
-      selectedMessage.value = null
-      total.value = 0
-      return
-    }
-    const resp = await listMessageInboxThreads({
-      status: statusFilter.value === 'unread' ? 'unread' : undefined,
-      page: page.value,
-      page_size: pageSize,
-    })
-    if (loadSeq !== inboxLoadSeq) return
-    inboxThreads.value = (resp.list || []).map(apiThreadToInboxThread)
+    threadMessages.value = resp.list || []
     total.value = resp.total || 0
-    if (!inboxThreads.value.some(thread => thread.key === selectedThreadKey.value)) {
-      selectedThreadKey.value = inboxThreads.value[0]?.key || ''
+    if (page.value > 1 && !threadMessages.value.length && total.value > 0) {
+      page.value = Math.ceil(total.value / pageSize)
+      await loadInbox()
+      return
     }
-    const current = selectedThread.value
-    if (current) {
-      selectedMessage.value = current.lastMessage
-      await loadThreadMessages(current)
-    } else {
-      selectedMessage.value = null
-      threadMessages.value = []
+    messagePane.value?.scrollTo?.({ top: 0 })
+    if (autoRead && filter?.sourcePath) {
+      try {
+        await markMessageInboxSourceRead(filter.sourcePath, Boolean(filter.includeChildren))
+        if (loadSeq === inboxLoadSeq) {
+          const now = new Date().toISOString()
+          threadMessages.value = threadMessages.value.map(message => ({ ...message, read_at: message.read_at || now }))
+        }
+        notifyMessagesUpdated()
+        await refreshMessageCountsAfterMutation()
+      } catch (error) {
+        if (loadSeq === inboxLoadSeq) ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
+      }
     }
   } catch (error) {
     if (loadSeq === inboxLoadSeq) {
+      threadMessages.value = []
+      total.value = 0
       errorMessage.value = error instanceof Error ? error.message : t('workspaceInbox.loadFailed')
     }
   } finally {
-    if (loadSeq === inboxLoadSeq) {
-      listLoading.value = false
-    }
+    if (loadSeq === inboxLoadSeq) listLoading.value = false
   }
 }
 
@@ -782,93 +681,6 @@ function refreshMessageCountsAfterMutation() {
   ])
 }
 
-async function loadSourceInbox(options: { markRead?: boolean; loadSeq?: number } = {}) {
-  const filter = sourceFilter.value
-  if (!filter?.sourcePath) return
-  const resp = await listMessageInbox({
-    status: statusFilter.value === 'unread' ? 'unread' : undefined,
-    source_path: filter.sourcePath,
-    include_children: false,
-    page: page.value,
-    page_size: 100,
-  })
-  if (options.loadSeq && options.loadSeq !== inboxLoadSeq) return
-  const messages = resp.list || []
-  threadMessages.value = messages
-  total.value = resp.total || 0
-  if (messages.length === 0) {
-    inboxThreads.value = []
-    selectedThreadKey.value = ''
-    selectedMessage.value = null
-    return
-  }
-  const firstMessage = messages[0]
-  if (!firstMessage) return
-  const unreadCount = sourceFilterUnreadCount() || messages.filter(item => !item.read_at).length
-  const thread: InboxThread = {
-    key: sourceFilterThreadKey(filter),
-    title: filter.title || sourcePrimaryText(firstMessage),
-    subtitle: t('workspaceInbox.currentNodeNotifications'),
-    path: filter.sourcePath,
-    kind: filter.kind || threadKind(firstMessage),
-    lastMessage: firstMessage,
-    unreadCount,
-    count: Number(resp.total || messages.length),
-    scheduledTaskID: firstMessage.scheduled_task_id,
-    scheduledExecutionID: firstMessage.scheduled_execution_id,
-  }
-  inboxThreads.value = [thread]
-  selectedThreadKey.value = thread.key
-  selectedMessage.value = firstMessage
-  if (options.markRead && unreadCount > 0) {
-    await markCurrentSourceRead(filter)
-  }
-}
-
-function selectThread(thread: InboxThread) {
-  selectedThreadKey.value = thread.key
-  selectedMessage.value = thread.lastMessage
-  void loadThreadMessages(thread).then((loaded) => {
-    if (loaded) {
-      if (sourceFilter.value?.sourcePath) {
-        void markCurrentSourceRead(sourceFilter.value)
-      } else {
-        void markThreadRead(thread)
-      }
-    }
-  })
-}
-
-async function loadThreadMessages(thread: InboxThread): Promise<boolean> {
-  const loadSeq = ++detailLoadSeq
-  detailLoading.value = true
-  errorMessage.value = ''
-  try {
-    if (sourceFilter.value?.sourcePath) {
-      await loadSourceInbox()
-      return loadSeq === detailLoadSeq
-    }
-    const resp = await listMessageInbox({
-      thread_key: thread.key,
-      page: 1,
-      page_size: 100,
-    })
-    if (loadSeq !== detailLoadSeq) return false
-    threadMessages.value = resp.list || []
-    return true
-  } catch (error) {
-    if (loadSeq === detailLoadSeq) {
-      threadMessages.value = [thread.lastMessage]
-      errorMessage.value = error instanceof Error ? error.message : t('workspaceInbox.loadThreadFailed')
-    }
-    return false
-  } finally {
-    if (loadSeq === detailLoadSeq) {
-      detailLoading.value = false
-    }
-  }
-}
-
 async function selectMessage(item: MessageInboxItem) {
   const loadSeq = ++detailLoadSeq
   selectedMessage.value = item
@@ -878,14 +690,15 @@ async function selectMessage(item: MessageInboxItem) {
     const detail = await getMessageInboxItem(item.id)
     if (loadSeq !== detailLoadSeq) return
     selectedMessage.value = detail
+    threadMessages.value = threadMessages.value.map(message => message.id === detail.id ? detail : message)
     void syncInboxRoute({
       messageId: detail.id,
-      sourcePath: sourcePathForMessage(detail) || sourceFilter.value?.sourcePath,
+      sourcePath: sourceFilter.value?.sourcePath,
       traceId: detail.trace_id,
     })
     if (!detail.read_at) {
       await markMessageInboxItemRead(item.id)
-      selectedMessage.value = { ...detail, read_at: new Date().toISOString() }
+      if (loadSeq === detailLoadSeq) selectedMessage.value = { ...detail, read_at: new Date().toISOString() }
       updateListReadState(item.id)
       notifyMessagesUpdated()
       await refreshMessageCountsAfterMutation()
@@ -915,14 +728,13 @@ async function focusMessageByID(id: number) {
     const detail = await getMessageInboxItem(id)
     if (loadSeq !== detailLoadSeq) return
     selectedMessage.value = detail
-    upsertFocusedThread(detail)
     if (!threadMessages.value.some(item => item.id === detail.id)) {
       threadMessages.value = [detail, ...threadMessages.value]
     }
     if (!detail.read_at) {
       await markMessageInboxItemRead(detail.id)
       const readDetail = { ...detail, read_at: new Date().toISOString() }
-      selectedMessage.value = readDetail
+      if (loadSeq === detailLoadSeq) selectedMessage.value = readDetail
       threadMessages.value = threadMessages.value.map(item => item.id === detail.id ? readDetail : item)
       updateListReadState(detail.id)
       notifyMessagesUpdated()
@@ -936,70 +748,6 @@ async function focusMessageByID(id: number) {
     if (loadSeq === detailLoadSeq) {
       detailLoading.value = false
     }
-  }
-}
-
-function upsertFocusedThread(detail: MessageInboxItem) {
-  const filter = sourceFilter.value
-  const key = filter?.sourcePath ? sourceFilterThreadKey(filter) : threadKeyForMessage(detail)
-  if (!key) return
-  const thread: InboxThread = {
-    key,
-    title: filter?.title || sourcePrimaryText(detail),
-    subtitle: filter?.sourcePath ? t('workspaceInbox.currentNodeNotifications') : threadSubtitle(detail, 1),
-    path: filter?.sourcePath || threadPath(detail),
-    kind: filter?.kind || threadKind(detail),
-    lastMessage: detail,
-    unreadCount: detail.read_at ? 0 : 1,
-    count: Math.max(1, Number(total.value || 0)),
-    scheduledTaskID: detail.scheduled_task_id,
-    scheduledExecutionID: detail.scheduled_execution_id,
-  }
-  const existingIndex = inboxThreads.value.findIndex(item => item.key === key)
-  if (existingIndex >= 0) {
-    const existing = inboxThreads.value[existingIndex]
-    if (!existing) return
-    inboxThreads.value.splice(existingIndex, 1, {
-      ...existing,
-      lastMessage: existing.lastMessage?.id === detail.id ? detail : existing.lastMessage,
-      scheduledTaskID: existing.scheduledTaskID || detail.scheduled_task_id,
-      scheduledExecutionID: existing.scheduledExecutionID || detail.scheduled_execution_id,
-    })
-  } else {
-    inboxThreads.value = [thread, ...inboxThreads.value]
-  }
-  selectedThreadKey.value = key
-}
-
-async function markThreadRead(thread: InboxThread) {
-  const unreadMessages = (selectedThreadKey.value === thread.key ? threadMessages.value : [thread.lastMessage])
-    .filter(item => !item.read_at)
-  if (unreadMessages.length === 0) return
-  try {
-    await Promise.all(unreadMessages.map(item => markMessageInboxItemRead(item.id)))
-    const now = new Date().toISOString()
-    const ids = new Set(unreadMessages.map(item => item.id))
-    threadMessages.value = threadMessages.value.map(item => {
-      if (!ids.has(item.id)) return item
-      return { ...item, read_at: item.read_at || now }
-    })
-    inboxThreads.value = inboxThreads.value.map(item => {
-      if (item.key !== thread.key) return item
-      return {
-        ...item,
-        unreadCount: 0,
-        lastMessage: ids.has(item.lastMessage.id)
-          ? { ...item.lastMessage, read_at: item.lastMessage.read_at || now }
-          : item.lastMessage,
-      }
-    })
-    if (selectedMessage.value && ids.has(selectedMessage.value.id)) {
-      selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
-    }
-    notifyMessagesUpdated()
-    await refreshMessageCountsAfterMutation()
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
   }
 }
 
@@ -1018,107 +766,30 @@ async function markMessageRead(id: number) {
 }
 
 async function markCurrentScopeRead() {
-  if (sourceFilter.value) {
-    await markCurrentSourceRead(sourceFilter.value)
-    return
-  }
-  await markAllRead()
-}
-
-async function markCurrentSourceRead(filter: SourceFilter) {
-  const sourcePath = normalizeSourceTreePath(filter.sourcePath)
-  if (!sourcePath) return
+  if (markingScope.value) return
+  markingScope.value = true
+  const filter = sourceFilter.value
   try {
-    await markMessageInboxSourceRead(sourcePath, Boolean(filter.includeChildren))
-    const now = new Date().toISOString()
-    const threadKey = sourceFilterThreadKey({ ...filter, sourcePath })
-    threadMessages.value = threadMessages.value.map(item => ({ ...item, read_at: item.read_at || now }))
-    inboxThreads.value = inboxThreads.value.map(thread => {
-      if (thread.key !== threadKey) return thread
-      return {
-        ...thread,
-        unreadCount: 0,
-        lastMessage: { ...thread.lastMessage, read_at: thread.lastMessage.read_at || now },
-      }
-    })
-    if (selectedMessage.value) {
-      selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
-    }
+    if (filter) await markMessageInboxSourceRead(filter.sourcePath, Boolean(filter.includeChildren))
+    else await markAllMessageInboxItemsRead()
     notifyMessagesUpdated()
-    await refreshMessageCountsAfterMutation()
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
-  }
-}
-
-async function markAllRead() {
-  try {
-    await markAllMessageInboxItemsRead()
-    const now = new Date().toISOString()
-    threadMessages.value = threadMessages.value.map(item => ({ ...item, read_at: item.read_at || now }))
-    inboxThreads.value = inboxThreads.value.map(thread => ({
-      ...thread,
-      unreadCount: 0,
-      lastMessage: { ...thread.lastMessage, read_at: thread.lastMessage.read_at || now },
-    }))
-    if (selectedMessage.value) {
-      selectedMessage.value = { ...selectedMessage.value, read_at: selectedMessage.value.read_at || now }
-    }
-    unreadCount.value = 0
-    notifyMessagesUpdated()
-    await refreshMessageCountsAfterMutation()
+    await Promise.all([loadInbox(), refreshMessageCountsAfterMutation()])
     ElMessage.success(t('workspaceInbox.allReadSuccess'))
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.allReadFailed'))
+    ElMessage.error(error instanceof Error ? error.message : t('workspaceInbox.markReadFailed'))
+  } finally {
+    markingScope.value = false
   }
 }
 
 function updateListReadState(id: number) {
-  threadMessages.value = threadMessages.value.map(item => {
-    if (item.id !== id) return item
-    return { ...item, read_at: item.read_at || new Date().toISOString() }
-  })
-  inboxThreads.value = inboxThreads.value.map(thread => {
-    if (thread.lastMessage.id !== id && thread.key !== selectedThreadKey.value) return thread
-    const decrement = thread.key === selectedThreadKey.value && thread.unreadCount > 0 ? 1 : 0
-    return {
-      ...thread,
-      unreadCount: Math.max(0, thread.unreadCount - decrement),
-      lastMessage: thread.lastMessage.id === id
-        ? { ...thread.lastMessage, read_at: thread.lastMessage.read_at || new Date().toISOString() }
-        : thread.lastMessage,
-    }
-  })
+  threadMessages.value = threadMessages.value.map(item => item.id === id
+    ? { ...item, read_at: item.read_at || new Date().toISOString() } : item)
 }
 
 function notifyMessagesUpdated() {
   emit('messages-updated')
   notifyMessageInboxChanged(inboxInstanceID)
-}
-
-function previewText(content?: string, files?: string) {
-  const text = stripHtml(content || '').replace(/\s+/g, ' ').trim()
-  if (text) return text.length > 90 ? `${text.slice(0, 90)}...` : text
-  return parseMessageFileRefs(files).length > 0 ? t('workspaceInbox.filesPreview') : t('workspaceInbox.noContent')
-}
-
-function apiThreadToInboxThread(thread: MessageInboxThread): InboxThread {
-  return {
-    key: thread.key,
-    title: thread.title || threadTitle(thread.last_message),
-    subtitle: thread.subtitle || threadSubtitle(thread.last_message, thread.message_count || 1),
-    path: thread.path || threadPath(thread.last_message),
-    kind: thread.kind || threadKind(thread.last_message),
-    lastMessage: thread.last_message,
-    unreadCount: Number(thread.unread_count || 0),
-    count: Number(thread.message_count || 0),
-    scheduledTaskID: thread.scheduled_task_id || thread.last_message.scheduled_task_id,
-    scheduledExecutionID: thread.scheduled_execution_id || thread.last_message.scheduled_execution_id,
-  }
-}
-
-function sourceFilterThreadKey(filter: SourceFilter) {
-  return `source:${filter.sourcePath}:direct`
 }
 
 function normalizeSourceTreePath(path?: string) {
@@ -1136,7 +807,7 @@ function findServiceTreeNodeByPath(fullCodePath: string): ServiceTree | null {
     }
     return null
   }
-  return walk(props.serviceTree || [])
+  return walk(directoryTree.value)
 }
 
 function sourceTreeSummaryByPath(path?: string) {
@@ -1152,7 +823,10 @@ function getSourceTreeSummary(node: ServiceTree) {
 function sourceFilterUnreadCount() {
   const filter = sourceFilter.value
   if (!filter?.sourcePath) return 0
-  return Number(sourceTreeSummaryByPath(filter.sourcePath)?.unread_count || 0)
+  return Object.values(sourceCountMap.value).reduce((count, item) => {
+    const path = normalizeSourceTreePath(item.source_path)
+    return count + (path === filter.sourcePath || (filter.includeChildren && path.startsWith(`${filter.sourcePath}/`)) ? Number(item.unread_count || 0) : 0)
+  }, 0)
 }
 
 function hasSourceTreeMessages(node: ServiceTree) {
@@ -1191,18 +865,17 @@ function handleSourceTreeNodeClick(node: ServiceTree) {
   sourceFilter.value = {
     sourcePath,
     title: node.name || node.code || sourcePath,
-    includeChildren: false,
+    includeChildren: node.type === 'package',
     kind: node.type === 'package' ? 'directory' : 'function',
   }
+  if (window.innerWidth <= 1024) sourcesVisible.value = false
   if (previousSourcePath !== sourcePath) {
-    inboxThreads.value = []
     threadMessages.value = []
-    selectedThreadKey.value = ''
     selectedMessage.value = null
     total.value = 0
   }
   void syncInboxRoute({ sourcePath })
-  void loadInbox(true, { markSourceRead: true })
+  void loadInbox(true, true)
 }
 
 function messageTime(item: MessageInboxItem) {
@@ -1293,70 +966,14 @@ function workspaceTabPath(item: MessageInboxWorkspaceCount) {
 }
 
 function isWorkspaceTabActive(item: MessageInboxWorkspaceCount) {
-  return workspaceKeyForCount(item) === currentWorkspaceKey.value
+  return directoryWorkspaceKey.value === workspaceKeyForCount(item)
 }
 
-async function handleWorkspaceTabClick(item: MessageInboxWorkspaceCount) {
-  const workspacePath = workspaceKeyForCount(item)
-  if (!workspacePath) return
-  sourceFilter.value = null
-  markSourceReadOnOpen.value = false
-  if (workspacePath === currentWorkspaceKey.value) {
-    void syncInboxRoute()
-    void loadInbox(true)
-    return
-  }
-  inboxThreads.value = []
-  threadMessages.value = []
-  selectedThreadKey.value = ''
-  selectedMessage.value = null
-  total.value = 0
-  await router.push({
-    path: workspaceRoutePath(workspacePath),
-    query: buildInboxRouteQuery(),
-  })
-}
-
-function threadKeyForMessage(item: MessageInboxItem) {
-  const parentPath = sourceParentPathForMessage(item)
-  if (parentPath) return `directory:${parentPath}`
-  const sourcePath = sourcePathForMessage(item)
-  if (sourcePath) return `source:${sourcePath}`
-  if (item.workspace_session_id) return `session:${item.workspace_session_id}`
-  return `sender:${item.from || 'system'}`
-}
-
-function threadTitle(item: MessageInboxItem) {
-  return item.source_display?.parent_name
-    || item.source_parent_title
-    || item.source_display?.name
-    || item.source_title
-    || item.from
-    || 'system'
-}
-
-function threadSubtitle(item: MessageInboxItem, count: number) {
-  const sourceName = sourceSecondaryText(item)
-  const suffix = count > 1 ? ` · ${t('workspaceInbox.messageCount', { count })}` : ''
-  return `${sourceName}${suffix}`
-}
-
-function threadPath(item: MessageInboxItem) {
-  return sourceParentPathForMessage(item) || sourcePathForMessage(item)
-}
-
-function threadKind(item: MessageInboxItem): InboxThread['kind'] {
-  if (sourceParentPathForMessage(item)) return 'directory'
-  if (item.workspace_session_id) return 'session'
-  if (sourcePathForMessage(item)) return 'function'
-  return 'sender'
-}
-
-function threadIcon(thread: InboxThread) {
-  if (thread.kind === 'directory') return FolderOpened
-  if (thread.kind === 'session') return ChatDotRound
-  if (thread.lastMessage.source_type === 'scheduled_task') return Timer
-  return DocumentIcon
+function handleWorkspaceTabClick(item: MessageInboxWorkspaceCount) {
+  const path = workspaceKeyForCount(item)
+  if (!path) return
+  if (window.innerWidth > 1024) sourcesVisible.value = true
+  openForSource({ sourcePath: path, title: workspaceTabTitle(item), includeChildren: true }, false)
 }
 
 function sourcePrimaryText(item?: MessageInboxItem | null) {
@@ -1383,19 +1000,6 @@ function messageSenderText(item?: MessageInboxItem | null) {
   if (!sender) return 'system'
   if (sender === 'system') return t('workspaceInbox.systemSender')
   return sender
-}
-
-function sourceTypeText(item?: MessageInboxItem | null) {
-  const type = (item?.source_type || item?.client_source || '').trim()
-  const map: Record<string, string> = {
-    scheduled_task: t('workspaceInbox.sourceTypeScheduledTask'),
-    agent_session: t('workspaceInbox.sourceTypeAgentSession'),
-    agent_tool: t('workspaceInbox.sourceTypeAgentTool'),
-    public_share: t('workspaceInbox.sourceTypePublicShare'),
-    openapi_token: 'OpenAPI',
-    sdk_function: t('workspaceInbox.sourceTypeSdkFunction'),
-  }
-  return map[type] || type
 }
 
 function sourcePathForMessage(item?: MessageInboxItem | null) {
@@ -1463,9 +1067,9 @@ async function openWorkspaceSession(item: MessageInboxItem) {
 }
 
 async function openScheduledExecution(item: MessageInboxItem) {
-  const taskID = item.scheduled_task_id || selectedThread.value?.scheduledTaskID || 0
+  const taskID = item.scheduled_task_id || 0
   if (!taskID) return
-  const executionID = item.scheduled_execution_id || selectedThread.value?.scheduledExecutionID || 0
+  const executionID = item.scheduled_execution_id || 0
   const fullCodePath = workspacePathForMessage(item)
   if (!workspaceRoutePath(fullCodePath)) return
   drawerVisible.value = false
@@ -1506,13 +1110,6 @@ function messageFileGroups(item?: MessageInboxItem | null): OutputFileGroup[] {
   }]
 }
 
-function stripHtml(content: string) {
-  if (!content.includes('<')) return content
-  if (typeof DOMParser === 'undefined') return content.replace(/<[^>]*>/g, ' ')
-  const doc = new DOMParser().parseFromString(sanitizeHtml(content), 'text/html')
-  return doc.body.textContent || ''
-}
-
 function formatExactTime(value?: string) {
   if (!value) return '-'
   const parsed = dayjs(value)
@@ -1550,424 +1147,72 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
-.workspace-inbox {
-  display: inline-flex;
-  align-items: center;
-}
-
-.workspace-inbox-button {
-  width: 34px;
-  height: 34px;
-  min-height: 34px;
-  border-color: color-mix(in srgb, var(--app-shell-panel-border) 76%, transparent);
-  background: color-mix(in srgb, var(--app-shell-panel-bg) 44%, transparent);
-  color: var(--el-text-color-primary);
-  box-shadow: none;
-  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
-
-  :deep(.el-icon) {
-    font-size: 15px;
-  }
-
-  &:hover {
-    color: var(--el-color-primary);
-    border-color: rgba(var(--el-color-primary-rgb), 0.22);
-    background: color-mix(in srgb, var(--app-shell-panel-bg) 64%, transparent);
-  }
-
-  &:focus-visible {
-    border-color: rgba(var(--el-color-primary-rgb), 0.4);
-    box-shadow: 0 0 0 2px rgba(var(--el-color-primary-rgb), 0.08);
-  }
-}
-
-.workspace-inbox-badge :deep(.el-badge__content) {
-  height: 16px;
-  min-width: 16px;
-  padding: 0 4px;
-  border: none;
-  box-shadow: 0 0 0 2px var(--app-shell-panel-bg);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
-}
-
+.workspace-inbox { display: inline-flex; align-items: center; }
+.workspace-inbox-button { width: 34px; height: 34px; min-height: 34px; }
+.inbox-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.inbox-heading h2 { margin: 0; font-size: 20px; color: var(--el-text-color-primary); }
+:global(.workspace-inbox-drawer .el-drawer__header) { margin-bottom: 0; padding: 20px 24px 12px; }
+:global(.workspace-inbox-drawer .el-drawer__body) { padding: 12px 24px 24px; overflow: hidden; }
 .inbox-shell {
-  --inbox-ink: var(--el-text-color-primary);
-  --inbox-muted: var(--el-text-color-secondary);
-  --inbox-soft: var(--app-shell-bg, var(--el-bg-color-page));
-  --inbox-paper: var(--app-shell-panel-bg-strong, var(--el-bg-color));
-  --inbox-tint: var(--app-shell-panel-muted-bg, var(--el-fill-color-light));
   --inbox-line: var(--app-shell-panel-border, var(--el-border-color-lighter));
-  --inbox-accent: var(--el-color-primary);
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.inbox-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.inbox-filter {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-}
-
-.source-filter-chip {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-
-  span:not(.el-tag__content) {
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.inbox-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.inbox-workspace-tabs {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 2px 0 4px;
-}
-
-.workspace-tab {
-  display: inline-flex;
-  min-width: 180px;
-  max-width: 260px;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border: 1px solid var(--inbox-line);
-  border-radius: var(--border-radius-base);
-  background: var(--inbox-paper);
-  color: var(--text-primary);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-
-  &:hover {
-    border-color: rgba(var(--el-color-primary-rgb), 0.24);
-    background: color-mix(in srgb, var(--el-color-primary) 5%, var(--inbox-paper));
-  }
-
-  &.is-active {
-    background: color-mix(in srgb, var(--el-color-primary) 9%, var(--inbox-paper));
-    border-color: rgba(var(--el-color-primary-rgb), 0.46);
-    box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.12);
-  }
-}
-
-.workspace-tab-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: var(--el-fill-color-light);
-  color: var(--text-secondary);
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.workspace-tab.is-active .workspace-tab-logo {
-  background: var(--color-primary-light-9);
-  color: var(--color-primary);
-}
-
-.workspace-tab-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.workspace-tab-title,
-.workspace-tab-path {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-tab-title {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.workspace-tab-path {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.workspace-tab-counts {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-}
-
-.workspace-tab-unread {
-  display: inline-flex;
-  min-width: 20px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: #ef4444;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.workspace-tab-total {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.inbox-error {
-  flex-shrink: 0;
-}
-
-.inbox-layout {
-  display: grid;
-  min-height: 0;
-  flex: 1;
-  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-  gap: 14px;
-}
-
-.inbox-list-pane,
-.inbox-detail-pane {
-  min-height: 0;
-  overflow: auto;
-  border: 1px solid var(--inbox-line);
-  border-radius: 12px;
-  background: var(--inbox-paper);
-  box-shadow: var(--app-shell-panel-shadow-soft, 0 10px 24px rgba(15, 23, 42, 0.06));
-}
-
-.inbox-list-pane {
-  padding: 8px;
-}
-
-.inbox-source-tree {
-  background: transparent;
-
-  :deep(.el-tree-node__content) {
-    height: 40px;
-    margin: 2px 0;
-    border-radius: 10px;
-    transition: background 0.16s ease, color 0.16s ease;
-  }
-
-  :deep(.el-tree-node__content:hover) {
-    background: rgba(var(--el-color-primary-rgb), 0.07);
-  }
-
-  :deep(.el-tree-node__expand-icon) {
-    color: var(--el-text-color-placeholder);
-  }
-
-  :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    border-color: transparent;
-    background: color-mix(in srgb, var(--el-color-primary) 9%, transparent);
-    box-shadow: none;
-  }
-
-  :deep(.tree-node.is-active .node-label) {
-    color: var(--el-color-primary);
-    font-weight: 800;
-  }
-
-  :deep(.tree-node.is-active .node-icon) {
-    opacity: 1;
-  }
-}
-
-.inbox-list-item {
-  display: grid;
-  width: 100%;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 10px;
-  align-items: flex-start;
-  padding: 12px 10px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  background: transparent;
+  --inbox-paper: var(--app-shell-panel-bg-strong, var(--el-bg-color));
+  display: flex; height: 100%; min-height: 0; flex-direction: column; gap: 14px;
   color: var(--el-text-color-primary);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
-
-  &:hover {
-    border-color: rgba(var(--el-color-primary-rgb), 0.26);
-    background: color-mix(in srgb, var(--el-color-primary) 6%, var(--inbox-paper));
-  }
-
-  &.is-active {
-    border-color: rgba(var(--el-color-primary-rgb), 0.42);
-    background: color-mix(in srgb, var(--el-color-primary) 9%, var(--inbox-paper));
-    box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.1);
-  }
-
-  &.is-unread {
-    box-shadow: inset 3px 0 0 var(--el-color-primary);
-  }
-
-  &.is-unread .inbox-list-title {
-    font-weight: 700;
-  }
 }
-
-.thread-avatar {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  margin-top: 1px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 18%, transparent);
-  border-radius: var(--border-radius-base);
-  background: color-mix(in srgb, var(--el-color-primary) 10%, var(--inbox-paper));
-  color: var(--el-color-primary);
-  font-size: 19px;
+.inbox-search { flex-shrink: 0; }
+.inbox-search :deep(.el-input__wrapper) { min-height: 42px; border-radius: 10px; }
+.inbox-toolbar, .inbox-filter, .inbox-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inbox-toolbar { justify-content: space-between; }
+.inbox-time-filter { width: 132px; }
+.source-filter-chip { display: inline-flex; align-items: center; min-width: 0; gap: 8px; font-size: 13px; }
+.source-filter-chip > span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-workspace-tabs { display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0; padding: 1px; }
+.workspace-tab { display: flex; align-items: center; gap: 8px; border: 1px solid var(--inbox-line); border-radius: 8px; background: transparent; color: inherit; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+.workspace-tab.is-active { border-color: rgba(var(--el-color-primary-rgb), .25); background: rgba(var(--el-color-primary-rgb), .05); }
+.workspace-tab-unread { background: var(--el-color-primary); color: white; border-radius: 12px; padding: 1px 6px; font-size: 11px; }
+.inbox-error { flex-shrink: 0; }
+.inbox-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; flex: 1; min-height: 0; }
+.inbox-layout.sources-hidden { grid-template-columns: minmax(0, 1fr); }
+.inbox-list-pane, .inbox-detail-pane { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.inbox-list-pane { border-right: 1px solid var(--inbox-line); padding-right: 12px; }
+.inbox-all-sources { display: flex; justify-content: space-between; width: 100%; border: 0; border-radius: 8px; padding: 12px; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.inbox-all-sources.is-active { background: rgba(var(--el-color-primary-rgb), .06); color: var(--el-text-color-regular); font-weight: 500; }
+.inbox-source-toggle { margin: 8px 12px; }
+.inbox-source-tree { background: transparent; }
+.inbox-source-tree :deep(.el-tree-node__content) { height: 38px; border-radius: 6px; }
+.inbox-shell .inbox-source-tree :deep(.el-tree-node.is-current > .el-tree-node__content),
+.inbox-shell .inbox-source-tree :deep(.el-tree-node:focus > .el-tree-node__content) {
+  background: rgba(var(--el-color-primary-rgb), .06) !important;
+  color: var(--el-text-color-regular) !important;
+  box-shadow: inset 2px 0 0 rgba(var(--el-color-primary-rgb), .35);
 }
-
-.inbox-list-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.thread-title-row {
-  display: flex;
-  min-width: 0;
-  min-height: 22px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.thread-unread-count {
-  display: inline-flex;
-  min-width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--el-color-primary);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.inbox-list-title,
-.inbox-list-preview {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.inbox-list-title {
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 22px;
-}
-
-.inbox-list-preview {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.inbox-list-meta {
-  display: flex;
-  min-width: 0;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--el-text-color-placeholder);
-  font-size: 11px;
-
-  span:first-child {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.thread-time {
-  flex-shrink: 0;
-}
-
-.inbox-pagination {
-  display: flex;
-  justify-content: center;
-  padding: 10px 0 4px;
-}
-
-.inbox-detail-pane {
-  padding: 18px 24px;
-}
-
-.inbox-detail {
-  display: flex;
-  min-height: 100%;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.inbox-detail-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-light);
-
-  h3 {
-    margin: 0 0 8px;
-    color: var(--el-text-color-primary);
-    font-size: 18px;
-    line-height: 1.35;
-  }
-}
-
-.inbox-detail-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
+.inbox-source-tree :deep(.tree-node.is-active .node-label) { color: var(--el-text-color-regular); font-weight: 500; }
+.inbox-source-tree :deep(.el-tree-node__content:hover) { background: rgba(var(--el-color-primary-rgb), .04) !important; }
+.inbox-detail-pane { padding: 0 8px 12px; }
+.inbox-detail-header { display: flex; justify-content: space-between; padding: 4px 0 12px; border-bottom: 1px solid var(--inbox-line); }
+.inbox-detail-header h3 { margin: 0 0 6px; font-size: 17px; overflow-wrap: anywhere; }
+.inbox-detail-meta { font-size: 12px; color: var(--el-text-color-secondary); }
+.inbox-message-stream { display: flex; flex-direction: column; gap: 18px; }
+.inbox-date-group { margin: 18px 0 4px; font-size: 12px; font-weight: 500; color: var(--el-text-color-secondary); }
+.inbox-message-card { border: 1px solid var(--inbox-line); border-radius: 12px; background: var(--inbox-paper); box-shadow: 0 2px 8px rgba(0, 0, 0, .06); overflow: hidden; flex-shrink: 0; }
+.inbox-message-card.is-active { border-color: rgba(var(--el-color-primary-rgb), .45); }
+.message-summary { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 16px 18px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; border-bottom: 1px solid var(--inbox-line); }
+.message-summary:focus-visible, .inbox-all-sources:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: -2px; }
+.message-card-header { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+.message-card-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.message-card-title strong { font-size: 15px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+.is-unread .message-card-title strong { font-weight: 650; }
+.message-unread-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--el-color-primary); }
+.message-card-time { flex-shrink: 0; font-size: 12px; color: var(--el-text-color-secondary); }
+.message-card-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--el-text-color-secondary); font-size: 12px; }
+.message-card-meta > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.message-summary :deep(mark) { color: inherit; background: color-mix(in srgb, var(--el-color-warning) 30%, transparent); border-radius: 2px; }
+.message-expanded { padding: 20px; }
+.message-expanded :deep(p), .message-expanded :deep(ul), .message-expanded :deep(ol) { max-width: 85ch; }
+.message-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--inbox-line); }
+.message-card-actions :deep(.el-button + .el-button) { margin-left: 0; }
+.inbox-message-files { margin-top: 16px; }
+.inbox-pagination { display: flex; justify-content: center; padding: 20px 0 4px; }
 .inbox-content {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2052,235 +1297,21 @@ defineExpose({
   }
 }
 
-.inbox-source-card {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 16px;
-  border: 1px solid var(--color-primary-light-8);
-  border-radius: var(--border-radius-lg);
-  background: var(--color-primary-light-9);
+
+@media (max-width: 1024px) {
+  .inbox-layout { position: relative; grid-template-columns: minmax(0, 1fr); }
+  .inbox-list-pane { position: absolute; inset: 0; z-index: 2; padding: 8px; border: 1px solid var(--inbox-line); border-radius: 10px; background: var(--inbox-paper); }
 }
-
-.source-avatar {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--el-color-primary);
-  color: #fff;
-  font-size: 20px;
-  font-weight: 800;
-}
-
-.source-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.source-title-row {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-
-  strong {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--el-text-color-primary);
-    font-size: 14px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.source-subtitle,
-.source-session {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-session {
-  color: var(--el-text-color-placeholder);
-}
-
-.source-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.inbox-message-stream {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.inbox-message-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid var(--inbox-line);
-  border-radius: var(--border-radius-lg);
-  background: var(--inbox-paper);
-  box-shadow: inset 0 1px 0 var(--app-shell-panel-highlight, rgba(255, 255, 255, 0.7));
-  cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-
-  &:hover,
-  &.is-active {
-    border-color: rgba(var(--el-color-primary-rgb), 0.28);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-    transform: translateY(-1px);
-  }
-
-  &.is-unread {
-    border-color: rgba(var(--el-color-primary-rgb), 0.42);
-    box-shadow: inset 3px 0 0 var(--el-color-primary);
-  }
-}
-
-.message-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--el-text-color-placeholder);
-  font-size: 12px;
-}
-
-.message-card-title {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-
-  strong {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--el-text-color-primary);
-    font-size: 14px;
-    line-height: 1.4;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.message-card-time {
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.2;
-
-  small {
-    color: var(--el-text-color-placeholder);
-    font-size: 11px;
-    font-weight: 500;
-  }
-}
-
-.message-card-meta {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-
-  span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.inbox-message-files {
-  margin-top: -2px;
-  border: 1px solid var(--inbox-line);
-  border-radius: 8px;
-  background: var(--inbox-tint);
-}
-
-.inbox-message-files :deep(.output-files-head) {
-  padding: 9px 10px 0;
-}
-
-.inbox-message-files :deep(.output-files-wrap) {
-  padding: 10px;
-}
-
-.message-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.inbox-source {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 8px 10px;
-  padding: 12px;
-  border: 1px solid var(--app-shell-panel-border);
-  border-radius: 12px;
-  background: var(--app-shell-panel-bg);
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-
-  dt {
-    font-weight: 700;
-  }
-
-  dd {
-    min-width: 0;
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-}
-
 @media (max-width: 760px) {
-  .inbox-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .inbox-actions {
-    justify-content: flex-end;
-  }
-
-  .inbox-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .inbox-list-pane {
-    max-height: 38vh;
-  }
-
-  .inbox-source-card {
-    grid-template-columns: 42px minmax(0, 1fr);
-  }
-
-  .source-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
+  :global(.workspace-inbox-drawer) { width: 100vw !important; }
+  :global(.workspace-inbox-drawer .el-drawer__header) { padding: 16px 12px 8px; }
+  :global(.workspace-inbox-drawer .el-drawer__body) { padding: 8px 12px 12px; }
+  .inbox-maximize { display: none; }
+  .inbox-layout { position: relative; grid-template-columns: minmax(0, 1fr); }
+  .inbox-list-pane { position: absolute; inset: 0; z-index: 2; padding: 8px; border: 1px solid var(--inbox-line); border-radius: 10px; background: var(--inbox-paper); }
+  .inbox-detail-pane { padding: 0 0 12px; }
+  .inbox-actions { width: 100%; justify-content: flex-end; }
+  .message-summary { padding: 14px 12px; }
+  .message-expanded { padding: 16px 12px; }
 }
 </style>

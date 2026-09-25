@@ -577,6 +577,8 @@ flowchart LR
 
 ## 消息和站内信链路
 
+通知中心默认按消息时间倒序显示全部收件，支持来源（目录包含后代）、未读和最近 7/30 天筛选。`GET /message/api/v1/inbox` 的 `q` 参数搜索标题、正文、来源名称和会话名称（最多 200 字），`since` 接受 RFC3339 时间；关键词中的 `%`、`_` 按字面匹配，查询始终限制为当前收件人。列表采用服务器分页，排序为 `created_at DESC, id DESC`。消息以完整展开的卡片呈现；点击目录通知并成功加载后，自动标记该目录范围（目录包含后代）全部已读，刷新、搜索和切换工作空间不会触发批量已读；批量已读按钮明确作用于当前来源或全部通知，不受关键词和时间筛选限制。
+
 消息能力由 `message-server` 统一承载。生成应用通过 SDK `ctx.SendNotification` 发布通知命令，Agent 通过 `send_notification` 工具发布通知命令，二者最终都进入 `message.v1.cmd.send`。`message-server` 消费后落库为站内信，并提供 inbox、thread、source counts、workspace counts 和 unread count 给前端抽屉和 Service Tree 使用。通知可携带平台文件引用；站内信和移动处理页展示完整附件，飞书、企业微信、钉钉等外部 webhook 卡片只展示附件摘要并跳回 kageos 详情。
 
 ```mermaid

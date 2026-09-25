@@ -21,7 +21,7 @@ type runTableUpdateArgs struct {
 
 var runTableUpdateToolDef = toolDefinition[runTableUpdateArgs](
 	"run_table_update",
-	"执行工作区内 Table 更新接口，批量更新表格记录（每条都会触发 OnTableUpdateRow）。执行前必须已通过 search 字段摘要或 read_file 确认表格具备编辑能力，并确认 model 的 json 字段名、可更新字段、枚举值和文件字段；不要猜 updates。full_code_path 必须为带 `.table` 后缀的具体表格函数路径；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`。body 必须为 JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段名\": 新值, ... } }；不传 old_values，由 app-server 自动查表填充。返回 updated_count、data_list、failed_count、errors。",
+	"执行工作区内 Table 更新接口，批量更新表格记录。执行前必须已通过 search 返回的操作字段说明确认表格具备编辑能力，并确认 操作字段名、可更新字段、枚举值和文件字段；不要猜 updates。full_code_path 必须为带 `.table` 后缀的具体表格函数路径；同目录表格可用 `./xxx.table` 或 `<./xxx.table>`。body 必须为 JSON 数组字符串，每项为 { \"id\": 行ID, \"updates\": { \"字段名\": 新值, ... } }。返回 updated_count、data_list、failed_count、errors。",
 )
 
 func (t *RunTableUpdateTool) Definition() dto.ToolDef {
@@ -103,7 +103,7 @@ func runTableUpdateTool(ctx context.Context, args runTableUpdateArgs, currentFul
 		if err != nil {
 			logger.Errorf(ctx, "[RunTableUpdate] 第 %d 条 TableUpdate 失败: %v", i+1, err)
 			failedCount++
-			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": err.Error()})
+			errorsList = append(errorsList, map[string]interface{}{"index": i, "error": publicToolBackendError(ctx, "tool_run_table_update", err)})
 			continue
 		}
 		_ = updates
@@ -119,5 +119,5 @@ func runTableUpdateTool(ctx context.Context, args runTableUpdateArgs, currentFul
 	if len(errorsList) > 0 {
 		out["errors"] = errorsList
 	}
-	return toolResultWithStructuredData(out, false, pathNotice)
+	return tableBatchWriteResult(out, updatedCount, failedCount, pathNotice)
 }

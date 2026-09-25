@@ -23,8 +23,8 @@ func TestBuildWorkspaceSuccessResultDoesNotBlockForTestConfirmation(t *testing.T
 	if got.NextRole != WorkspaceRoleQAEngineer || !got.AutoContinue {
 		t.Fatalf("successful build should continue directly to QA: %#v", got)
 	}
-	if len(got.Warnings) != 1 || got.Warnings[0] != "metadata sync delayed" {
-		t.Fatalf("warnings not copied: %#v", got.Warnings)
+	if len(got.Warnings) != 1 || strings.Contains(got.Warnings[0], "metadata sync delayed") {
+		t.Fatalf("warnings must be summarized: %#v", got.Warnings)
 	}
 }
 

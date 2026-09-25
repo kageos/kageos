@@ -51,7 +51,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, call ToolCall) ToolResult {
 	}
 	data, err := runWebSearchTool(ctx, args)
 	if err != nil {
-		return toolResult("web_search 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "web_search 调用失败", err), true)
 	}
 	return toolResultWithData(formatWebSearchOutput(data), false, data)
 }

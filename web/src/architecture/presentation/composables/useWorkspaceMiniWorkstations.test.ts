@@ -51,7 +51,7 @@ function openMiniWsQuery(input: {
     _mws_path: input.fullCodePath,
     _mws_name: input.name,
     _mws_expanded: '1',
-    _mws_maximized: input.maximized ?? '1'
+    _mws_maximized: input.maximized ?? '0'
   }
 }
 
@@ -99,7 +99,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/current',
-      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/other', name: 'Other' })
+      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/other', name: 'Other', maximized: '1' })
     })
   })
 
@@ -177,7 +177,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
   })
 
-  it('reopens a hidden workstation with its previous maximized state when no override is provided', async () => {
+  it('reopens a hidden workstation in a normal window by default', async () => {
     const { api, route, router } = createHarness()
     route.path = '/workspace/user/app/a'
 
@@ -195,7 +195,7 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(api.miniWsList.value[0]).toMatchObject({
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
@@ -204,7 +204,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
   })
 
-  it('opens the last session workstation for a path when the launcher has no session id', async () => {
+  it('opens a fresh draft without reviving the previous session', async () => {
     const { api, route, router } = createHarness()
     route.path = '/workspace/user/app/a'
 
@@ -220,16 +220,16 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     await nextTick()
 
-    expect(api.miniWsList.value).toHaveLength(1)
-    expect(api.miniWsList.value[0]).toMatchObject({
-      initialSessionId: 'session-a',
+    expect(api.miniWsList.value).toHaveLength(2)
+    expect(api.miniWsList.value[1]).toMatchObject({
+      initialSessionId: '',
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
+      query: openMiniWsQuery({ fullCodePath: '/user/app/a', name: 'A' })
     })
   })
 
@@ -256,7 +256,7 @@ describe('useWorkspaceMiniWorkstations', () => {
       fullCodePath: '/user/app/a',
       dirName: 'A',
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
@@ -265,7 +265,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
   })
 
-  it('prefers the last real session over an ambient draft when reopening a directory', async () => {
+  it('leaves historical sessions hidden when opening a new directory draft', async () => {
     const { api, route, router } = createHarness()
     route.path = '/workspace/user/app/a'
 
@@ -282,12 +282,12 @@ describe('useWorkspaceMiniWorkstations', () => {
 
     expect(api.miniWsList.value.find(item => item.initialSessionId === 'session-a')).toMatchObject({
       initialExpanded: true,
-      initialMaximized: true,
-      visible: true
+      initialMaximized: false,
+      visible: false
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/a',
-      query: openMiniWsQuery({ sessionId: 'session-a', fullCodePath: '/user/app/a', name: 'A' })
+      query: openMiniWsQuery({ fullCodePath: '/user/app/a', name: 'A' })
     })
   })
 
@@ -330,9 +330,17 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(api.miniWsList.value[0]).toMatchObject({
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
+  })
+
+  it('opens a session link without a maximized flag in a normal window', async () => {
+    const { api, route } = createHarness()
+    route.query = { _open: 'session', _source_path: '/user/app/a', _session_id: 'session-a' }
+    api.initializeFromRoute()
+    await nextTick()
+    expect(api.miniWsList.value[0]).toMatchObject({ initialExpanded: true, initialMaximized: false })
   })
 
   it('restores expanded and maximized state from underscored route params', async () => {
@@ -414,7 +422,7 @@ describe('useWorkspaceMiniWorkstations', () => {
       fullCodePath: '/user/app/b',
       initialSessionId: 'session-b',
       initialExpanded: true,
-      initialMaximized: true,
+      initialMaximized: false,
       visible: true
     })
     expect(router.replace).toHaveBeenLastCalledWith({
@@ -549,7 +557,7 @@ describe('useWorkspaceMiniWorkstations', () => {
     })
     expect(router.replace).toHaveBeenLastCalledWith({
       path: '/workspace/user/app/customer_admin',
-      query: openMiniWsQuery({ sessionId: 'session-customer', fullCodePath: '/user/app/customer_admin', name: '客户管理' })
+      query: openMiniWsQuery({ sessionId: 'session-customer', fullCodePath: '/user/app/customer_admin', name: '客户管理', maximized: '1' })
     })
   })
 })

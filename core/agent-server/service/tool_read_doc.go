@@ -89,7 +89,7 @@ func runReadDocTool(ctx context.Context, args readDocArgs, currentFullCodePath s
 			if i > 0 {
 				sb.WriteString("\n\n")
 			}
-			sb.WriteString(fmt.Sprintf("## %s\n\n获取文档失败: %v", fullCodePath, err))
+			sb.WriteString(fmt.Sprintf("## %s\n\n%s", fullCodePath, publicToolBackendError(ctx, "read_doc", err)))
 			hasError = true
 			continue
 		}

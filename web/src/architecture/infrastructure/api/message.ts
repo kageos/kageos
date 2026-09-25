@@ -97,6 +97,8 @@ export interface MessageInboxItem {
 }
 
 export interface ListMessageInboxParams {
+  q?: string
+  since?: string
   status?: MessageInboxStatus
   thread_key?: string
   source_path?: string

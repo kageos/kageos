@@ -75,7 +75,7 @@ func runCreateScheduledFunctionTask(ctx context.Context, args createScheduledFun
 	}
 	task, err := scheduledTaskClient().CreateTask(ctx, req)
 	if err != nil {
-		return toolResult("create_scheduled_function_task 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "create_scheduled_function_task 调用失败", err), true)
 	}
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        task,
@@ -154,7 +154,7 @@ func runCreateScheduledAgentTask(ctx context.Context, args createScheduledAgentT
 	}
 	task, err := scheduledTaskClient().CreateTask(ctx, req)
 	if err != nil {
-		return toolResult("create_scheduled_agent_task 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "create_scheduled_agent_task 调用失败", err), true)
 	}
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        task,
@@ -171,7 +171,7 @@ func runUpdateScheduledAgentTask(ctx context.Context, args updateScheduledAgentT
 	client := scheduledTaskClient()
 	task, err := client.GetTask(ctx, args.TaskID)
 	if err != nil {
-		return toolResult("update_scheduled_agent_task 查询任务失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "update_scheduled_agent_task 查询任务失败", err), true)
 	}
 	if err := ensureScheduledTaskOwnedByCurrentUser(ctx, task); err != nil {
 		return toolResult("update_scheduled_agent_task 权限校验失败: "+err.Error(), true)
@@ -243,7 +243,7 @@ func runUpdateScheduledAgentTask(ctx context.Context, args updateScheduledAgentT
 
 	updated, err := client.UpdateTask(ctx, args.TaskID, req)
 	if err != nil {
-		return toolResult("update_scheduled_agent_task 更新失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "update_scheduled_agent_task", err), true)
 	}
 	return toolResultWithStructuredData(map[string]interface{}{
 		"task":        updated,

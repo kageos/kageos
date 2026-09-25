@@ -128,7 +128,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
       return nextMini
     }
 
-    const nextInitialMaximized = initialMaximized ?? true
+    const nextInitialMaximized = initialMaximized ?? false
     const nextInitialExpanded = initialExpanded ?? true
     const nextMini: MiniWsInstance = {
       id: String(++miniIdCounter),
@@ -221,21 +221,8 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         initialExpanded,
         (mini: MiniWsInstance) => mini.fullCodePath === fullCodePath && mini.initialSessionId === normalizedSessionId
       )
-    } else if (!forceNew) {
-      const existingForPath = findPreferredMiniForPath(fullCodePath)
-      if (existingForPath?.initialSessionId) {
-        return upsertPrimaryMiniWs(
-          fullCodePath,
-          dirName || existingForPath.dirName,
-          existingForPath.initialSessionId,
-          initialMaximized,
-          initialExpanded,
-          (mini: MiniWsInstance) => mini.id === existingForPath.id
-        )
-      }
-      return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded)
     }
-    return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded, undefined, true)
+    return upsertPrimaryMiniWs(fullCodePath, dirName, '', initialMaximized, initialExpanded, undefined, forceNew)
   }
 
   function normalizeRouteBool(value: unknown, defaultValue: boolean) {
@@ -453,7 +440,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
     const dirName = resolveDirName(fullCodePath, payload.directory_name || existingMini?.dirName)
     const openMini = () => {
       const initialMaximized = payload.initial_maximized === undefined
-        ? true
+        ? false
         : !!payload.initial_maximized
       const openedMini = openNewMiniWs(
         payload.session_id || undefined,
@@ -461,7 +448,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         dirName,
         initialMaximized,
         true,
-        !!payload.force_new
+        !!payload.force_new || !normalizedSessionId
       )
       const nextSessionId = payload.session_id || openedMini?.initialSessionId || undefined
       syncMiniWsQueryParam(true, {
@@ -503,7 +490,7 @@ export function useWorkspaceMiniWorkstations(options: UseWorkspaceMiniWorkstatio
         dirName: mwsName || undefined,
         sessionId: mwsSid || undefined,
         initialExpanded,
-        initialMaximized: normalizeRouteBool(route.query[LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY], true),
+        initialMaximized: normalizeRouteBool(route.query[LEGACY_MINI_WORKSTATION_MAXIMIZED_QUERY_KEY], false),
       })
     }
   }

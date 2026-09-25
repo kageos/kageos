@@ -19,6 +19,8 @@ type MessageRepository struct {
 
 type InboxListFilter struct {
 	Status          string
+	Query           string
+	Since           *time.Time
 	ThreadKey       string
 	SourcePath      string
 	IncludeChildren bool
@@ -102,7 +104,7 @@ func (r *MessageRepository) ListInbox(ctx context.Context, username string, filt
 	}
 	if err := query.
 		Select(inboxSelectColumns()).
-		Order("m.created_at DESC").
+		Order("m.created_at DESC, m.id DESC").
 		Offset(offset).
 		Limit(limit).
 		Scan(&list).Error; err != nil {
@@ -340,6 +342,14 @@ func (r *MessageRepository) MarkAllRead(ctx context.Context, username string) er
 
 func (r *MessageRepository) inboxQuery(ctx context.Context, username string, filter InboxListFilter) *gorm.DB {
 	query := r.inboxBaseQuery(ctx, username)
+	if keyword := strings.TrimSpace(filter.Query); keyword != "" {
+		// Treat LIKE metacharacters literally; values remain bound parameters.
+		pattern := "%" + strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(keyword) + "%"
+		query = query.Where("(m.title LIKE ? ESCAPE '!' OR m.content LIKE ? ESCAPE '!' OR m.source_title LIKE ? ESCAPE '!' OR m.source_parent_title LIKE ? ESCAPE '!' OR m.workspace_session_title LIKE ? ESCAPE '!')", pattern, pattern, pattern, pattern, pattern)
+	}
+	if filter.Since != nil {
+		query = query.Where("m.created_at >= ?", *filter.Since)
+	}
 	if strings.EqualFold(strings.TrimSpace(filter.Status), "unread") {
 		query = query.Where("r.read_at IS NULL")
 	}

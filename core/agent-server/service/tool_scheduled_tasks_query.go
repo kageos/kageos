@@ -15,7 +15,7 @@ func runListScheduledTasks(ctx context.Context, args listScheduledTasksArgs, cur
 	req := listScheduledTasksRequest(kind, resourcePath, strings.TrimSpace(args.Status), args.Page, args.PageSize)
 	resp, err := listScheduledTasksAllPages(ctx, scheduledTaskClient(), req)
 	if err != nil {
-		return toolResult("list_scheduled_tasks 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "list_scheduled_tasks 调用失败", err), true)
 	}
 	return toolResultWithStructuredData(resp, false)
 }
@@ -78,7 +78,7 @@ func runManageScheduledTask(ctx context.Context, args manageScheduledTaskArgs) T
 	client := scheduledTaskClient()
 	task, err := client.GetTask(ctx, args.TaskID)
 	if err != nil {
-		return toolResult("manage_scheduled_task 查询任务失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "manage_scheduled_task 查询任务失败", err), true)
 	}
 	if err := ensureScheduledTaskOwnedByCurrentUser(ctx, task); err != nil {
 		return toolResult("manage_scheduled_task 权限校验失败: "+err.Error(), true)
@@ -102,7 +102,7 @@ func runManageScheduledTask(ctx context.Context, args manageScheduledTaskArgs) T
 	case "run_now":
 		exec, runErr := client.RunNow(ctx, args.TaskID)
 		if runErr != nil {
-			return toolResult("manage_scheduled_task 立即运行失败: "+runErr.Error(), true)
+			return toolResult(publicToolBackendError(ctx, "manage_scheduled_task 立即运行失败", runErr), true)
 		}
 		return toolResultWithStructuredData(map[string]interface{}{
 			"task_id":   args.TaskID,
@@ -113,7 +113,7 @@ func runManageScheduledTask(ctx context.Context, args manageScheduledTaskArgs) T
 		return toolResult("manage_scheduled_task action 仅支持 pause/resume/cancel/delete/run_now。", true)
 	}
 	if err != nil {
-		return toolResult("manage_scheduled_task 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "manage_scheduled_task 调用失败", err), true)
 	}
 	if strings.TrimSpace(args.Action) == "delete" {
 		return toolResultWithStructuredData(map[string]interface{}{
@@ -158,7 +158,7 @@ func runListScheduledTaskExecutions(ctx context.Context, args listScheduledTaskE
 	}
 	client := scheduledTaskClient()
 	if _, err := client.GetTask(ctx, args.TaskID); err != nil {
-		return toolResult("list_scheduled_task_executions 查询任务失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "list_scheduled_task_executions 查询任务失败", err), true)
 	}
 	resp, err := client.ListExecutions(ctx, args.TaskID, scheduledsdk.ListExecutionsRequest{
 		Status:   strings.TrimSpace(args.Status),
@@ -166,7 +166,7 @@ func runListScheduledTaskExecutions(ctx context.Context, args listScheduledTaskE
 		PageSize: args.PageSize,
 	})
 	if err != nil {
-		return toolResult("list_scheduled_task_executions 调用失败: "+err.Error(), true)
+		return toolResult(publicToolBackendError(ctx, "list_scheduled_task_executions 调用失败", err), true)
 	}
 	return toolResultWithStructuredData(resp, false)
 }

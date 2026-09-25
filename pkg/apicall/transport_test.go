@@ -163,3 +163,20 @@ func TestDoAPIRequestTruncatesInvalidJSONInError(t *testing.T) {
 		t.Fatal("parse error included the complete response body")
 	}
 }
+
+func TestBusinessResponseHasTypedError(t *testing.T) {
+	previous := httpClient
+	t.Cleanup(func() { httpClient = previous })
+	httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"code":-1,"msg":"不能删除进行中的会议","data":null}`)), Header: make(http.Header)}, nil
+	})}
+	req, _ := http.NewRequest(http.MethodPost, "http://gateway.invalid/business", nil)
+	_, err := doAPIRequest[any](req)
+	var business *BusinessError
+	if !errors.As(err, &business) || business.Code != -1 || business.Message != "不能删除进行中的会议" {
+		t.Fatalf("business error type lost: %v", err)
+	}
+	if err.Error() != "业务错误 [-1]: 不能删除进行中的会议" {
+		t.Fatalf("legacy error text changed: %v", err)
+	}
+}

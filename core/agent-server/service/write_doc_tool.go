@@ -90,7 +90,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 		err = apicall.UpdateDocs(ctx, detail.ID, updateReq)
 		if err != nil {
 			logger.Errorf(ctx, "[WriteDocTool] UpdateDocs 失败: %v", err)
-			return "文档更新失败: " + err.Error(), true
+			return publicToolBackendError(ctx, "write_doc 更新", err), true
 		}
 		logger.Infof(ctx, "[WriteDocTool] 文档已更新 - FullCodePath: %s", pathForAPI)
 		return fmt.Sprintf("文档已更新: %s", pathForAPI), false
@@ -158,7 +158,7 @@ func runWriteDocCommand(ctx context.Context, cmd writeDocCommand, defaultFullCod
 			}
 		}
 		logger.Errorf(ctx, "[WriteDocTool] CreateDocs 失败: %v", err)
-		return "文档创建失败: " + err.Error(), true
+		return publicToolBackendError(ctx, "write_doc 创建", err), true
 	}
 	logger.Infof(ctx, "[WriteDocTool] 文档已创建 - FullCodePath: %s, ID: %d", resp.FullCodePath, resp.ID)
 	return fmt.Sprintf("文档已创建: %s", resp.FullCodePath), false
@@ -241,7 +241,7 @@ func runCreateDirectoryCommand(ctx context.Context, cmd createDirectoryCommand, 
 	resp, err := apicall.CreatePackage(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[CreateDirectoryTool] CreatePackage 失败: %v", err)
-		return "create_directory 创建目录失败: " + err.Error(), true
+		return publicToolBackendError(ctx, "create_directory", err), true
 	}
 	logger.Infof(ctx, "[CreateDirectoryTool] 目录已创建 - FullCodePath: %s, ID: %d", resp.FullCodePath, resp.ID)
 	// 返回时必须带 init_.go 的完整真实代码，不能省略；若 API 返回的 FullCodePath 不足以构造，用父路径+code 拼出

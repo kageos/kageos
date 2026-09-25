@@ -25,7 +25,7 @@ type readAppLogArgs struct {
 
 var readAppLogToolDef = toolDefinition[readAppLogArgs](
 	"read_app_log",
-	"读取应用日志（workspace/logs），用于排查 bug、报错、超时、异常行为等运行问题。默认读取当前版本日志；可传 version 指定历史版本（如 v48）。支持按关键词过滤（keyword），并返回命中上下文。参数：directory（可选，不传则当前目录）、version（可选，默认当前版本）、lines（可选，默认 200，最大 1000）、keyword（可选）、context_lines（可选，默认 2，最大 5）、max_matches（可选，默认 50，最大 200）、ignore_case（可选，默认 false）。",
+	"读取应用业务诊断摘要，用于排查 bug、报错、超时、异常行为等运行问题。默认读取当前版本日志；可传 version 指定历史版本（如 v48）。支持按关键词过滤（keyword），并返回命中上下文。参数：directory（可选，不传则当前目录）、version（可选，默认当前版本）、lines（可选，默认 200，最大 1000）、keyword（可选）、context_lines（可选，默认 2，最大 5）、max_matches（可选，默认 50，最大 200）、ignore_case（可选，默认 false）。",
 )
 
 func (t *ReadAppLogTool) Definition() dto.ToolDef {
@@ -74,15 +74,14 @@ func runReadAppLogTool(ctx context.Context, args readAppLogArgs, currentFullCode
 	resp, err := apicall.ReadAppLog(ctx, req)
 	if err != nil {
 		logger.Errorf(ctx, "[ReadAppLog] ReadAppLog 失败: %v", err)
-		return "read_app_log 调用失败: " + err.Error(), true
+		return publicToolBackendError(ctx, "read_app_log", err), true
 	}
-	if !resp.Success {
-		return "read_app_log: " + resp.Message, true
+	if resp == nil || !resp.Success {
+		return publicToolBackendError(ctx, "read_app_log", fmt.Errorf("log response: %+v", resp)), true
 	}
-	msg := fmt.Sprintf("日志读取成功：版本=%s，文件=%s，总行数=%d，返回行数=%d，命中数=%d，截断=%t",
-		resp.ResolvedVersion, resp.LogFile, resp.TotalLines, resp.ReturnedLines, resp.MatchCount, resp.Truncated)
-	if resp.Content != "" {
-		msg += "\n\n" + resp.Content
-	}
-	return msg, false
+	return formatPublicAppLog(resp, targetPath), false
+}
+
+func formatPublicAppLog(resp *dto.ReadAppLogResp, workspace string) string {
+	return fmt.Sprintf("业务诊断：版本=%s，截断=%t\n\n%s", resp.ResolvedVersion, resp.Truncated, publicDiagnosticText(resp.Content, workspace))
 }

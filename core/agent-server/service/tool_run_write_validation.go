@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/kageos/kageos-sdk/agent-app/widget"
@@ -37,6 +38,7 @@ type batchWidgetDataValidator interface {
 type runWriteValidationIssueKind string
 
 const (
+	runWriteIssueNotWritable  runWriteValidationIssueKind = "不可写字段"
 	runWriteIssueRequired     runWriteValidationIssueKind = "必填字段"
 	runWriteIssueStaticChoice runWriteValidationIssueKind = "静态选项"
 	runWriteIssueFuzzyChoice  runWriteValidationIssueKind = "动态选项"
@@ -67,11 +69,11 @@ type runWriteValidationOptions struct {
 func runWritePreflight(ctx context.Context, toolName string, fullCodePath string, funcType string, mode string, payloads []runWriteValidationPayload) string {
 	fn, err := apicall.GetFunctionInfo(ctx, funcType, fullCodePath)
 	if err != nil {
-		return fmt.Sprintf("%s 写入前校验失败：无法获取函数详情: %v。\n【给模型】先用 search(full_code_path=%q, resource_type=\"function\", schema_output=\"both\") 确认函数存在和字段 schema，再重新构造 body。", toolName, err, fullCodePath)
+		return publicToolBackendError(ctx, toolName+" 写入前字段校验", err)
 	}
 	fields := runWriteFieldsForMode(fn, mode)
-	if len(fields) == 0 {
-		return ""
+	if fn == nil || fn.Schema == nil || (mode == runWriteModeFormSubmit && fn.Schema.Form == nil) || (mode != runWriteModeFormSubmit && fn.Schema.Table == nil) {
+		return "schema_unavailable：无法确认可写字段，本次未提交任何数据。"
 	}
 	issues := validateRunWritePayloads(ctx, fields, payloads, mode != runWriteModeTableUpdate, runWriteValidationOptions{
 		FullCodePath:       fullCodePath,
@@ -129,7 +131,23 @@ func validateRunWritePayloads(ctx context.Context, fields []*widget.Field, paylo
 	validatorByWidgetType := runWriteWidgetValidatorIndex(validators)
 	valuesByValidator := make(map[int][]runWriteFieldValue)
 
+	allowed := make(map[string]bool, len(fields))
+	for _, field := range fields {
+		if field != nil {
+			allowed[field.Code] = true
+		}
+	}
 	for _, payload := range payloads {
+		var unknown []string
+		for key := range payload.Body {
+			if !allowed[key] {
+				unknown = append(unknown, key)
+			}
+		}
+		sort.Strings(unknown)
+		for _, key := range unknown {
+			issues = append(issues, runWriteValidationIssue{Kind: runWriteIssueNotWritable, Message: fmt.Sprintf("%s 不在当前操作的可写字段中。", runWriteFieldPath(payload.Label, key))})
+		}
 		for _, field := range fields {
 			if field == nil || strings.TrimSpace(field.Code) == "" {
 				continue

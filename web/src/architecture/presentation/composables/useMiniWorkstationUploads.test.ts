@@ -1,3 +1,4 @@
+import { uploadFile, notifyUploadComplete } from '@/architecture/presentation/context/uploadContext'
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { appendWorkspaceResourceTokens, extractClipboardFiles, useMiniWorkstationUploads } from './useMiniWorkstationUploads'
@@ -116,4 +117,29 @@ describe('workspace node drop', () => {
     expect(inputText.value).toBe('分析 ')
     expect(insertWorkspaceResources).toHaveBeenCalledWith(['/system/sales/customers.table'], [{ full_code_path: '/system/sales/customers.table', name: '客户资料' }])
   })
+})
+
+vi.mock('@/architecture/presentation/context/uploadContext', () => ({
+  uploadFile: vi.fn(), notifyUploadComplete: vi.fn()
+}))
+
+it('keeps uploading active until all concurrent uploads settle, including failures', async () => {
+  type Result = Awaited<ReturnType<typeof uploadFile>>
+  let finishFirst!: (value: Result) => void
+  let failSecond!: (reason: Error) => void
+  vi.mocked(uploadFile)
+    .mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve }))
+    .mockImplementationOnce(() => new Promise((_, reject) => { failSecond = reject }))
+  vi.mocked(notifyUploadComplete).mockResolvedValue({ download_url: '/file', file_name: 'a.txt' } as Awaited<ReturnType<typeof notifyUploadComplete>>)
+  const uploads = useMiniWorkstationUploads({ fullCodePath: ref('/system/app'), inputText: ref(''), inputRef: ref(undefined) })
+  const a = uploads.onFileChange({ raw: file('a.txt') })
+  const b = uploads.onFileChange({ raw: file('b.txt') })
+  expect(uploads.uploading.value).toBe(true)
+  finishFirst({ fileInfo: { key: 'a', file_name: 'a.txt' } } as Result)
+  await a
+  expect(uploads.uploading.value).toBe(true)
+  failSecond(new Error('offline'))
+  await b
+  expect(uploads.uploading.value).toBe(false)
+  expect(uploads.attachedFiles.value).toHaveLength(1)
 })

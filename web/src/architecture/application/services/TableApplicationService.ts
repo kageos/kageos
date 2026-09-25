@@ -30,6 +30,7 @@ export interface TableBatchAddResult {
   createdCount: number
   failedCount: number
   errors: TableBatchAddError[]
+  refreshWarning?: string
 }
 
 export interface TableApplicationServiceOptions {
@@ -260,14 +261,20 @@ export class TableApplicationService {
       }
     }
 
+    let refreshWarning: string | undefined
     if (createdCount > 0) {
-      await this.loadData(functionDetail)
+      try {
+        await this.loadData(functionDetail)
+      } catch {
+        refreshWarning = '数据已写入，但列表刷新失败。请手动刷新列表，不要重复导入已成功的数据。'
+      }
     }
 
     return {
       createdCount,
       failedCount: errors.length,
-      errors
+      errors,
+      ...(refreshWarning ? { refreshWarning } : {})
     }
   }
 

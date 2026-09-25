@@ -2,28 +2,40 @@
   <el-dialog
     :model-value="modelValue"
     title="回收站"
-    width="min(1680px, 98vw)"
-    top="2vh"
+    width="min(1440px, calc(100vw - 32px))"
+    top="5vh"
     class="recycle-bin-dialog"
     destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
   >
+    <template #header="{ titleId, titleClass }">
+      <div class="recycle-heading">
+        <span class="recycle-heading-icon"><el-icon><Delete /></el-icon></span>
+        <div>
+          <h2 :id="titleId" :class="titleClass">回收站</h2>
+          <p>查看已删除记录，恢复需要保留的数据。</p>
+        </div>
+        <el-tag type="info" effect="plain">{{ total }} 条记录</el-tag>
+      </div>
+    </template>
     <div class="recycle-toolbar">
       <div class="recycle-toolbar-left">
         <el-input
           v-model="keyword"
           clearable
+          :prefix-icon="Search"
+          aria-label="搜索当前页已删除记录"
           placeholder="搜索当前页记录"
           class="recycle-search"
         />
-        <span class="recycle-hint">共 {{ total }} 条已删除记录，自动清理由平台保留策略决定。</span>
+        <span class="recycle-hint">{{ selectedRows.length ? `已选择 ${selectedRows.length} 条` : '选择记录后可批量恢复' }}</span>
       </div>
       <div class="recycle-toolbar-actions">
-        <el-button :loading="loading || policyLoading" @click="refreshRecycleBin">刷新</el-button>
+        <el-button :icon="Refresh" :loading="loading || policyLoading" @click="refreshRecycleBin">刷新</el-button>
         <el-button
           type="danger"
           plain
-          :disabled="selectedRows.length === 0"
+          :disabled="selectedRows.length === 0 || restoring || purging"
           :loading="purging"
           @click="purge(selectedRows)"
         >
@@ -31,7 +43,8 @@
         </el-button>
         <el-button
           type="primary"
-          :disabled="selectedRows.length === 0"
+          :icon="RefreshLeft"
+          :disabled="selectedRows.length === 0 || restoring || purging"
           :loading="restoring"
           @click="restore(selectedRows)"
         >
@@ -100,6 +113,9 @@
       @row-click="handleRowClick"
       class="recycle-bin-table table-with-fixed-column table-row-clickable"
     >
+      <template #empty>
+        <el-empty :image-size="80" :description="keyword.trim() ? '当前页没有匹配的记录，试试其他关键词' : '回收站为空，暂无需要恢复的记录'" />
+      </template>
       <el-table-column type="selection" width="55" fixed="left" />
       <el-table-column
         prop="id"
@@ -179,6 +195,7 @@
     </el-table>
 
     <div class="recycle-pagination">
+      <span class="recycle-hint">彻底删除后无法恢复，请谨慎操作。</span>
       <el-pagination
         v-model:current-page="page"
         v-model:page-size="pageSize"
@@ -242,9 +259,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { tableRecycleFeedback } from '@/architecture/presentation/views/utils/tableRecycleFeedback'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ElIcon, ElMessage, ElMessageBox } from 'element-plus'
-import { More, View } from '@element-plus/icons-vue'
+import { Delete, More, Refresh, RefreshLeft, Search, View } from '@element-plus/icons-vue'
 import type { FieldConfig, FieldValue, FunctionDetail, TableRow } from '@/architecture/domain/types'
 import { createAutoFieldValue, createEmptyRawFieldValue } from '@/architecture/domain/utils/createFieldValue'
 import { getTableAllFields, getTableListFields } from '@/architecture/domain/utils/functionSchemaSelectors'
@@ -336,18 +354,26 @@ const systemDetailEntries = computed(() => {
 
 const routerPath = computed(() => props.functionDetail.full_code_path || props.functionDetail.router || '')
 
+let rowsRequestId = 0
+onBeforeUnmount(() => { ++rowsRequestId })
+
 const loadRows = async () => {
   if (!routerPath.value) return
+  const requestId = ++rowsRequestId
   loading.value = true
+  rows.value = []
+  selectedRows.value = []
   try {
     const result = await tableGetDeletedRows(routerPath.value, page.value, pageSize.value)
+    if (requestId !== rowsRequestId) return
     rows.value = Array.isArray(result.rows) ? result.rows : []
     total.value = Number(result.total || 0)
     selectedRows.value = []
   } catch (error) {
+    if (requestId !== rowsRequestId) return
     ElMessage.error(error instanceof Error ? error.message : '加载已删除记录失败')
   } finally {
-    loading.value = false
+    if (requestId === rowsRequestId) loading.value = false
   }
 }
 
@@ -408,9 +434,9 @@ const saveRecyclePolicy = async () => {
 watch(
   () => props.modelValue,
   async (visible) => {
-    if (!visible) return
+    if (!visible) { ++rowsRequestId; loading.value = false; return }
     await nextTick()
-    await refreshRecycleBin()
+    if (props.modelValue) await refreshRecycleBin()
   },
   { immediate: true }
 )
@@ -473,8 +499,8 @@ const restore = async (targets: Array<Record<string, unknown>>) => {
   restoring.value = true
   try {
     const result = await tableRestoreRows(routerPath.value, ids)
-    ElMessage.success(`已恢复 ${result.restored || ids.length} 条记录`)
-    if (rows.value.length === ids.length && page.value > 1) page.value -= 1
+    ElMessage(tableRecycleFeedback('恢复', result.restored, ids.length))
+    if (result.restored === rows.value.length && result.restored > 0 && page.value > 1) page.value -= 1
     await loadRows()
     emit('restored')
   } catch (error) {
@@ -505,8 +531,8 @@ const purge = async (targets: Array<Record<string, unknown>>) => {
   purging.value = true
   try {
     const result = await tablePurgeRows(routerPath.value, ids)
-    ElMessage.success(`已彻底删除 ${result.purged || ids.length} 条记录`)
-    if (rows.value.length === ids.length && page.value > 1) page.value -= 1
+    ElMessage(tableRecycleFeedback('彻底删除', result.purged, ids.length))
+    if (result.purged === rows.value.length && result.purged > 0 && page.value > 1) page.value -= 1
     detailsVisible.value = false
     await loadRows()
   } catch (error) {
@@ -564,6 +590,13 @@ const systemFieldLabels: Record<string, string> = {
 </script>
 
 <style scoped>
+.recycle-heading { display: flex; align-items: center; gap: 14px; padding: 4px 32px 18px 0; }
+.recycle-heading-icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: var(--el-fill-color-light); color: var(--el-text-color-regular); font-size: 22px; }
+.recycle-heading h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.recycle-heading p { margin: 6px 0 0; font-size: 13px; color: var(--el-text-color-secondary); }
+.recycle-heading > .el-tag { margin-left: auto; }
+.recycle-policy-form { flex-wrap: wrap; }
+
 .recycle-toolbar,
 .recycle-pagination {
   display: flex;
@@ -654,7 +687,8 @@ const systemFieldLabels: Record<string, string> = {
 }
 
 .recycle-pagination {
-  justify-content: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
   margin-top: 16px;
 }
 
@@ -826,7 +860,7 @@ const systemFieldLabels: Record<string, string> = {
 :deep(.recycle-bin-table .el-table__body tr:hover > td.el-table-fixed-column--left),
 :deep(.recycle-bin-table .el-table__body tr:hover > td.control-column.el-table-fixed-column--left),
 :deep(.recycle-bin-table .el-table__body tr:hover > td.action-column.el-table-fixed-column--right) {
-  background: var(--el-fill-color-light) !important;
+  background: var(--bg-secondary, var(--el-bg-color)) !important;
 }
 
 :deep(.recycle-bin-table td.action-column .cell) {
@@ -857,7 +891,7 @@ const systemFieldLabels: Record<string, string> = {
 }
 
 .detail-icon-button:hover {
-  background-color: var(--el-color-primary-light-9);
+  background-color: var(--bg-secondary, var(--el-bg-color));
 }
 
 .detail-icon-button:focus-visible {
@@ -900,6 +934,11 @@ const systemFieldLabels: Record<string, string> = {
 }
 
 @media (max-width: 900px) {
+  .recycle-toolbar-actions { flex-wrap: wrap; gap: 8px; }
+  .recycle-toolbar-actions .el-button { margin-left: 0; }
+  .recycle-pagination :deep(.el-pagination) { flex-wrap: wrap; gap: 8px; }
+  .recycle-heading { flex-wrap: wrap; }
+
   .recycle-toolbar,
   .recycle-toolbar-left {
     align-items: stretch;
