@@ -24,15 +24,21 @@ func (r *LogArchiveRepository) MoveLegacyScheduledLogs(ctx context.Context) erro
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("resource_type IN ? AND (source = ? OR source_type = ? OR executor_type = ?)", []string{"form", "function", "table"}, "scheduled_task", "scheduled_task", "scheduled_function").Where(unclaimedArchiveLogs).Order("id").Limit(500).Find(&rows).Error; err != nil {
 				return err
 			}
+			copiedRows := make([]model.ScheduledExecutionLog, 0, len(rows))
+			legacyIDs := make([]int64, 0, len(rows))
 			for _, row := range rows {
 				oldID := row.ID
 				copied := model.ScheduledExecutionLog(row)
 				copied.ID = 0
 				copied.OriginalLogID = &oldID
-				if err := tx.Create(&copied).Error; err != nil {
+				copiedRows = append(copiedRows, copied)
+				legacyIDs = append(legacyIDs, oldID)
+			}
+			if len(copiedRows) > 0 {
+				if err := tx.CreateInBatches(&copiedRows, len(copiedRows)).Error; err != nil {
 					return err
 				}
-				if err := tx.Unscoped().Delete(&model.OperateLog{}, oldID).Error; err != nil {
+				if err := tx.Unscoped().Where("id IN ?", legacyIDs).Delete(&model.OperateLog{}).Error; err != nil {
 					return err
 				}
 			}

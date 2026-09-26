@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/kageos/kageos/core/app-server/model"
 	"github.com/kageos/kageos/dto"
 	"github.com/kageos/kageos/pkg/gormx/models"
@@ -52,6 +53,42 @@ func TestScheduledStorageMigrationAndTaskIsolation(t *testing.T) {
 	_, total, err = repo.GetOperateLogs(ctx, &dto.GetOperateLogsReq{})
 	if err != nil || total != 1 {
 		t.Fatalf("management action missing: %d %v", total, err)
+	}
+}
+
+func TestScheduledStorageMigrationMovesMultipleBatches(t *testing.T) {
+	db := newOperateLogRepositoryTestDB(t)
+	if err := db.AutoMigrate(&model.ScheduledExecutionLog{}, &model.LogArchiveBatch{}); err != nil {
+		t.Fatal(err)
+	}
+	rows := make([]model.OperateLog, 501)
+	for i := range rows {
+		rows[i] = model.OperateLog{
+			TenantUser:   "a",
+			App:          "b",
+			ResourceType: "form",
+			Source:       "scheduled_task",
+			SourceRef:    fmt.Sprintf("timer_task:1:execution:%d", i+1),
+		}
+	}
+	if err := db.CreateInBatches(&rows, 100).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := NewLogArchiveRepository(db).MoveLegacyScheduledLogs(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var legacyCount, migratedCount, distinctOriginalIDs int64
+	if err := db.Model(&model.OperateLog{}).Count(&legacyCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.ScheduledExecutionLog{}).Count(&migratedCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.ScheduledExecutionLog{}).Distinct("original_log_id").Count(&distinctOriginalIDs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if legacyCount != 0 || migratedCount != 501 || distinctOriginalIDs != 501 {
+		t.Fatalf("unexpected migration counts: legacy=%d migrated=%d original_ids=%d", legacyCount, migratedCount, distinctOriginalIDs)
 	}
 }
 
