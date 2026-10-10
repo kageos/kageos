@@ -64,7 +64,7 @@ kageos_load_cached_image() {
 
 kageos_pull_with_progress() {
   local command
-  printf -v command 'podman pull %q' "$1"
+  printf -v command 'stty cols 80 rows 24 2>/dev/null || true; exec podman pull %q' "$1"
   # util-linux script preserves the pull exit status and enables byte bars.
   script -q -e -c "$command" /dev/null </dev/null
 }
