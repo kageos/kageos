@@ -12,7 +12,7 @@
       :width="760"
       :show-arrow="false"
       :offset="10"
-      :popper-style="{ width: 'min(760px, calc(100vw - 32px))' }"
+      :popper-style="{ width: 'min(760px, calc(100vw - 32px))', zIndex: Z_INDEX.floatingPopper }"
       :teleported="true"
       :disabled="workspaceListForceSelect"
       popper-class="workspace-switcher-popover"
@@ -103,6 +103,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowUp, ArrowDown, FolderOpened, Monitor } from '@element-plus/icons-vue'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import type { App, ServiceTree } from '@/architecture/domain/types'
 import WorkspaceListDialog from './WorkspaceListDialog.vue'
 import WorkspaceListPanel from './WorkspaceListPanel.vue'

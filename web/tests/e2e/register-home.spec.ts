@@ -10,6 +10,7 @@ async function fillRegistrationForm(page: Page) {
   await page.getByTestId('register-email').fill('new-home@example.com')
   await page.getByTestId('register-password').fill(password)
   await page.getByTestId('register-code').fill('123456')
+  await page.getByTestId('legal-consent-checkbox').check()
 }
 
 test.describe('email registration personal workspace', () => {

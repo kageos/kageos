@@ -179,7 +179,7 @@
 
         <div v-else class="detail-fields-grid">
           <div
-            v-for="field in fields.filter((f) => f.widget?.type !== WidgetType.LINK)"
+            v-for="field in nonLinkFields"
             :key="field.code"
             class="detail-field-row"
           >
@@ -259,6 +259,7 @@ const emit = defineEmits<{
 
 const operateLogSectionRef = ref<LoadableOperateLogSection | null>(null)
 const { t } = useI18n()
+const nonLinkFields = computed(() => props.fields.filter((field) => field.widget?.type !== WidgetType.LINK))
 
 const activeTabModel = computed({
   get: () => props.modelValue,
