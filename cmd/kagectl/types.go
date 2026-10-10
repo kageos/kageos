@@ -25,9 +25,9 @@ const (
 	defaultMainImage           = "localhost/kageos-main:latest"
 	defaultAppBaseBuilderImage = "localhost/kageos-app-base-builder:latest"
 	defaultAppBaseImage        = "kagebase:latest"
-	defaultMySQLImage          = "docker.io/library/mysql:8.0.45"
-	defaultNATSImage           = "docker.io/library/nats:2.10.29-alpine"
-	defaultMinIOImage          = "docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"
+	defaultMySQLImage          = "m.daocloud.io/docker.io/library/mysql:8.0.45"
+	defaultNATSImage           = "m.daocloud.io/docker.io/library/nats:2.10.29-alpine"
+	defaultMinIOImage          = "m.daocloud.io/docker.io/bitnamilegacy/minio:2025.7.23-debian-12-r5"
 
 	defaultUpVerifyTimeout  = 5 * time.Minute
 	defaultUpVerifyInterval = 5 * time.Second

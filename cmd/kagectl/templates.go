@@ -46,6 +46,8 @@ services:
       MINIO_ROOT_USER: {{ q .MinIO.RootUser }}
       MINIO_ROOT_PASSWORD: {{ q .MinIO.RootPassword }}
       TZ: {{ q .Timezone }}
+    entrypoint: ["minio"]
+    user: "0"
     command: server /data --console-address ":9001"
     ports:
       - "127.0.0.1:9000:9000"
