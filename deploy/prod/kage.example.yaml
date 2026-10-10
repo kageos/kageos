@@ -17,9 +17,9 @@ site:
 images:
   main: "localhost/kageos-main:latest"
   app_base: "kagebase:latest"
-  mysql: "docker.io/library/mysql:8.0.45"
-  nats: "docker.io/library/nats:2.10.29-alpine"
-  minio: "docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"
+  mysql: "m.daocloud.io/docker.io/library/mysql:8.0.45"
+  nats: "m.daocloud.io/docker.io/library/nats:2.10.29-alpine"
+  minio: "m.daocloud.io/docker.io/bitnamilegacy/minio:2025.7.23-debian-12-r5"
 
 storage:
   root: "/home/kageos/.kageos/storage/prod"

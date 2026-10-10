@@ -15,9 +15,9 @@ KAGEOS_AIO_REQUIRE_BRIDGE="${KAGEOS_AIO_REQUIRE_BRIDGE:-1}"
 KAGEOS_AIO_ALLOW_HOST_NETWORK="${KAGEOS_AIO_ALLOW_HOST_NETWORK:-0}"
 KAGEOS_APP_BASE_BACKGROUND="${KAGEOS_APP_BASE_BACKGROUND:-1}"
 
-MYSQL_IMAGE="${KAGEOS_AIO_MYSQL_IMAGE:-docker.io/library/mysql:8.0.45}"
-NATS_IMAGE="${KAGEOS_AIO_NATS_IMAGE:-docker.io/library/nats:2.10.29-alpine}"
-MINIO_IMAGE="${KAGEOS_AIO_MINIO_IMAGE:-docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z}"
+MYSQL_IMAGE="${KAGEOS_AIO_MYSQL_IMAGE:-m.daocloud.io/docker.io/library/mysql:8.0.45}"
+NATS_IMAGE="${KAGEOS_AIO_NATS_IMAGE:-m.daocloud.io/docker.io/library/nats:2.10.29-alpine}"
+MINIO_IMAGE="${KAGEOS_AIO_MINIO_IMAGE:-m.daocloud.io/docker.io/bitnamilegacy/minio:2025.7.23-debian-12-r5}"
 
 random_hex() {
   local bytes="${1:-32}"
@@ -91,7 +91,7 @@ prepare_layout() {
 }
 
 write_infra_files() {
-  cat > "${AIO_INFRA_DIR}/mysql-init.sql" <<'SQL'
+  cat > "${AIO_INFRA_DIR}/mysql-init.sql" <<'SQL' || return $?
 CREATE DATABASE IF NOT EXISTS `app-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `app-storage` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS `agent-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -101,7 +101,7 @@ CREATE DATABASE IF NOT EXISTS `timer-scheduler` CHARACTER SET utf8mb4 COLLATE ut
 CREATE DATABASE IF NOT EXISTS `message-server` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 SQL
 
-  cat > "${AIO_INFRA_DIR}/nats-server.conf" <<EOF
+  cat > "${AIO_INFRA_DIR}/nats-server.conf" <<EOF || return $?
 max_payload: 10485760
 port: ${NATS_PORT}
 logtime: true
@@ -113,7 +113,7 @@ EOF
 }
 
 ensure_podman() {
-  if ! podman info >/tmp/kageos-aio-podman-info.log 2>&1; then
+  if ! timeout 30 podman info >/tmp/kageos-aio-podman-info.log 2>&1; then
     echo "ERROR: AIO 镜像需要可用的容器内 Podman。请使用 --privileged 启动外层 Docker/Podman 容器。" >&2
     cat /tmp/kageos-aio-podman-info.log >&2 || true
     exit 1
@@ -178,35 +178,133 @@ EOF
 
 podman_container_running() {
   local name="$1"
-  [[ "$(podman inspect -f '{{.State.Running}}' "$name" 2>/dev/null || true)" == "true" ]]
+  [[ "$(timeout 5 podman inspect -f '{{.State.Running}}' "$name" 2>/dev/null || true)" == "true" ]]
 }
 
 maybe_recreate_container() {
   local name="$1"
   if [[ "${KAGEOS_AIO_RECREATE_INFRA:-0}" == "1" ]] && podman container exists "$name" 2>/dev/null; then
     echo "==> 重建 AIO 内置服务容器: ${name}"
-    podman rm -f "$name" >/dev/null
+    podman rm -f "$name" >/dev/null || return $?
   fi
+}
+
+infra_diagnostics() {
+  local name="$1" label="$2" line secret
+  echo "ERROR: ${label} 启动失败，容器: ${name}" >&2
+  timeout 5 podman inspect -f 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$name" >&2 || true
+  # Never dump environments, connection strings or raw credential-bearing logs.
+  while IFS= read -r line; do
+    for secret in "${MYSQL_ROOT_PASSWORD:-}" "${MINIO_ROOT_PASSWORD:-}" "${NATS_PASSWORD:-}"; do
+      [[ -z "$secret" ]] || line="${line//"$secret"/[REDACTED]}"
+    done
+    printf '%s\n' "$line" >&2
+  done < <(timeout 5 podman logs --tail 60 "$name" 2>&1 || true)
 }
 
 ensure_container_running() {
-  local name="$1"
-  local label="$2"
+  local name="$1" label="$2"
   if ! podman_container_running "$name"; then
-    echo "ERROR: ${label} 容器未运行，可能是端口被占用或镜像启动失败: ${name}" >&2
-    podman logs --tail 120 "$name" >&2 || true
-    exit 1
+    infra_diagnostics "$name" "$label"
+    return 1
   fi
 }
 
-start_mysql() {
-  maybe_recreate_container "$MYSQL_CONTAINER_NAME"
+wait_service_ready() {
+  local name="$1" label="$2" timeout_seconds="$3" started=$SECONDS elapsed next_report=0
+  shift 3
+  [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || {
+    echo "ERROR: ${label} 就绪超时必须为正整数秒" >&2
+    return 1
+  }
+  while (( SECONDS - started < timeout_seconds )); do
+    ensure_container_running "$name" "$label" || return $?
+    if "$@"; then
+      echo "==> ${label} 就绪（$((SECONDS - started))s）"
+      return 0
+    fi
+    elapsed=$((SECONDS - started))
+    if (( elapsed >= next_report )); then
+      echo "==> 等待 ${label} 就绪 (${elapsed}/${timeout_seconds}s)"
+      next_report=$((elapsed + 10))
+    fi
+    sleep 2
+  done
+  echo "ERROR: ${label} 在 ${timeout_seconds}s 内未就绪" >&2
+  infra_diagnostics "$name" "$label"
+  return 1
+}
+
+mysql_probe() {
+  timeout 5 podman exec -e "MYSQL_PWD=${MYSQL_ROOT_PASSWORD}" "$MYSQL_CONTAINER_NAME" \
+    mysql --connect-timeout=3 --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot \
+    -e 'SELECT 1' >/dev/null 2>&1
+}
+
+nats_probe() {
+  local user="$NATS_USER" password="$NATS_PASSWORD"
+  user="${user//\\/\\\\}"; user="${user//\"/\\\"}"
+  password="${password//\\/\\\\}"; password="${password//\"/\\\"}"
+  NATS_PROBE_HOST="$NATS_HOST" NATS_PROBE_PORT="$NATS_PORT" \
+    NATS_PROBE_CONNECT="{\"user\":\"${user}\",\"pass\":\"${password}\"}" \
+    timeout 5 bash -c '
+      exec 3<>/dev/tcp/$NATS_PROBE_HOST/$NATS_PROBE_PORT || exit 1
+      IFS= read -r info <&3 || exit 1
+      [[ "$info" == INFO* ]] || exit 1
+      printf "CONNECT %s\r\nPING\r\n" "$NATS_PROBE_CONNECT" >&3
+      while IFS= read -r response <&3; do
+        case "$response" in
+          PONG*) exit 0 ;;
+          -ERR*) exit 1 ;;
+          PING*) printf "PONG\r\n" >&3 ;;
+        esac
+      done
+      exit 1
+    ' >/dev/null 2>&1
+}
+
+minio_probe() {
+  curl --silent --fail --connect-timeout 2 --max-time 5 \
+    "http://${MINIO_HOST}:${MINIO_PORT}/minio/health/ready" >/dev/null 2>&1
+}
+
+wait_mysql_ready() {
+  wait_service_ready "$MYSQL_CONTAINER_NAME" "MySQL 登录和查询" "${KAGEOS_AIO_MYSQL_READY_TIMEOUT:-600}" mysql_probe || return $?
+  echo "==> 初始化/检查 kageos 数据库"
+  if ! timeout 30 podman exec -i -e "MYSQL_PWD=${MYSQL_ROOT_PASSWORD}" "$MYSQL_CONTAINER_NAME" \
+    mysql --connect-timeout=3 --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot < "${AIO_INFRA_DIR}/mysql-init.sql"; then
+    infra_diagnostics "$MYSQL_CONTAINER_NAME" "MySQL 数据库初始化"
+    return 1
+  fi
+}
+
+wait_nats_ready() {
+  wait_service_ready "$NATS_CONTAINER_NAME" "NATS 鉴权和 PING/PONG" "${KAGEOS_AIO_NATS_READY_TIMEOUT:-120}" nats_probe
+}
+
+wait_minio_ready() {
+  wait_service_ready "$MINIO_CONTAINER_NAME" "MinIO 健康接口" "${KAGEOS_AIO_MINIO_READY_TIMEOUT:-180}" minio_probe
+}
+
+prepare_infra_image() {
+  local name="$1" image="$2"
+  if podman container exists "$name" 2>/dev/null; then
+    echo "==> 复用已有基础服务容器: ${name}"
+    return 0
+  fi
+  kageos_ensure_image "$image"
+}
+
+launch_mysql() {
+  local status
+  maybe_recreate_container "$MYSQL_CONTAINER_NAME" || return $?
   if podman_container_running "$MYSQL_CONTAINER_NAME"; then
     echo "==> MySQL 已运行: ${MYSQL_CONTAINER_NAME}"
   elif podman container exists "$MYSQL_CONTAINER_NAME" 2>/dev/null; then
     echo "==> 启动 MySQL: ${MYSQL_CONTAINER_NAME}"
-    podman start "$MYSQL_CONTAINER_NAME" >/dev/null
+    podman start "$MYSQL_CONTAINER_NAME" >/dev/null || { status=$?; infra_diagnostics "$MYSQL_CONTAINER_NAME" "MySQL"; return "$status"; }
   else
+    kageos_ensure_image "$MYSQL_IMAGE" || return $?
     echo "==> 创建并启动 MySQL: ${MYSQL_IMAGE}"
     podman run -d \
       --name "$MYSQL_CONTAINER_NAME" \
@@ -216,72 +314,78 @@ start_mysql() {
       -e TZ="${TZ:-Asia/Shanghai}" \
       -v "${AIO_DATA_DIR}/mysql:/var/lib/mysql" \
       -v "${AIO_INFRA_DIR}/mysql-init.sql:/docker-entrypoint-initdb.d/init.sql:ro" \
-      "$MYSQL_IMAGE" \
+      --pull=never "$MYSQL_IMAGE" \
       --port="${MYSQL_PORT}" \
       --character-set-server=utf8mb4 \
-      --collation-server=utf8mb4_unicode_ci >/dev/null
+      --collation-server=utf8mb4_unicode_ci >/dev/null || { status=$?; infra_diagnostics "$MYSQL_CONTAINER_NAME" "MySQL"; return "$status"; }
   fi
 
-  wait_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
-  for i in $(seq 1 90); do
-    ensure_container_running "$MYSQL_CONTAINER_NAME" "MySQL"
-    if podman exec "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" -e 'SELECT 1' >/dev/null 2>&1; then
-      echo "==> MySQL root 登录就绪"
-      podman exec -i "$MYSQL_CONTAINER_NAME" mysql --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" < "${AIO_INFRA_DIR}/mysql-init.sql"
-      return 0
-    fi
-    echo "    等待 MySQL 初始化账号 ... (${i}/90)"
-    sleep 2
-  done
-  echo "ERROR: MySQL 已监听但 root 登录未就绪" >&2
-  podman logs --tail 120 "$MYSQL_CONTAINER_NAME" >&2 || true
-  exit 1
+  return 0
 }
 
-start_nats() {
-  maybe_recreate_container "$NATS_CONTAINER_NAME"
+start_mysql() {
+  launch_mysql || return $?
+  wait_mysql_ready
+}
+
+launch_nats() {
+  local status
+  maybe_recreate_container "$NATS_CONTAINER_NAME" || return $?
   if podman_container_running "$NATS_CONTAINER_NAME"; then
     echo "==> NATS 已运行: ${NATS_CONTAINER_NAME}"
   elif podman container exists "$NATS_CONTAINER_NAME" 2>/dev/null; then
     echo "==> 启动 NATS: ${NATS_CONTAINER_NAME}"
-    podman start "$NATS_CONTAINER_NAME" >/dev/null
+    podman start "$NATS_CONTAINER_NAME" >/dev/null || { status=$?; infra_diagnostics "$NATS_CONTAINER_NAME" "NATS"; return "$status"; }
   else
+    kageos_ensure_image "$NATS_IMAGE" || return $?
     echo "==> 创建并启动 NATS: ${NATS_IMAGE}"
     podman run -d \
       --name "$NATS_CONTAINER_NAME" \
       --network host \
+      --restart=unless-stopped \
       -v "${AIO_INFRA_DIR}/nats-server.conf:/etc/nats/nats-server.conf:ro" \
-      "$NATS_IMAGE" \
-      -c /etc/nats/nats-server.conf >/dev/null
+      --pull=never "$NATS_IMAGE" \
+      -c /etc/nats/nats-server.conf >/dev/null || { status=$?; infra_diagnostics "$NATS_CONTAINER_NAME" "NATS"; return "$status"; }
   fi
 
-  wait_tcp "$NATS_HOST" "$NATS_PORT" "NATS"
-  ensure_container_running "$NATS_CONTAINER_NAME" "NATS"
+  return 0
 }
 
-start_minio() {
-  maybe_recreate_container "$MINIO_CONTAINER_NAME"
+start_nats() {
+  launch_nats || return $?
+  wait_nats_ready
+}
+
+launch_minio() {
+  local status
+  maybe_recreate_container "$MINIO_CONTAINER_NAME" || return $?
   if podman_container_running "$MINIO_CONTAINER_NAME"; then
     echo "==> MinIO 已运行: ${MINIO_CONTAINER_NAME}"
   elif podman container exists "$MINIO_CONTAINER_NAME" 2>/dev/null; then
     echo "==> 启动 MinIO: ${MINIO_CONTAINER_NAME}"
-    podman start "$MINIO_CONTAINER_NAME" >/dev/null
+    podman start "$MINIO_CONTAINER_NAME" >/dev/null || { status=$?; infra_diagnostics "$MINIO_CONTAINER_NAME" "MinIO"; return "$status"; }
   else
+    kageos_ensure_image "$MINIO_IMAGE" || return $?
     echo "==> 创建并启动 MinIO: ${MINIO_IMAGE}"
     podman run -d \
       --name "$MINIO_CONTAINER_NAME" \
+      --entrypoint minio --user 0 \
       --network host \
+      --restart=unless-stopped \
       -e MINIO_ROOT_USER="${MINIO_ROOT_USER}" \
       -e MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}" \
       -e TZ="${TZ:-Asia/Shanghai}" \
       -v "${AIO_DATA_DIR}/minio:/data" \
-      "$MINIO_IMAGE" \
-      server /data --address ":${MINIO_PORT}" --console-address ":${MINIO_CONSOLE_PORT}" >/dev/null
+      --pull=never "$MINIO_IMAGE" \
+      server /data --address ":${MINIO_PORT}" --console-address ":${MINIO_CONSOLE_PORT}" >/dev/null || { status=$?; infra_diagnostics "$MINIO_CONTAINER_NAME" "MinIO"; return "$status"; }
   fi
 
-  wait_tcp "$MINIO_HOST" "$MINIO_PORT" "MinIO"
-  ensure_container_running "$MINIO_CONTAINER_NAME" "MinIO"
-  wait_http "http://${MINIO_HOST}:${MINIO_PORT}/minio/health/ready" "MinIO health"
+  return 0
+}
+
+start_minio() {
+  launch_minio || return $?
+  wait_minio_ready
 }
 
 export_defaults() {
@@ -332,12 +436,12 @@ validate_startup_options() {
 }
 
 prepare_secrets() {
-  load_or_create_secret MYSQL_ROOT_PASSWORD 32
-  load_or_create_secret MINIO_ROOT_PASSWORD 32
-  load_or_create_secret NATS_PASSWORD 24
-  load_or_create_secret JWT_SECRET 32
-  load_or_create_secret KAGEOS_APP_DB_SECRET_KEY 32
-  load_or_create_secret SYSTEM_USER_PASSWORD 24
+  load_or_create_secret MYSQL_ROOT_PASSWORD 32 || return $?
+  load_or_create_secret MINIO_ROOT_PASSWORD 32 || return $?
+  load_or_create_secret NATS_PASSWORD 24 || return $?
+  load_or_create_secret JWT_SECRET 32 || return $?
+  load_or_create_secret KAGEOS_APP_DB_SECRET_KEY 32 || return $?
+  load_or_create_secret SYSTEM_USER_PASSWORD 24 || return $?
 
   NATS_SEED_PASSWORD="${NATS_SEED_PASSWORD:-$NATS_PASSWORD}"
   NATS_URL="${NATS_URL:-nats://${NATS_USER}:${NATS_PASSWORD}@${NATS_HOST}:${NATS_PORT}}"
@@ -356,13 +460,13 @@ EOF
 }
 
 prepare_aio_environment() {
-  prepare_layout
-  export_defaults
-  validate_startup_options
-  prepare_secrets
-  write_infra_files
-  assert_outer_network_supported
-  ensure_podman
+  prepare_layout || return $?
+  export_defaults || return $?
+  validate_startup_options || return $?
+  prepare_secrets || return $?
+  write_infra_files || return $?
+  assert_outer_network_supported || return $?
+  ensure_podman || return $?
 }
 
 main() {
@@ -371,9 +475,16 @@ main() {
 
   kageos_run_timed_stage "AIO 环境与密钥准备" prepare_aio_environment
 
-  kageos_run_timed_stage "MySQL 拉取/启动/初始化" start_mysql
-  kageos_run_timed_stage "NATS 拉取/启动" start_nats
-  kageos_run_timed_stage "MinIO 拉取/启动" start_minio
+  # Resolve images first, then start every container before waiting for MySQL.
+  kageos_run_timed_stage "MySQL 镜像准备" prepare_infra_image "$MYSQL_CONTAINER_NAME" "$MYSQL_IMAGE"
+  kageos_run_timed_stage "NATS 镜像准备" prepare_infra_image "$NATS_CONTAINER_NAME" "$NATS_IMAGE"
+  kageos_run_timed_stage "MinIO 镜像准备" prepare_infra_image "$MINIO_CONTAINER_NAME" "$MINIO_IMAGE"
+  kageos_run_timed_stage "MySQL 容器启动" launch_mysql
+  kageos_run_timed_stage "NATS 容器启动" launch_nats
+  kageos_run_timed_stage "MinIO 容器启动" launch_minio
+  kageos_run_timed_stage "NATS 协议就绪" wait_nats_ready
+  kageos_run_timed_stage "MinIO 健康就绪" wait_minio_ready
+  kageos_run_timed_stage "MySQL 查询与数据库初始化" wait_mysql_ready
 
   if [[ "$KAGEOS_APP_BASE_BACKGROUND" == "1" ]]; then
     echo "==> 用户应用基础镜像将在平台启动后后台准备；首次构建工作空间前请等待其就绪。"

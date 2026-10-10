@@ -68,25 +68,28 @@ aio_secret_value() {
 wait_core_ready() {
   local url="${KAGEOS_AIO_HEALTH_URL:-http://127.0.0.1:9090/health}"
   local timeout="${KAGEOS_AIO_CORE_READY_TIMEOUT:-600}"
-  local elapsed=0
+  local elapsed=0 started=$SECONDS next_report=0
   case "$timeout" in
-    ''|*[!0-9]*)
+    ''|0|*[!0-9]*)
       echo "ERROR: KAGEOS_AIO_CORE_READY_TIMEOUT 必须是秒数，当前值: ${timeout}" >&2
       return 1
       ;;
   esac
-  while [ "$elapsed" -lt "$timeout" ]; do
+  while (( SECONDS - started < timeout )); do
     if ! kill -0 "$CORE_PID" 2>/dev/null; then
       echo "ERROR: core-server 在就绪前已退出" >&2
       return 1
     fi
-    if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then
+    if curl --silent --show-error --fail --connect-timeout 2 --max-time 5 "$url" >/dev/null 2>&1; then
       echo "==> kageos API (${url}) 就绪"
       return 0
     fi
-    echo "    等待 kageos API (${url}) ... (${elapsed}/${timeout}s)"
-    sleep 5
-    elapsed=$((elapsed + 5))
+    elapsed=$((SECONDS - started))
+    if (( elapsed >= next_report )); then
+      echo "==> 等待 kageos API (${url}) ... (${elapsed}/${timeout}s)"
+      next_report=$((elapsed + 10))
+    fi
+    sleep 2
   done
   echo "ERROR: ${timeout}s 内未连上 kageos API ${url}" >&2
   return 1
@@ -316,14 +319,22 @@ PODMAN_STARTED_AT="$(kageos_now_seconds)"
 podman system service --time=0 unix:///run/podman/podman.sock &
 PODMAN_PID=$!
 for _i in $(seq 1 30); do
-  if [ -S /run/podman/podman.sock ]; then
+  if ! kill -0 "$PODMAN_PID" 2>/dev/null; then
+    echo "ERROR: Podman API 进程在就绪前退出" >&2
+    nginx -s quit 2>/dev/null || true
+    exit 1
+  fi
+  if [ -S /run/podman/podman.sock ] && curl --silent --fail --max-time 3 --unix-socket /run/podman/podman.sock http://localhost/_ping >/dev/null; then
     echo "==> Podman socket 就绪"
     break
   fi
   sleep 1
 done
-if [ ! -S /run/podman/podman.sock ]; then
-  echo "WARN: /run/podman/podman.sock 未出现，app-runtime 可能仍失败"
+if ! curl --silent --fail --max-time 3 --unix-socket /run/podman/podman.sock http://localhost/_ping >/dev/null; then
+  echo "ERROR: Podman API 未就绪，无法启动 app-runtime" >&2
+  kill -TERM "$PODMAN_PID" 2>/dev/null || true
+  nginx -s quit 2>/dev/null || true
+  exit 1
 fi
 kageos_report_duration "Podman API 启动" "$PODMAN_STARTED_AT"
 
@@ -341,7 +352,7 @@ shutdown() {
   if [[ -n "$APP_BASE_PID" ]]; then
     wait "$APP_BASE_PID" 2>/dev/null || true
   fi
-  exit 0
+  exit "${1:-0}"
 }
 trap shutdown SIGTERM SIGINT
 
@@ -352,11 +363,7 @@ CORE_PID=$!
 
 if is_aio_bundle; then
   if ! wait_core_ready; then
-    kill -TERM "$CORE_PID" 2>/dev/null || true
-    kill -TERM "$PODMAN_PID" 2>/dev/null || true
-    nginx -s quit 2>/dev/null || true
-    wait "$CORE_PID" 2>/dev/null || true
-    exit 1
+    shutdown 1
   fi
   kageos_report_duration "core-server 启动至 API 就绪" "$CORE_STARTED_AT"
   kageos_report_duration "主服务入口启动至可登录" "$MAIN_STARTED_AT"
@@ -366,6 +373,10 @@ if is_aio_bundle; then
   print_aio_success_summary
 fi
 
-wait -n "$CORE_PID"
-echo "==> core-server 退出，关闭中..."
-shutdown
+if wait "$CORE_PID"; then
+  CORE_EXIT_STATUS=0
+else
+  CORE_EXIT_STATUS=$?
+fi
+echo "==> core-server 退出（${CORE_EXIT_STATUS}），关闭中..."
+shutdown "$CORE_EXIT_STATUS"

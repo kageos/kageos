@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+source /app/entrypoint-common.sh
+
 KAGEOS_APP_BASE_IMAGE="${KAGEOS_APP_BASE_IMAGE:-${KAGEOS_DEFAULT_APP_BASE_IMAGE:-docker.io/qiayanai/kagebase:latest}}"
 KAGEOS_APP_BASE_ACTION="${KAGEOS_APP_BASE_ACTION:-ensure}"
 KAGEOS_APP_BASE_BUILD_NO_CACHE="${KAGEOS_APP_BASE_BUILD_NO_CACHE:-0}"
@@ -63,12 +65,12 @@ run_build() {
 
 pull_base_image() {
   echo "==> 拉取用户应用基础镜像: ${KAGEOS_APP_BASE_IMAGE}"
-  podman pull "${KAGEOS_APP_BASE_IMAGE}"
+  kageos_pull_with_progress "${KAGEOS_APP_BASE_IMAGE}"
 }
 
 case "$KAGEOS_APP_BASE_ACTION" in
   ensure)
-    if podman image exists "${KAGEOS_APP_BASE_IMAGE}" 2>/dev/null; then
+    if kageos_load_cached_image "${KAGEOS_APP_BASE_IMAGE}"; then
       echo "==> 用户应用基础镜像已存在，跳过构建: ${KAGEOS_APP_BASE_IMAGE}"
       report_duration "用户应用基础镜像准备总计" "$APP_BASE_PREPARE_STARTED_AT" cached
       exit 0

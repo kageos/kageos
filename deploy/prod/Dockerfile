@@ -2,7 +2,7 @@
 # 构建（仓库根）：docker build -f deploy/prod/Dockerfile -t localhost/kageos-main:latest .
 
 # ========== Go 编译 ==========
-FROM docker.io/library/golang:1.25.13-bookworm AS gobuilder
+FROM docker.io/library/golang:1.26.9-bookworm AS gobuilder
 WORKDIR /src
 # 国内构建：APT / Go 模块 / npm 可加速见 README；海外构建传 --build-arg APT_USE_MIRROR=0
 ARG APT_USE_MIRROR=1
@@ -43,6 +43,7 @@ RUN npm run build-only
 
 # ========== 运行 ==========
 FROM docker.io/library/debian:bookworm-slim
+LABEL io.kageos.installer.cache-schema="1"
 
 ARG APT_USE_MIRROR=1
 ENV DEBIAN_FRONTEND=noninteractive
@@ -53,7 +54,7 @@ ENV LANG=C.UTF-8
 COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror
 RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates tzdata curl netcat-openbsd \
+    ca-certificates tzdata curl netcat-openbsd util-linux \
     nginx gettext-base \
     libgpgme11 libdevmapper1.02.1 git \
     podman buildah fuse-overlayfs slirp4netns crun \

@@ -41,36 +41,75 @@ kageos_run_timed_stage() {
   fi
 }
 
-wait_tcp() {
-  local host="$1" port="$2" label="$3"
-  local i=1
-  while [ "$i" -le 90 ]; do
-    if nc -z "$host" "$port" 2>/dev/null; then
-      echo "==> ${label} (${host}:${port}) 就绪"
+# Load an installer-exported archive into this instance's isolated store.
+kageos_load_cached_image() {
+  local image="$1" key archive
+  podman image exists "$image" 2>/dev/null && return 0
+  # DaoCloud changes the transport prefix, not the upstream image/version.
+  if [[ "$image" == m.daocloud.io/* ]] && podman image exists "${image#m.daocloud.io/}" 2>/dev/null; then
+    podman tag "${image#m.daocloud.io/}" "$image" || return $?
+    return 0
+  fi
+  key="$(printf '%s' "$image" | sha256sum | awk '{print $1}')"
+  archive="${KAGEOS_AIO_IMAGE_CACHE_DIR:-/var/cache/kageos-images}/${key}.tar"
+  [[ -s "$archive" ]] || return 1
+  echo "==> 加载共享镜像缓存: ${image}"
+  podman load -i "$archive" || return $?
+  if [[ "$image" == m.daocloud.io/* ]] && ! podman image exists "$image" 2>/dev/null; then
+    podman image exists "${image#m.daocloud.io/}" 2>/dev/null || return 1
+    podman tag "${image#m.daocloud.io/}" "$image" || return $?
+  fi
+  podman image exists "$image"
+}
+
+kageos_pull_with_progress() {
+  local command
+  printf -v command 'podman pull %q' "$1"
+  # util-linux script preserves the pull exit status and enables byte bars.
+  script -q -e -c "$command" /dev/null </dev/null
+}
+
+kageos_ensure_image() {
+  local image="$1"
+  if kageos_load_cached_image "$image"; then
+    echo "==> 复用本地镜像缓存: ${image}"
+    return 0
+  fi
+  echo "==> 下载镜像: ${image}"
+  kageos_pull_with_progress "$image" || return $?
+}
+
+wait_endpoint() {
+  local label="$1" timeout_seconds="${KAGEOS_DEPENDENCY_READY_TIMEOUT:-180}" started=$SECONDS elapsed next_report=0
+  shift
+  [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || {
+    echo "ERROR: KAGEOS_DEPENDENCY_READY_TIMEOUT 必须为正整数秒" >&2
+    return 1
+  }
+  while (( SECONDS - started < timeout_seconds )); do
+    if "$@" >/dev/null 2>&1; then
+      echo "==> ${label} 就绪"
       return 0
     fi
-    echo "    等待 ${label} (${host}:${port}) ... ($i/90)"
+    elapsed=$((SECONDS - started))
+    if (( elapsed >= next_report )); then
+      echo "==> 等待 ${label} ... (${elapsed}/${timeout_seconds}s)"
+      next_report=$((elapsed + 10))
+    fi
     sleep 2
-    i=$((i + 1))
   done
-  echo "ERROR: 超时未连上 ${label} ${host}:${port}" >&2
-  exit 1
+  echo "ERROR: ${timeout_seconds}s 内未连上 ${label}" >&2
+  return 1
+}
+
+wait_tcp() {
+  local host="$1" port="$2" label="$3"
+  wait_endpoint "${label} (${host}:${port})" timeout 4 nc -z -w 3 "$host" "$port"
 }
 
 wait_http() {
   local url="$1" label="$2"
-  local i=1
-  while [ "$i" -le 90 ]; do
-    if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then
-      echo "==> ${label} (${url}) 就绪"
-      return 0
-    fi
-    echo "    等待 ${label} (${url}) ... ($i/90)"
-    sleep 2
-    i=$((i + 1))
-  done
-  echo "ERROR: 超时未连上 ${label} ${url}" >&2
-  exit 1
+  wait_endpoint "${label} (${url})" curl --silent --fail --connect-timeout 2 --max-time 5 "$url"
 }
 
 ensure_main_runtime_dirs() {

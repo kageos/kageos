@@ -7,7 +7,7 @@
 # It is intended for local evaluation and single-VM demos, not production.
 
 # ========== Go build ==========
-FROM docker.io/library/golang:1.25.13-bookworm AS gobuilder
+FROM docker.io/library/golang:1.26.9-bookworm AS gobuilder
 WORKDIR /src
 
 ARG APT_USE_MIRROR=1
@@ -53,6 +53,7 @@ RUN npm run build-only
 
 # ========== Runtime ==========
 FROM docker.io/library/debian:bookworm-slim
+LABEL io.kageos.installer.cache-schema="1"
 
 ARG APT_USE_MIRROR=1
 ARG KAGEOS_DEFAULT_APP_BASE_IMAGE=docker.io/qiayanai/kagebase:latest
@@ -64,7 +65,7 @@ ENV KAGEOS_DEFAULT_APP_BASE_IMAGE=${KAGEOS_DEFAULT_APP_BASE_IMAGE}
 COPY deploy/base/scripts/configure-debian-apt-mirror.sh /usr/local/bin/configure-debian-apt-mirror
 RUN chmod +x /usr/local/bin/configure-debian-apt-mirror && /usr/local/bin/configure-debian-apt-mirror
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash ca-certificates tzdata curl netcat-openbsd \
+    bash ca-certificates tzdata curl netcat-openbsd util-linux \
     nginx gettext-base \
     libgpgme11 libdevmapper1.02.1 git \
     podman buildah fuse-overlayfs slirp4netns crun \
