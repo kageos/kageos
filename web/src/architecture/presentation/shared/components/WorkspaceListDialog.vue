@@ -2,6 +2,7 @@
   <el-dialog
     v-model="visible"
     class="workspace-list-dialog-shell"
+    :z-index="Z_INDEX.globalOverlay"
     :title="forceSelect ? '请选择工作空间' : '工作空间列表'"
     width="900px"
     :append-to-body="true"
@@ -27,6 +28,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import type { App, ServiceTree } from '@/architecture/domain/types'
 import WorkspaceListPanel from './WorkspaceListPanel.vue'
 

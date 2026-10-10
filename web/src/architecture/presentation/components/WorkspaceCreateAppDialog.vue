@@ -4,6 +4,7 @@
     :title="t('workspace.createDialogTitle')"
     width="800px"
     class="workspace-create-app-dialog"
+    :z-index="Z_INDEX.globalOverlay"
     :close-on-click-modal="false"
     @close="$emit('close')"
   >
@@ -64,6 +65,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Z_INDEX } from '@/architecture/presentation/constants/zIndex'
 import { useI18n } from 'vue-i18n'
 import type { CreateAppRequest } from '@/architecture/domain/types'
 
