@@ -2,7 +2,7 @@
 # 构建: docker build -t kageos-web:latest -f deploy/base/images/web/Dockerfile .
 
 # ========== Stage 1: 构建 ==========
-FROM node:20-slim AS builder
+FROM node:22.22.2-slim AS builder
 
 WORKDIR /src
 

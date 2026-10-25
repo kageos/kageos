@@ -119,3 +119,65 @@ jobs:
           context: deploy/base/images/app-base
           file: deploy/base/images/app-base/Dockerfile
           call: check
+
+  docker-build:
+    name: Docker Build (${{ matrix.image }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [aio, prod, web]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - image: aio
+            dockerfile: deploy/aio/Dockerfile
+          - image: prod
+            dockerfile: deploy/prod/Dockerfile
+          - image: web
+            dockerfile: deploy/base/images/web/Dockerfile
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build complete image without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
+          push: false
+          load: true
+          tags: kageos-ci:${{ matrix.image }}
+          build-args: |
+            APT_USE_MIRROR=0
+            GOPROXY=https://proxy.golang.org,direct
+            GOSUMDB=sum.golang.org
+            NPM_REGISTRY=https://registry.npmjs.org
+            USE_CN_REGISTRY_MIRROR=0
+          cache-from: type=gha,scope=ci-${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=ci-${{ matrix.image }}-${{ matrix.arch }}
+      - name: Verify packaged runtime and web assets
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          if [ "$IMAGE" = web ]; then
+            docker run --rm --entrypoint sh kageos-ci:web -ec '
+              nginx -t
+              test -s /usr/share/nginx/html/index.html
+            '
+          else
+            docker run --rm --entrypoint sh "kageos-ci:$IMAGE" -ec '
+              test -x /app/core-server
+              test -x /app/web-assets-publisher
+              test -s /var/www/web/dist/index.html
+              go version
+              podman --version
+              test -z "$(find /app/namespace -mindepth 1 -print -quit)"
+            '
+          fi

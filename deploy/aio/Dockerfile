@@ -7,7 +7,7 @@
 # It is intended for local evaluation and single-VM demos, not production.
 
 # ========== Go build ==========
-FROM docker.io/library/golang:1.26.9-bookworm AS gobuilder
+FROM docker.io/library/golang:1.26.10-bookworm AS gobuilder
 WORKDIR /src
 
 ARG APT_USE_MIRROR=1
@@ -38,7 +38,7 @@ RUN GOCACHE=/tmp/go-build CGO_ENABLED=1 GOOS=linux go build \
     && rm -rf /tmp/go-build /root/.cache/go-build
 
 # ========== Web static build ==========
-FROM docker.io/library/node:20-bookworm AS webbuilder
+FROM docker.io/library/node:22.22.2-bookworm AS webbuilder
 WORKDIR /src/web
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
