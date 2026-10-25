@@ -27,7 +27,7 @@ kageos 把这些目录作为企业可以持续维护的软件资产来管理：
 
 公司可以先有一个客户目录，再逐步增加订单、交付和售后。新业务继续沿用平台的界面、权限和操作机制，并与已有目录建立关联。从使用者眼里看，业务增长体现为目录树上增加新的应用。
 
-> 配图待补：业务目录与资源（原素材未纳入本仓库）。
+![业务目录与资源](docs/assets/kageos-enterprise/large/01-workspace.jpg)
 
 *左侧组织不同业务，右侧展示所选目录的资源和运行情况。*
 
@@ -37,7 +37,7 @@ kageos 把这些目录作为企业可以持续维护的软件资产来管理：
 
 下图是收银结账：选择商品和会员，提交后，页面返回订单号、支付结果和金额信息。
 
-> 配图待补：收银结账表单与返回结果（原素材未纳入本仓库）。
+![收银结账表单与返回结果](docs/assets/kageos-enterprise/large/12-checkout-form-result.png)
 
 *截图展示表单内容、提交入口及应用返回的结果。*
 
@@ -49,7 +49,7 @@ kageos 把这些目录作为企业可以持续维护的软件资产来管理：
 
 企业的工作经常跨越多个应用。招聘确定了面试时间，还需要行政安排房间。kageos 可以让 AI 在一次任务中读取招聘目录的安排，再查询会议室目录、调用预约能力，并汇总处理结果。
 
-> 配图待补：招聘与会议室跨目录操作（原素材未纳入本仓库）。
+![招聘与会议室跨目录操作](docs/assets/kageos-enterprise/large/11-cross-directory-interview-meeting.png)
 
 *这次会话列出当天 4 场面试，跳过已过去的场次，返回下午 3 场的会议室与预约编号。*
 
@@ -74,11 +74,11 @@ kageos 把这些目录作为企业可以持续维护的软件资产来管理：
 
 网站监控就是固定任务的例子。企业登记目标后，任务按计划检查并记录结果。负责人查看看板和趋势，在出现异常时回查具体记录。
 
-> 配图待补：网站监控看板（原素材未纳入本仓库）。
+![网站监控看板](docs/assets/kageos-enterprise/large/08-monitor-dashboard.jpg)
 
 *按网站汇总检查次数、成功率、响应耗时和最近状态。*
 
-> 配图待补：网站响应耗时趋势（原素材未纳入本仓库）。
+![网站响应耗时趋势](docs/assets/kageos-enterprise/large/09-monitor-trend.jpg)
 
 *不同目标的耗时变化，帮助负责人找到需要进一步检查的时段。*
 
@@ -94,7 +94,7 @@ kageos 把这些目录作为企业可以持续维护的软件资产来管理：
 
 **生成后的成果是可以打开、提交数据、持续使用和修改的业务应用。** 代码与相关文件保存在工作空间中。以后新增客户阶段、调整跟进规则，可以在原应用上继续修改，并检查已有数据和常用操作是否正常。
 
-> 配图待补：Hub 应用详情与安装入口（原素材未纳入本仓库）。
+![Hub 应用详情与安装入口](docs/assets/kageos-enterprise/large/07-hub-directory.jpg)
 
 *Hub 将应用用途、界面、版本和能力清单放在一起，方便选择。*
 
@@ -265,6 +265,6 @@ kageos 适合愿意按自身业务逐步建设和调整系统的团队。落地�
 - 监控统计只代表截图时的演示环境，不能用于容量或 SLA 承诺；通知是否送达仍需核对通知记录。
 - 应用生成、数字员工持续运行、Hub 安装的完整实录待补，正文中的建设过程为实施示例。
 
-巡检日志原图未纳入本仓库；原稿记录截图时页面显示超过 26 万条记录，待补素材后核验。
+[巡检日志原图](docs/assets/kageos-enterprise/large/10-monitor-log.jpg)保留每次检查明细，截图时页面显示超过 26 万条记录。
 
-定位依据见[背景与世界观](kageos-background-and-worldview.md)和[官网说明](https://kageos.com/zh/what-is-kageos/)。技术实现见[当前架构](docs/current-architecture.md)和[平台能力](docs/platform-capabilities.md)。原稿的技术参考稿、素材说明及待补材料未纳入本仓库。
+定位依据见[背景与世界观](kageos-background-and-worldview.md)和[官网说明](https://kageos.com/zh/what-is-kageos/)。技术实现见[当前架构](docs/current-architecture.md)和[平台能力](docs/platform-capabilities.md)。配图来源与验证范围见[原始配图说明](docs/assets/kageos-enterprise/large/README.md)。
