@@ -15,5 +15,8 @@ updates:
       interval: weekly
     groups:
       web-dependencies:
+        update-types:
+          - "minor"
+          - "patch"
         patterns:
           - "*"
