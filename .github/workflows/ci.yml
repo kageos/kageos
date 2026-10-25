@@ -167,7 +167,7 @@ jobs:
           IMAGE: ${{ matrix.image }}
         run: |
           if [ "$IMAGE" = web ]; then
-            docker run --rm --entrypoint sh kageos-ci:web -ec '
+            docker run --rm --add-host backend:127.0.0.1 --add-host minio:127.0.0.1 --entrypoint sh kageos-ci:web -ec '
               nginx -t
               test -s /usr/share/nginx/html/index.html
             '
