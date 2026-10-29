@@ -12,8 +12,8 @@ require (
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/mozillazg/go-pinyin v0.21.0
-	github.com/nats-io/nats.go v1.54.0
-	github.com/openai/openai-go/v3 v3.82.0
+	github.com/nats-io/nats.go v1.55.0
+	github.com/openai/openai-go/v3 v3.88.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/swaggo/files v1.0.1
@@ -27,7 +27,7 @@ require (
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/text v0.43.0
-	golang.org/x/tools v0.51.0
+	golang.org/x/tools v0.52.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
